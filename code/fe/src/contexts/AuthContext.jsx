@@ -30,14 +30,12 @@ export const AuthProvider = ({ children }) => {
             console.error('Token validation failed:', error);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
-            localStorage.removeItem('refreshToken');
             setUser(null);
           }
         } catch (error) {
           console.error('Error parsing saved user:', error);
           localStorage.removeItem('user');
           localStorage.removeItem('token');
-          localStorage.removeItem('refreshToken');
         }
       }
       setIsLoading(false);

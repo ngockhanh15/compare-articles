@@ -43,13 +43,7 @@ const userSchema = new mongoose.Schema({
   emailVerificationExpire: Date,
   resetPasswordToken: String,
   resetPasswordExpire: Date,
-  refreshTokens: [{
-    token: String,
-    createdAt: {
-      type: Date,
-      default: Date.now
-    }
-  }],
+
   lastLogin: Date,
   loginAttempts: {
     type: Number,
@@ -83,16 +77,11 @@ userSchema.pre('save', async function (next) {
 // Sign JWT and return
 userSchema.methods.getSignedJwtToken = function () {
   return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
+    expiresIn: `${process.env.JWT_EXPIRE}d`, // Thêm 'd' để chỉ định ngày
   });
 };
 
-// Generate refresh token
-userSchema.methods.getRefreshToken = function () {
-  return jwt.sign({ id: this._id }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: process.env.JWT_REFRESH_EXPIRE,
-  });
-};
+
 
 // Match user entered password to hashed password in database
 userSchema.methods.matchPassword = async function (enteredPassword) {
@@ -144,25 +133,6 @@ userSchema.methods.resetLoginAttempts = function () {
   });
 };
 
-// Add refresh token
-userSchema.methods.addRefreshToken = function (token) {
-  this.refreshTokens.push({ token });
-  if (this.refreshTokens.length > 5) {
-    this.refreshTokens = this.refreshTokens.slice(-5);
-  }
-  return this.save();
-};
 
-// Remove refresh token
-userSchema.methods.removeRefreshToken = function (token) {
-  this.refreshTokens = this.refreshTokens.filter(rt => rt.token !== token);
-  return this.save();
-};
-
-// Remove all refresh tokens
-userSchema.methods.removeAllRefreshTokens = function () {
-  this.refreshTokens = [];
-  return this.save();
-};
 
 module.exports = mongoose.model('User', userSchema);

@@ -13,10 +13,6 @@ const { validationResult } = require('express-validator');
 const sendTokenResponse = async (user, statusCode, res, message = '') => {
   // Create token
   const token = user.getSignedJwtToken();
-  const refreshToken = user.getRefreshToken();
-
-  // Add refresh token to user
-  await user.addRefreshToken(refreshToken);
 
   // Update last login
   user.lastLogin = new Date();
@@ -24,7 +20,7 @@ const sendTokenResponse = async (user, statusCode, res, message = '') => {
 
   const options = {
     expires: new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000,
+      Date.now() + parseInt(process.env.JWT_EXPIRE) * 24 * 60 * 60 * 1000,
     ),
     httpOnly: true,
   };
@@ -41,7 +37,6 @@ const sendTokenResponse = async (user, statusCode, res, message = '') => {
       message,
       data: {
         token,
-        refreshToken,
         user: {
           id: user._id,
           name: user.name,
@@ -209,16 +204,6 @@ exports.login = async (req, res, next) => {
 // @access  Private
 exports.logout = async (req, res, next) => {
   try {
-    const refreshToken = req.body.refreshToken;
-    
-    if (refreshToken) {
-      // Remove specific refresh token
-      await req.user.removeRefreshToken(refreshToken);
-    } else {
-      // Remove all refresh tokens
-      await req.user.removeAllRefreshTokens();
-    }
-
     res.cookie('token', 'none', {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
@@ -356,9 +341,6 @@ exports.updatePassword = async (req, res, next) => {
     user.password = req.body.newPassword;
     await user.save();
 
-    // Remove all refresh tokens to force re-login
-    await user.removeAllRefreshTokens();
-
     sendTokenResponse(user, 200, res, 'Đổi mật khẩu thành công');
   } catch (err) {
     console.error('Update password error:', err);
@@ -476,9 +458,6 @@ exports.resetPassword = async (req, res, next) => {
     user.lockUntil = undefined;
     
     await user.save();
-
-    // Remove all refresh tokens
-    await user.removeAllRefreshTokens();
 
     sendTokenResponse(user, 200, res, 'Đặt lại mật khẩu thành công');
   } catch (err) {
@@ -621,67 +600,3 @@ exports.resendEmailVerification = async (req, res, next) => {
   }
 };
 
-// @desc    Refresh token
-// @route   POST /api/auth/refresh-token
-// @access  Public
-exports.refreshToken = async (req, res, next) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(401).json({
-        success: false,
-        error: 'Refresh token không được cung cấp'
-      });
-    }
-
-    try {
-      // Verify refresh token
-      const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
-      
-      // Get user and check if refresh token exists
-      const user = await User.findById(decoded.id);
-      
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          error: 'Không tìm thấy người dùng'
-        });
-      }
-
-      // Check if refresh token exists in user's tokens
-      const tokenExists = user.refreshTokens.some(rt => rt.token === refreshToken);
-      
-      if (!tokenExists) {
-        return res.status(401).json({
-          success: false,
-          error: 'Refresh token không hợp lệ'
-        });
-      }
-
-      // Check if user is active
-      if (!user.isActive || user.isLocked) {
-        return res.status(401).json({
-          success: false,
-          error: 'Tài khoản không khả dụng'
-        });
-      }
-
-      // Remove old refresh token and generate new tokens
-      await user.removeRefreshToken(refreshToken);
-      
-      sendTokenResponse(user, 200, res, 'Token đã được làm mới');
-    } catch (err) {
-      return res.status(401).json({
-        success: false,
-        error: 'Refresh token không hợp lệ hoặc đã hết hạn'
-      });
-    }
-  } catch (err) {
-    console.error('Refresh token error:', err);
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi server khi làm mới token'
-    });
-  }
-};

@@ -2,7 +2,7 @@ const nodemailer = require('nodemailer');
 
 const sendEmail = async (options) => {
   // Create transporter
-  const transporter = nodemailer.createTransporter({
+  const transporter = nodemailer.createTransport({
     host: process.env.EMAIL_HOST,
     port: parseInt(process.env.EMAIL_PORT),
     secure: false, // true for 465, false for other ports
@@ -17,7 +17,7 @@ const sendEmail = async (options) => {
 
   // Define email options
   const mailOptions = {
-    from: `${process.env.EMAIL_FROM_NAME || 'Filter Word App'} <${process.env.EMAIL_FROM}>`,
+    from: `${process.env.EMAIL_FROM}`,
     to: options.email,
     subject: options.subject,
     html: options.html,

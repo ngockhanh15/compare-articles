@@ -67,7 +67,6 @@ export const login = async (email, password) => {
     // Save token and user data to localStorage
     if (data.success && data.data.token) {
       localStorage.setItem('token', data.data.token);
-      localStorage.setItem('refreshToken', data.data.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.data.user));
     }
     
@@ -81,17 +80,13 @@ export const login = async (email, password) => {
 // Đăng xuất
 export const logout = async () => {
   try {
-    const refreshToken = localStorage.getItem('refreshToken');
-    
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ refreshToken }),
     });
     
     // Clear local storage regardless of response
     localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     
     if (response.ok) {
@@ -101,7 +96,6 @@ export const logout = async () => {
     console.error('Logout error:', error);
     // Still clear local storage even if API call fails
     localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
   }
 };
@@ -155,7 +149,6 @@ export const resetPassword = async (resetToken, password) => {
     // Save token and user data to localStorage
     if (data.success && data.data.token) {
       localStorage.setItem('token', data.data.token);
-      localStorage.setItem('refreshToken', data.data.refreshToken);
       localStorage.setItem('user', JSON.stringify(data.data.user));
     }
     
@@ -198,40 +191,7 @@ export const resendEmailVerification = async (email) => {
   }
 };
 
-// Refresh token
-export const refreshToken = async () => {
-  try {
-    const refreshToken = localStorage.getItem('refreshToken');
-    if (!refreshToken) {
-      throw new Error('No refresh token available');
-    }
-    
-    const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ refreshToken }),
-    });
-    
-    const data = await handleResponse(response);
-    
-    // Update tokens in localStorage
-    if (data.success && data.data.token) {
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('refreshToken', data.data.refreshToken);
-    }
-    
-    return data;
-  } catch (error) {
-    console.error('Refresh token error:', error);
-    // Clear tokens if refresh fails
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
-    throw error;
-  }
-};
+
 
 // ==================== OTHER API ====================
 
