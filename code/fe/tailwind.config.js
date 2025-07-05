@@ -106,6 +106,11 @@ export default {
           950: '#0a0a0a',
         },
       },
+      backgroundImage: {
+        'gradient-primary': 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+        'gradient-secondary': 'linear-gradient(135deg, #a855f7 0%, #9333ea 100%)',
+        'gradient-accent': 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+      },
     },
   },
   plugins: [],

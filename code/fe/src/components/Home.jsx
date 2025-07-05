@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 const Home = () => {
+  const { isAuthenticated } = useAuth();
+  
   // Mock data cho thống kê
   const [stats, setStats] = useState({
     totalDocuments: 0,
@@ -55,6 +59,39 @@ const Home = () => {
             <h1 className="text-4xl md:text-5xl font-bold mb-4">
               🎯 So sánh 2 văn bản
             </h1>
+            <p className="text-lg text-primary-100 mb-6">
+              Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp và tỷ lệ trùng lặp
+            </p>
+            
+            {/* CTA Button */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              {isAuthenticated ? (
+                <Link
+                  to="/text-checker"
+                  className="bg-white text-primary-600 px-8 py-3 rounded-xl font-semibold hover:bg-primary-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1 inline-flex items-center gap-2"
+                >
+                  <span>🔍</span>
+                  Bắt đầu kiểm tra ngay
+                </Link>
+              ) : (
+                <div className="flex gap-4">
+                  <Link
+                    to="/login"
+                    className="bg-white text-primary-600 px-8 py-3 rounded-xl font-semibold hover:bg-primary-50 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-1 inline-flex items-center gap-2"
+                  >
+                    <span>🔐</span>
+                    Đăng nhập để kiểm tra
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="border-2 border-white text-white px-8 py-3 rounded-xl font-semibold hover:bg-white/10 transition-all duration-200 inline-flex items-center gap-2"
+                  >
+                    <span>📝</span>
+                    Đăng ký miễn phí
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="flex flex-wrap justify-center gap-4 text-sm text-neutral-600">
