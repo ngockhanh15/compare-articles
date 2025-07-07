@@ -104,6 +104,7 @@ RATE_LIMIT_MAX_REQUESTS=5
 1. Tạo tài khoản tại [MongoDB Atlas](https://www.mongodb.com/atlas)
 2. Tạo cluster mới
 3. Lấy connection string và thay thế trong `.env`
+4. Tên và mật khẩu cần phải tương ứng trên alats
 
 ### 3. Cấu hình Email (Tùy chọn)
 
