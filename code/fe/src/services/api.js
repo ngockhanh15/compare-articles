@@ -168,50 +168,55 @@ export const resetPassword = async (resetToken, password) => {
 };
 
 
+// ==================== TEXT CHECKER API ====================
+
+// Upload file và extract text
+export const uploadFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/plagiarism/upload`, {
+      method: 'POST',
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it
+        ...(localStorage.getItem('token') && { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        })
+      },
+      body: formData,
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Upload file error:', error);
+    throw error;
+  }
+};
+
+// Kiểm tra plagiarism
+export const checkPlagiarism = async (text, options = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/check-plagiarism`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        options: {
+          checkInternet: true,
+          checkDatabase: true,
+          sensitivity: 'medium',
+          ...options
+        }
+      }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Check plagiarism error:', error);
+    throw error;
+  }
+};
+
 // ==================== OTHER API ====================
 
-// Hàm so sánh văn bản
-export const compareTexts = async (text1, text2) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/compare`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ text1, text2 }),
-    });
-    
-    return await handleResponse(response);
-  } catch (error) {
-    console.error('Compare texts error:', error);
-    throw error;
-  }
-};
-
-// Hàm lấy lịch sử so sánh
-export const getHistory = async () => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/history`, {
-      headers: getAuthHeaders(),
-    });
-    
-    return await handleResponse(response);
-  } catch (error) {
-    console.error('Get history error:', error);
-    throw error;
-  }
-};
-
-// Hàm lọc từ khóa
-export const filterWords = async (text, keywords) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/filter`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ text, keywords }),
-    });
-    
-    return await handleResponse(response);
-  } catch (error) {
-    console.error('Filter words error:', error);
-    throw error;
-  }
-};

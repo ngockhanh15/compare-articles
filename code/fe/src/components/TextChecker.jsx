@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { uploadFile, checkPlagiarism } from '../services/api';
 
 const TextChecker = () => {
   const { user } = useAuth();
@@ -8,17 +9,15 @@ const TextChecker = () => {
   const [isChecking, setIsChecking] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [error, setError] = useState('');
   const fileInputRef = useRef(null);
-
-  // Fake forbidden words database
-  const FORBIDDEN_WORDS = [
-    'spam', 'hack', 'virus', 'scam', 'fake', 'cheat', 'illegal',
-    'violence', 'hate', 'discrimination', 'harassment', 'abuse'
-  ];
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
+    // Clear previous errors
+    setError('');
 
     // Kiểm tra định dạng file
     const allowedTypes = [
@@ -29,13 +28,13 @@ const TextChecker = () => {
     ];
     
     if (!allowedTypes.includes(file.type)) {
-      alert('Chỉ hỗ trợ file định dạng: TXT, PDF, DOC, DOCX');
+      setError('Chỉ hỗ trợ file định dạng: TXT, PDF, DOC, DOCX');
       return;
     }
 
     // Kiểm tra kích thước file (tối đa 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      alert('File không được vượt quá 10MB');
+      setError('File không được vượt quá 10MB');
       return;
     }
 
@@ -46,93 +45,72 @@ const TextChecker = () => {
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setError('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const uploadFileToServer = async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      // Thay đổi URL này thành endpoint thực tế của backend
-      const response = await fetch('/api/upload-file', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload file thất bại');
-      }
-
-      const data = await response.json();
-      return data.extractedText || '';
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      throw error;
-    }
+  const handleInputChange = (e) => {
+    setInputText(e.target.value);
+    // Clear error when user starts typing
+    if (error) setError('');
   };
 
   const handleCheck = async () => {
+    setError('');
     let textToCheck = '';
 
-    if (selectedFile) {
-      if (!selectedFile) {
-        alert('Vui lòng chọn file cần kiểm tra');
-        return;
-      }
+    // Validate input
+    if (!selectedFile && !inputText.trim()) {
+      setError('Vui lòng nhập văn bản hoặc chọn file cần kiểm tra');
+      return;
+    }
 
-      setIsChecking(true);
-      setIsUploading(true);
+    setIsChecking(true);
 
-      try {
+    try {
+      if (selectedFile) {
+        setIsUploading(true);
+        
         // Upload file và lấy text đã extract
-        textToCheck = await uploadFileToServer(selectedFile);
+        const uploadResult = await uploadFile(selectedFile);
+        textToCheck = uploadResult.extractedText || '';
         setIsUploading(false);
         
         if (!textToCheck.trim()) {
-          alert('Không thể đọc nội dung từ file này');
+          setError('Không thể đọc nội dung từ file này');
           setIsChecking(false);
           return;
         }
-      } catch (error) {
-        setIsUploading(false);
-        setIsChecking(false);
-        alert('Lỗi khi xử lý file: ' + error.message);
-        return;
+      } else {
+        textToCheck = inputText;
       }
-    } else {
-      if (!inputText.trim()) {
-        alert('Vui lòng nhập văn bản hoặc chọn file cần kiểm tra');
-        return;
-      }
-      textToCheck = inputText;
-      setIsChecking(true);
+      
+      // Gọi API kiểm tra trùng lặp
+      const plagiarismResult = await checkPlagiarism(textToCheck);
+      
+      const wordCount = textToCheck.trim().split(/\s+/).length;
+      const charCount = textToCheck.length;
+
+      setResults({
+        duplicateRate: plagiarismResult.duplicatePercentage || 0,
+        matches: plagiarismResult.matches || [],
+        sources: plagiarismResult.sources || [],
+        wordCount,
+        charCount,
+        status: plagiarismResult.duplicatePercentage > 30 ? 'high' : 
+                plagiarismResult.duplicatePercentage > 15 ? 'medium' : 'low',
+        checkedAt: new Date().toLocaleString('vi-VN'),
+        source: selectedFile ? 'file' : 'text',
+        fileName: selectedFile ? selectedFile.name : null,
+        confidence: plagiarismResult.confidence || 'medium'
+      });
+    } catch (error) {
+      console.error('Text checker error:', error);
+      setError(error.message || 'Đã xảy ra lỗi khi kiểm tra trùng lặp');
+      setIsUploading(false);
     }
-    
-    // Simulate API processing time
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    const text = textToCheck.toLowerCase();
-    const foundWords = FORBIDDEN_WORDS.filter(word => 
-      text.includes(word.toLowerCase())
-    );
-
-    const wordCount = textToCheck.trim().split(/\s+/).length;
-    const charCount = textToCheck.length;
-    const duplicateRate = Math.floor(Math.random() * 30) + 5; // Random 5-35%
-
-    setResults({
-      foundWords,
-      wordCount,
-      charCount,
-      duplicateRate,
-      status: foundWords.length > 0 ? 'warning' : 'clean',
-      checkedAt: new Date().toLocaleString('vi-VN'),
-      source: selectedFile ? 'file' : 'text',
-      fileName: selectedFile ? selectedFile.name : null
-    });
 
     setIsChecking(false);
   };
@@ -141,6 +119,7 @@ const TextChecker = () => {
     setInputText('');
     setResults(null);
     setSelectedFile(null);
+    setError('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -156,14 +135,24 @@ const TextChecker = () => {
               <span className="text-3xl">🔍</span>
             </div>
             <h1 className="text-3xl font-bold text-neutral-800">
-              Kiểm tra văn bản
+              Kiểm tra trùng lặp nội dung
             </h1>
           </div>
           <p className="text-neutral-600">
             Chào mừng <span className="font-semibold text-primary-600">{user?.name}</span>! 
-            Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp.
+            Kiểm tra văn bản của bạn để phát hiện nội dung trùng lặp trong cơ sở dữ liệu.
           </p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="p-4 mb-6 border border-red-200 bg-red-50 rounded-xl">
+            <div className="flex items-center">
+              <span className="mr-2 text-red-500">❌</span>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-8 lg:grid-cols-2">
           {/* Input Section */}
@@ -224,7 +213,7 @@ const TextChecker = () => {
               <>
                 <textarea
                   value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  onChange={handleInputChange}
                   placeholder="Nhập hoặc dán văn bản của bạn vào đây..."
                   className="w-full h-64 p-4 transition-all duration-200 border resize-none border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-neutral-50 focus:bg-white"
                 />
@@ -297,29 +286,35 @@ const TextChecker = () => {
               <div className="space-y-6">
                 {/* Status */}
                 <div className={`p-4 rounded-xl ${
-                  results.status === 'clean' 
+                  results.status === 'low' 
                     ? 'bg-green-50 border border-green-200' 
-                    : 'bg-yellow-50 border border-yellow-200'
+                    : results.status === 'medium'
+                    ? 'bg-yellow-50 border border-yellow-200'
+                    : 'bg-red-50 border border-red-200'
                 }`}>
                   <div className="flex items-center">
                     <span className="mr-3 text-2xl">
-                      {results.status === 'clean' ? '✅' : '⚠️'}
+                      {results.status === 'low' ? '✅' : results.status === 'medium' ? '⚠️' : '🚨'}
                     </span>
                     <div>
                       <h3 className={`font-semibold ${
-                        results.status === 'clean' ? 'text-green-800' : 'text-yellow-800'
+                        results.status === 'low' ? 'text-green-800' : 
+                        results.status === 'medium' ? 'text-yellow-800' : 'text-red-800'
                       }`}>
-                        {results.status === 'clean' 
-                          ? 'Văn bản sạch' 
-                          : 'Phát hiện nội dung cần chú ý'
+                        {results.status === 'low' 
+                          ? 'Tỷ lệ trùng lặp thấp' 
+                          : results.status === 'medium'
+                          ? 'Tỷ lệ trùng lặp trung bình'
+                          : 'Tỷ lệ trùng lặp cao'
                         }
                       </h3>
                       <p className={`text-sm ${
-                        results.status === 'clean' ? 'text-green-600' : 'text-yellow-600'
+                        results.status === 'low' ? 'text-green-600' : 
+                        results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
                       }`}>
-                        {results.status === 'clean' 
-                          ? 'Không phát hiện từ khóa không phù hợp' 
-                          : `Tìm thấy ${results.foundWords.length} từ khóa cần chú ý`
+                        {results.duplicateRate}% nội dung có thể trùng lặp
+                        {results.matches && results.matches.length > 0 && 
+                          ` • Tìm thấy ${results.matches.length} nguồn tương tự`
                         }
                       </p>
                     </div>
@@ -343,34 +338,60 @@ const TextChecker = () => {
                   </div>
                   
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-                    <div className="text-2xl font-bold text-accent-600">
+                    <div className={`text-2xl font-bold ${
+                      results.status === 'low' ? 'text-green-600' : 
+                      results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
                       {results.duplicateRate}%
                     </div>
                     <div className="text-sm text-neutral-600">Tỷ lệ trùng lặp</div>
                   </div>
                   
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-                    <div className="text-2xl font-bold text-red-600">
-                      {results.foundWords.length}
+                    <div className="text-2xl font-bold text-blue-600">
+                      {results.sources ? results.sources.length : 0}
                     </div>
-                    <div className="text-sm text-neutral-600">Từ cấm</div>
+                    <div className="text-sm text-neutral-600">Nguồn tìm thấy</div>
                   </div>
                 </div>
 
-                {/* Found Words */}
-                {results.foundWords.length > 0 && (
+                {/* Plagiarism Matches */}
+                {results.matches && results.matches.length > 0 && (
                   <div>
                     <h4 className="mb-3 font-semibold text-neutral-800">
-                      Từ khóa được phát hiện:
+                      Các đoạn trùng lặp được tìm thấy:
                     </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {results.foundWords.map((word, index) => (
-                        <span
+                    <div className="space-y-3">
+                      {results.matches.map((match, index) => (
+                        <div
                           key={index}
-                          className="px-3 py-1 text-sm font-medium text-red-700 bg-red-100 border border-red-200 rounded-full"
+                          className="p-4 border border-orange-200 rounded-lg bg-orange-50"
                         >
-                          {word}
-                        </span>
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center">
+                              <span className="mr-2 text-orange-600">🔗</span>
+                              <span className="font-medium text-orange-800">
+                                {match.source}
+                              </span>
+                            </div>
+                            <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-200 rounded-full">
+                              {match.similarity}% tương tự
+                            </span>
+                          </div>
+                          <p className="mb-2 text-sm text-neutral-700">
+                            "{match.text}"
+                          </p>
+                          {match.url && (
+                            <a
+                              href={match.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              Xem nguồn gốc →
+                            </a>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -413,7 +434,7 @@ const TextChecker = () => {
               <div className="mb-2 text-2xl">📝</div>
               <h4 className="mb-2 font-medium text-neutral-800">Cách 1: Nhập text</h4>
               <p className="text-sm text-neutral-600">
-                Nhập hoặc dán văn bản cần kiểm tra vào ô textarea
+                Nhập hoặc dán văn bản cần kiểm tra trùng lặp vào ô textarea
               </p>
             </div>
             
@@ -421,7 +442,7 @@ const TextChecker = () => {
               <div className="mb-2 text-2xl">📎</div>
               <h4 className="mb-2 font-medium text-neutral-800">Cách 2: Upload file</h4>
               <p className="text-sm text-neutral-600">
-                Chọn file TXT, PDF, DOC, DOCX để kiểm tra nội dung
+                Chọn file TXT, PDF, DOC, DOCX để kiểm tra nội dung trùng lặp
               </p>
             </div>
             
@@ -429,7 +450,7 @@ const TextChecker = () => {
               <div className="mb-2 text-2xl">🔍</div>
               <h4 className="mb-2 font-medium text-neutral-800">Bước 2</h4>
               <p className="text-sm text-neutral-600">
-                Nhấn nút "Kiểm tra ngay" để bắt đầu phân tích
+                Nhấn nút "Kiểm tra ngay" để phân tích trùng lặp với cơ sở dữ liệu
               </p>
             </div>
             
@@ -437,7 +458,7 @@ const TextChecker = () => {
               <div className="mb-2 text-2xl">📊</div>
               <h4 className="mb-2 font-medium text-neutral-800">Bước 3</h4>
               <p className="text-sm text-neutral-600">
-                Xem kết quả và thống kê chi tiết ở bên phải
+                Xem tỷ lệ trùng lặp và các nguồn tương tự được tìm thấy
               </p>
             </div>
           </div>
