@@ -4,9 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
-const ForbiddenWord = require('../models/ForbiddenWord');
-const TextCheck = require('../models/TextCheck');
 const { protect, authorize, optionalAuth } = require('../middleware/auth');
+const plagiarismController = require('../controllers/plagiarismController');
 const router = express.Router();
 
 // Configure multer for file upload
@@ -83,183 +82,8 @@ function cleanupFile(filePath) {
   }
 }
 
-// GET all forbidden words (Admin only)
-router.get('/words', protect, authorize('admin'), async (req, res) => {
-  try {
-    const { page = 1, limit = 10, category, severity, search } = req.query;
-    
-    // Build query
-    let query = {};
-    if (category) query.category = category;
-    if (severity) query.severity = severity;
-    if (search) {
-      query.word = { $regex: search, $options: 'i' };
-    }
-
-    const words = await ForbiddenWord.find(query)
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await ForbiddenWord.countDocuments(query);
-
-    res.json({
-      success: true,
-      data: words,
-      pagination: {
-        current: page,
-        pages: Math.ceil(total / limit),
-        total
-      }
-    });
-  } catch (error) {
-    console.error('Get words error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi server khi lấy danh sách từ khóa'
-    });
-  }
-});
-
-// GET word by ID (Admin only)
-router.get('/words/:id', protect, authorize('admin'), async (req, res) => {
-  try {
-    const word = await ForbiddenWord.findById(req.params.id)
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
-    
-    if (!word) {
-      return res.status(404).json({
-        success: false,
-        error: 'Không tìm thấy từ khóa'
-      });
-    }
-    
-    res.json({
-      success: true,
-      data: word
-    });
-  } catch (error) {
-    console.error('Get word by ID error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi server khi lấy thông tin từ khóa'
-    });
-  }
-});
-
-// POST new word (Admin only)
-router.post('/words', protect, authorize('admin'), async (req, res) => {
-  try {
-    const { word, category, severity, description } = req.body;
-    
-    if (!word) {
-      return res.status(400).json({
-        success: false,
-        error: 'Từ khóa là bắt buộc'
-      });
-    }
-
-    // Check if word already exists
-    const existingWord = await ForbiddenWord.findOne({ word: word.toLowerCase() });
-    if (existingWord) {
-      return res.status(400).json({
-        success: false,
-        error: 'Từ khóa này đã tồn tại'
-      });
-    }
-    
-    const newWord = await ForbiddenWord.create({
-      word: word.toLowerCase(),
-      category: category || 'other',
-      severity: severity || 'medium',
-      description,
-      createdBy: req.user._id
-    });
-
-    await newWord.populate('createdBy', 'name email');
-    
-    res.status(201).json({
-      success: true,
-      data: newWord,
-      message: 'Thêm từ khóa thành công'
-    });
-  } catch (error) {
-    console.error('Add word error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Lỗi server khi thêm từ khóa'
-    });
-  }
-});
-
-// PUT update word
-router.put('/words/:id', (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const wordIndex = words.findIndex(w => w.id === id);
-    
-    if (wordIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Word not found'
-      });
-    }
-    
-    const { word, filtered } = req.body;
-    
-    if (word !== undefined) {
-      words[wordIndex].word = word.toLowerCase();
-    }
-    if (filtered !== undefined) {
-      words[wordIndex].filtered = filtered;
-    }
-    
-    res.json({
-      success: true,
-      data: words[wordIndex],
-      message: 'Word updated successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// DELETE word
-router.delete('/words/:id', (req, res) => {
-  try {
-    const id = parseInt(req.params.id);
-    const wordIndex = words.findIndex(w => w.id === id);
-    
-    if (wordIndex === -1) {
-      return res.status(404).json({
-        success: false,
-        error: 'Word not found'
-      });
-    }
-    
-    const deletedWord = words.splice(wordIndex, 1)[0];
-    
-    res.json({
-      success: true,
-      data: deletedWord,
-      message: 'Word deleted successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Upload file endpoint
-router.post('/upload-file', upload.single('file'), async (req, res) => {
+// Upload file endpoint (for plagiarism checking)
+router.post('/upload-file', protect, upload.single('file'), async (req, res) => {
   let filePath = null;
   
   try {
@@ -285,13 +109,9 @@ router.post('/upload-file', upload.single('file'), async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        extractedText: extractedText.trim(),
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype
-      },
-      message: 'File processed successfully'
+      extractedText: extractedText.trim(),
+      fileName: req.file.originalname,
+      fileSize: req.file.size
     });
   } catch (error) {
     // Clean up file in case of error
@@ -341,5 +161,33 @@ router.post('/filter', (req, res) => {
     });
   }
 });
+
+// ===== PLAGIARISM CHECKING ROUTES =====
+
+// Upload file for plagiarism checking (keeps file on server)
+router.post('/plagiarism/upload', protect, plagiarismController.uploadFile);
+
+// Check plagiarism
+router.post('/check-plagiarism', protect, plagiarismController.checkPlagiarism);
+
+// Get plagiarism history
+router.get('/plagiarism-history', protect, plagiarismController.getPlagiarismHistory);
+
+// Get user plagiarism statistics
+router.get('/plagiarism-stats', protect, plagiarismController.getUserStats);
+
+// ===== FILE MANAGEMENT ROUTES =====
+
+// Get list of uploaded files
+router.get('/files', protect, plagiarismController.getUploadedFiles);
+
+// Get file content for analysis
+router.get('/files/:fileName', protect, plagiarismController.getFileContent);
+
+// Delete uploaded file
+router.delete('/files/:fileName', protect, plagiarismController.deleteUploadedFile);
+
+// Clean up old files (admin only)
+router.post('/files/cleanup', protect, authorize('admin'), plagiarismController.cleanupOldFiles);
 
 module.exports = router;
