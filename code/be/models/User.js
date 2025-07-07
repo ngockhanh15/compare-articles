@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema({
   },
   emailVerified: {
     type: Boolean,
-    default: false
+    default: true
   },
   emailVerificationToken: String,
   emailVerificationExpire: Date,
@@ -99,7 +99,8 @@ userSchema.methods.getResetPasswordToken = function () {
   return resetToken;
 };
 
-// Generate email verification token
+// Generate email verification token - KHÔNG CẦN THIẾT NỮA
+/*
 userSchema.methods.getEmailVerificationToken = function () {
   const verificationToken = crypto.randomBytes(20).toString('hex');
   this.emailVerificationToken = crypto
@@ -109,6 +110,7 @@ userSchema.methods.getEmailVerificationToken = function () {
   this.emailVerificationExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
   return verificationToken;
 };
+*/
 
 // Handle login attempts and account locking
 userSchema.methods.incLoginAttempts = function () {

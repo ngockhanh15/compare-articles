@@ -5,15 +5,13 @@ import Home from './components/Home'
 import Login from './components/Login'
 import Register from './components/Register'
 import ForgotPassword from './components/ForgotPassword'
-import EmailVerification from './components/EmailVerification'
 import TextChecker from './components/TextChecker'
 import ProtectedRoute from './components/ProtectedRoute'
 
 // Layout component để hiển thị Header và Footer chỉ khi không phải trang login/register
 const Layout = ({ children }) => {
   const location = useLocation();
-  const hideHeaderFooter = ['/login', '/register', '/forgot-password'].includes(location.pathname) || 
-                          location.pathname.startsWith('/verify-email');
+  const hideHeaderFooter = ['/login', '/register', '/forgot-password'].includes(location.pathname);
 
   if (hideHeaderFooter) {
     return children;

@@ -38,7 +38,8 @@ exports.passwordResetLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Email verification rate limiter
+// Email verification rate limiter - KHÔNG CẦN THIẾT NỮA
+/*
 exports.emailVerificationLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 3, // limit each IP to 3 email verification requests per hour
@@ -49,3 +50,4 @@ exports.emailVerificationLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+*/

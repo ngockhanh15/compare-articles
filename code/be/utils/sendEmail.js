@@ -91,6 +91,8 @@ const getPasswordResetEmailTemplate = (resetUrl, name) => {
   `;
 };
 
+// Email verification template - KHÔNG CẦN THIẾT NỮA
+/*
 const getEmailVerificationTemplate = (verifyUrl, name) => {
   return `
     <!DOCTYPE html>
@@ -142,6 +144,7 @@ const getEmailVerificationTemplate = (verifyUrl, name) => {
     </html>
   `;
 };
+*/
 
 const getWelcomeEmailTemplate = (name) => {
   return `
@@ -198,6 +201,6 @@ const getWelcomeEmailTemplate = (name) => {
 module.exports = {
   sendEmail,
   getPasswordResetEmailTemplate,
-  getEmailVerificationTemplate,
+  // getEmailVerificationTemplate, // Không cần thiết nữa
   getWelcomeEmailTemplate
 };

@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 const Register = () => {
   const navigate = useNavigate();
-  const { register, resendEmailVerification } = useAuth();
+  const { register } = useAuth();
   
   const [formData, setFormData] = useState({
     fullName: "",
@@ -18,8 +18,6 @@ const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState("");
-  const [registeredEmail, setRegisteredEmail] = useState("");
-  const [isResendingEmail, setIsResendingEmail] = useState(false);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -94,10 +92,7 @@ const Register = () => {
       });
 
       if (response.success) {
-        setSuccessMessage(response.message || "Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.");
-        
-        // Save email before resetting form
-        setRegisteredEmail(formData.email);
+        setSuccessMessage(response.message || "Đăng ký thành công! Chào mừng bạn đến với Filter Word App.");
         
         // Reset form
         setFormData({
@@ -108,15 +103,14 @@ const Register = () => {
           agreeToTerms: false,
         });
 
-        // Redirect to login page after 5 seconds (increased time)
+        // Redirect to home page after 3 seconds vì đã tự động đăng nhập
         setTimeout(() => {
-          navigate("/login", { 
+          navigate("/", { 
             state: { 
-              message: "Đăng ký thành công! Vui lòng đăng nhập.",
-              email: registeredEmail 
+              message: "Đăng ký thành công! Chào mừng bạn đến với Filter Word App." 
             } 
           });
-        }, 5000);
+        }, 3000);
       }
     } catch (error) {
       console.error("Register error:", error);
@@ -150,23 +144,7 @@ const Register = () => {
     console.log("Google register clicked");
   };
 
-  const handleResendEmailVerification = async () => {
-    if (!registeredEmail) return;
-    
-    setIsResendingEmail(true);
-    try {
-      const response = await resendEmailVerification(registeredEmail);
-      
-      if (response.success) {
-        setSuccessMessage("Email xác thực đã được gửi lại! Vui lòng kiểm tra hộp thư của bạn.");
-      }
-    } catch (error) {
-      console.error("Resend email error:", error);
-      setErrors({ general: error.message || "Không thể gửi lại email xác thực" });
-    } finally {
-      setIsResendingEmail(false);
-    }
-  };
+  // Bỏ function handleResendEmailVerification vì không cần xác thực email nữa
 
   return (
     <div className="flex items-center justify-center min-h-screen px-4 py-12 bg-gradient-to-br from-primary-50 via-white to-accent-50 sm:px-6 lg:px-8">
@@ -195,20 +173,11 @@ const Register = () => {
                 <span className="mr-2 text-green-500">✅</span>
                 <p className="text-sm text-green-700">{successMessage}</p>
               </div>
-              {registeredEmail && (
-                <div className="pt-3 mt-3 border-t border-green-200">
-                  <p className="mb-2 text-xs text-green-600">
-                    Không nhận được email? Kiểm tra thư mục spam hoặc:
-                  </p>
-                  <button
-                    onClick={handleResendEmailVerification}
-                    disabled={isResendingEmail}
-                    className="px-3 py-1 text-xs text-white transition-colors bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isResendingEmail ? "Đang gửi..." : "Gửi lại email xác thực"}
-                  </button>
-                </div>
-              )}
+              <div className="pt-3 mt-3 border-t border-green-200">
+                <p className="text-xs text-green-600">
+                  Bạn sẽ được chuyển hướng đến trang chủ trong giây lát...
+                </p>
+              </div>
             </div>
           )}
 

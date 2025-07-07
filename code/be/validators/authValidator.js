@@ -116,7 +116,8 @@ exports.validateUpdatePassword = [
     })
 ];
 
-// Resend email verification validation
+// Resend email verification validation - KHÔNG CẦN THIẾT NỮA
+/*
 exports.validateResendVerification = [
   body('email')
     .trim()
@@ -126,3 +127,4 @@ exports.validateResendVerification = [
     .withMessage('Email không hợp lệ')
     .normalizeEmail()
 ];
+*/

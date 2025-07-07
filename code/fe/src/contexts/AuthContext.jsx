@@ -48,6 +48,12 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await api.register(userData);
+      
+      // Sau khi đăng ký thành công, tự động đăng nhập
+      if (response.success && response.data.user) {
+        setUser(response.data.user);
+      }
+      
       setIsLoading(false);
       return response;
     } catch (error) {
@@ -110,22 +116,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const verifyEmail = async (token) => {
-    try {
-      return await api.verifyEmail(token);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const resendEmailVerification = async (email) => {
-    try {
-      return await api.resendEmailVerification(email);
-    } catch (error) {
-      throw error;
-    }
-  };
-
   const value = {
     user,
     register,
@@ -133,8 +123,6 @@ export const AuthProvider = ({ children }) => {
     logout,
     forgotPassword,
     resetPassword,
-    verifyEmail,
-    resendEmailVerification,
     isLoading,
     isAuthenticated: !!user
   };

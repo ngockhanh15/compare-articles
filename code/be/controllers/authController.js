@@ -4,7 +4,7 @@ const User = require('../models/User');
 const { 
   sendEmail, 
   getPasswordResetEmailTemplate, 
-  getEmailVerificationTemplate,
+  // getEmailVerificationTemplate, // Không cần thiết nữa
   getWelcomeEmailTemplate 
 } = require('../utils/sendEmail');
 const { validationResult } = require('express-validator');
@@ -75,50 +75,28 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Create user
+    // Create user with email already verified
     const user = await User.create({
       name,
       email,
       password,
+      emailVerified: true // Đặt email đã được xác thực ngay từ đầu
     });
 
-    // Generate email verification token
-    const verificationToken = user.getEmailVerificationToken();
-    await user.save({ validateBeforeSave: false });
-
-    // Create verification URL
-    const verifyUrl = `${process.env.FRONTEND_URL}/verify-email/${verificationToken}`;
-
+    // Send welcome email
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Xác thực email - Filter Word App',
-        html: getEmailVerificationTemplate(verifyUrl, user.name)
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.',
-        data: {
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            emailVerified: user.emailVerified
-          }
-        }
+        subject: 'Chào mừng bạn đến với Filter Word App!',
+        html: getWelcomeEmailTemplate(user.name)
       });
     } catch (err) {
-      console.error('Email send error:', err);
-      user.emailVerificationToken = undefined;
-      user.emailVerificationExpire = undefined;
-      await user.save({ validateBeforeSave: false });
-
-      return res.status(500).json({
-        success: false,
-        error: 'Đăng ký thành công nhưng không thể gửi email xác thực. Vui lòng yêu cầu gửi lại email xác thực.'
-      });
+      console.error('Welcome email send error:', err);
+      // Don't fail registration if welcome email fails
     }
+
+    // Return success response with token
+    sendTokenResponse(user, 201, res, 'Đăng ký thành công! Chào mừng bạn đến với Filter Word App.');
   } catch (err) {
     console.error('Register error:', err);
     res.status(500).json({
@@ -283,7 +261,7 @@ exports.updateDetails = async (req, res, next) => {
       }
       
       fieldsToUpdate.email = req.body.email;
-      fieldsToUpdate.emailVerified = false; // Reset email verification
+      // Không cần reset emailVerified nữa vì không có xác thực email
     }
 
     const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
@@ -469,9 +447,10 @@ exports.resetPassword = async (req, res, next) => {
   }
 };
 
-// @desc    Verify email
+// @desc    Verify email - KHÔNG CẦN THIẾT NỮA
 // @route   GET /api/auth/verify-email/:token
 // @access  Public
+/*
 exports.verifyEmail = async (req, res, next) => {
   try {
     // Get hashed token
@@ -530,10 +509,12 @@ exports.verifyEmail = async (req, res, next) => {
     });
   }
 };
+*/
 
-// @desc    Resend email verification
+// @desc    Resend email verification - KHÔNG CẦN THIẾT NỮA
 // @route   POST /api/auth/resend-verification
 // @access  Public
+/*
 exports.resendEmailVerification = async (req, res, next) => {
   try {
     // Check for validation errors
@@ -599,4 +580,5 @@ exports.resendEmailVerification = async (req, res, next) => {
     });
   }
 };
+*/
 

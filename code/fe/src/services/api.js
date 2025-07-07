@@ -44,7 +44,15 @@ export const register = async (userData) => {
       }),
     });
     
-    return await handleResponse(response);
+    const data = await handleResponse(response);
+    
+    // Save token and user data to localStorage nếu đăng ký thành công
+    if (data.success && data.data.token) {
+      localStorage.setItem('token', data.data.token);
+      localStorage.setItem('user', JSON.stringify(data.data.user));
+    }
+    
+    return data;
   } catch (error) {
     console.error('Register error:', error);
     throw error;
@@ -158,39 +166,6 @@ export const resetPassword = async (resetToken, password) => {
     throw error;
   }
 };
-
-// Xác thực email
-export const verifyEmail = async (token) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/verify-email/${token}`, {
-      method: 'GET',
-    });
-    
-    return await handleResponse(response);
-  } catch (error) {
-    console.error('Verify email error:', error);
-    throw error;
-  }
-};
-
-// Gửi lại email xác thực
-export const resendEmailVerification = async (email) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    });
-    
-    return await handleResponse(response);
-  } catch (error) {
-    console.error('Resend email verification error:', error);
-    throw error;
-  }
-};
-
 
 
 // ==================== OTHER API ====================
