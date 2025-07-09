@@ -196,4 +196,15 @@ router.delete('/files/:fileName', protect, plagiarismController.deleteUploadedFi
 // Clean up old files (admin only)
 router.post('/files/cleanup', protect, authorize('admin'), plagiarismController.cleanupOldFiles);
 
+// ===== TreeAVL Cache Management Routes =====
+
+// Get cache statistics
+router.get('/cache/stats', protect, plagiarismController.getCacheStats);
+
+// Find similar texts in cache
+router.post('/cache/find-similar', protect, plagiarismController.findSimilarTexts);
+
+// Clear all cache (admin only)
+router.delete('/cache/clear', protect, authorize('admin'), plagiarismController.clearCache);
+
 module.exports = router;

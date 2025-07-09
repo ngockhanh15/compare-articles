@@ -1,4 +1,5 @@
 const PlagiarismCheck = require('../models/PlagiarismCheck');
+const plagiarismCacheService = require('../services/PlagiarismCacheService');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
@@ -41,25 +42,67 @@ const upload = multer({
   }
 });
 
-// Mock function to simulate plagiarism checking
-// Trong thực tế, bạn sẽ tích hợp với service thực tế như Turnitin, Copyscape, etc.
+// Enhanced plagiarism checking with TreeAVL cache optimization
 const simulatePlagiarismCheck = async (text, options = {}) => {
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+  const startTime = Date.now();
+  
+  // Kiểm tra cache trước
+  const cachedResult = plagiarismCacheService.findCachedResult(text);
+  
+  if (cachedResult && cachedResult.type === 'exact') {
+    console.log('Cache hit: exact match found');
+    return {
+      ...cachedResult.data.result,
+      fromCache: true,
+      cacheType: 'exact',
+      processingTime: Date.now() - startTime
+    };
+  }
+  
+  // Tìm các chunks tương tự để tăng tốc độ xử lý
+  const similarChunks = plagiarismCacheService.findSimilarChunks(text, 0.8);
+  
+  // Simulate processing time (giảm thời gian nếu có similar chunks)
+  const baseProcessingTime = 1000 + Math.random() * 2000;
+  const optimizedTime = similarChunks.length > 0 ? baseProcessingTime * 0.7 : baseProcessingTime;
+  await new Promise(resolve => setTimeout(resolve, optimizedTime));
   
   const words = text.trim().split(/\s+/);
   const wordCount = words.length;
   
-  // Mock duplicate percentage (in real implementation, this would come from actual checking)
-  const duplicatePercentage = Math.floor(Math.random() * 50) + 5; // 5-55%
+  // Tính duplicate percentage dựa trên similar chunks
+  let baseDuplicatePercentage = Math.floor(Math.random() * 50) + 5; // 5-55%
   
-  // Mock matches
+  if (similarChunks.length > 0) {
+    // Điều chỉnh duplicate percentage dựa trên similar chunks
+    const avgSimilarity = similarChunks.reduce((sum, chunk) => sum + chunk.similarity, 0) / similarChunks.length;
+    baseDuplicatePercentage = Math.max(baseDuplicatePercentage, Math.floor(avgSimilarity * 0.8));
+  }
+  
+  const duplicatePercentage = Math.min(baseDuplicatePercentage, 95);
+  
+  // Tạo matches, ưu tiên sử dụng thông tin từ similar chunks
   const matches = [];
+  
+  // Thêm matches từ similar chunks
+  similarChunks.slice(0, 2).forEach((chunk, index) => {
+    if (chunk.similarity > 80) {
+      matches.push({
+        text: chunk.originalChunk.text.substring(0, 120) + '...',
+        source: `cached-source-${index + 1}.com`,
+        similarity: Math.floor(chunk.similarity),
+        url: `https://cached-source-${index + 1}.com/document`,
+        matchedWords: Math.floor(chunk.originalChunk.text.split(/\s+/).length * chunk.similarity / 100),
+        fromCache: true
+      });
+    }
+  });
+  
+  // Thêm mock matches nếu cần
   if (duplicatePercentage > 10) {
-    // Create some mock matches
-    const numMatches = Math.floor(duplicatePercentage / 15) + 1;
+    const additionalMatches = Math.max(0, Math.floor(duplicatePercentage / 15) + 1 - matches.length);
     
-    for (let i = 0; i < Math.min(numMatches, 3); i++) {
+    for (let i = 0; i < Math.min(additionalMatches, 3 - matches.length); i++) {
       const startPos = Math.floor(Math.random() * Math.max(1, text.length - 100));
       const endPos = Math.min(startPos + 80 + Math.floor(Math.random() * 40), text.length);
       
@@ -68,20 +111,29 @@ const simulatePlagiarismCheck = async (text, options = {}) => {
         source: ['example.com', 'sample-site.org', 'academic-database.edu'][i] || 'unknown-source.com',
         similarity: Math.floor(duplicatePercentage * (0.8 + Math.random() * 0.4)),
         url: `https://${['example.com', 'sample-site.org', 'academic-database.edu'][i] || 'unknown-source.com'}/article${i + 1}`,
-        matchedWords: Math.floor(wordCount * duplicatePercentage / 100 / numMatches)
+        matchedWords: Math.floor(wordCount * duplicatePercentage / 100 / (additionalMatches + matches.length)),
+        fromCache: false
       });
     }
   }
   
   const sources = [...new Set(matches.map(m => m.source))];
   
-  return {
+  const result = {
     duplicatePercentage,
     matches,
     sources,
     confidence: duplicatePercentage > 30 ? 'high' : duplicatePercentage > 15 ? 'medium' : 'low',
-    processingTime: 1000 + Math.random() * 2000
+    processingTime: Date.now() - startTime,
+    fromCache: false,
+    cacheOptimized: similarChunks.length > 0,
+    similarChunksFound: similarChunks.length
   };
+  
+  // Cache kết quả mới
+  plagiarismCacheService.cacheResult(text, result);
+  
+  return result;
 };
 
 // Extract text from uploaded file
@@ -639,6 +691,80 @@ exports.cleanupOldFiles = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi dọn dẹp file cũ'
+    });
+  }
+};
+
+// ===== TreeAVL Cache Management Endpoints =====
+
+// Get cache statistics
+exports.getCacheStats = async (req, res) => {
+  try {
+    const stats = plagiarismCacheService.getCacheStats();
+    
+    res.json({
+      success: true,
+      cacheStats: stats,
+      message: 'Thống kê cache được lấy thành công'
+    });
+    
+  } catch (error) {
+    console.error('Get cache stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê cache'
+    });
+  }
+};
+
+// Clear all cache
+exports.clearCache = async (req, res) => {
+  try {
+    const result = plagiarismCacheService.clearAllCache();
+    
+    res.json({
+      success: result.success,
+      message: result.message || 'Cache đã được xóa thành công'
+    });
+    
+  } catch (error) {
+    console.error('Clear cache error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi xóa cache'
+    });
+  }
+};
+
+// Find similar texts in cache
+exports.findSimilarTexts = async (req, res) => {
+  try {
+    const { text, threshold = 0.8 } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Văn bản không được để trống'
+      });
+    }
+    
+    // Tìm kết quả tương tự trong cache
+    const cachedResult = plagiarismCacheService.findCachedResult(text);
+    const similarChunks = plagiarismCacheService.findSimilarChunks(text, threshold);
+    
+    res.json({
+      success: true,
+      cachedResult: cachedResult,
+      similarChunks: similarChunks,
+      totalSimilarChunks: similarChunks.length,
+      message: 'Tìm kiếm văn bản tương tự thành công'
+    });
+    
+  } catch (error) {
+    console.error('Find similar texts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tìm kiếm văn bản tương tự'
     });
   }
 };
