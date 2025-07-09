@@ -357,6 +357,46 @@ const TextChecker = () => {
                   </div>
                 </div>
 
+                {/* Processing Information */}
+                {(results.fromCache || results.cacheOptimized || results.processingTime) && (
+                  <div className="p-4 border border-green-200 rounded-xl bg-green-50">
+                    <h4 className="flex items-center mb-3 font-semibold text-green-800">
+                      <span className="mr-2">⚡</span>
+                      Thông tin xử lý
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      {results.fromCache && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-green-600">✅</span>
+                          <span className="text-green-700">Từ cache (tối ưu)</span>
+                        </div>
+                      )}
+                      {results.cacheOptimized && !results.fromCache && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-blue-600">🚀</span>
+                          <span className="text-green-700">Đã tối ưu hóa</span>
+                        </div>
+                      )}
+                      {results.processingTime && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-gray-600">⏱️</span>
+                          <span className="text-green-700">
+                            Xử lý: {results.processingTime}ms
+                          </span>
+                        </div>
+                      )}
+                      {results.similarChunksFound > 0 && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-orange-600">🔍</span>
+                          <span className="text-green-700">
+                            {results.similarChunksFound} đoạn tương tự
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Document Information */}
                 <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
                   <h4 className="flex items-center mb-3 font-semibold text-blue-800">
@@ -454,6 +494,11 @@ const TextChecker = () => {
                               <span className="font-medium text-orange-800">
                                 {match.source}
                               </span>
+                              {match.fromCache && (
+                                <span className="px-2 py-1 ml-2 text-xs font-medium text-green-700 bg-green-200 rounded-full">
+                                  Cache
+                                </span>
+                              )}
                             </div>
                             <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-200 rounded-full">
                               {match.similarity}% tương tự
