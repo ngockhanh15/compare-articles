@@ -6,12 +6,16 @@ import Login from './components/Login'
 import Register from './components/Register'
 import ForgotPassword from './components/ForgotPassword'
 import TextChecker from './components/TextChecker'
+import DetailedComparison from './components/DetailedComparison'
+import AllDocumentsComparison from './components/AllDocumentsComparison'
+import AdminDashboard from './components/AdminDashboard'
 import ProtectedRoute from './components/ProtectedRoute'
+import AdminRoute from './components/AdminRoute'
 
-// Layout component để hiển thị Header và Footer chỉ khi không phải trang login/register
+// Layout component để hiển thị Header và Footer chỉ khi không phải trang login/register/admin
 const Layout = ({ children }) => {
   const location = useLocation();
-  const hideHeaderFooter = ['/login', '/register', '/forgot-password'].includes(location.pathname);
+  const hideHeaderFooter = ['/login', '/register', '/forgot-password', '/admin'].includes(location.pathname);
 
   if (hideHeaderFooter) {
     return children;
@@ -102,6 +106,30 @@ function App() {
                 <ProtectedRoute>
                   <TextChecker />
                 </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/detailed-comparison/:checkId" 
+              element={
+                <ProtectedRoute>
+                  <DetailedComparison />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/all-documents-comparison/:checkId" 
+              element={
+                <ProtectedRoute>
+                  <AllDocumentsComparison />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin" 
+              element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
               } 
             />
           </Routes>

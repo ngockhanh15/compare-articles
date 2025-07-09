@@ -176,6 +176,12 @@ router.get('/plagiarism-history', protect, plagiarismController.getPlagiarismHis
 // Get user plagiarism statistics
 router.get('/plagiarism-stats', protect, plagiarismController.getUserStats);
 
+// Get detailed comparison with most similar document
+router.get('/plagiarism/:checkId/detailed-comparison', protect, plagiarismController.getDetailedComparison);
+
+// Get all documents comparison
+router.get('/plagiarism/:checkId/all-documents-comparison', protect, plagiarismController.getAllDocumentsComparison);
+
 // ===== FILE MANAGEMENT ROUTES =====
 
 // Get list of uploaded files

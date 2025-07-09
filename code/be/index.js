@@ -3,12 +3,18 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const { generalLimiter } = require('./middleware/rateLimiter');
+const createDefaultAdmin = require('./utils/createDefaultAdmin');
 
 // Load env vars
 dotenv.config();
 
-// Connect to database
-connectDB();
+// Connect to database and create default admin
+const initializeApp = async () => {
+  await connectDB();
+  await createDefaultAdmin();
+};
+
+initializeApp();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

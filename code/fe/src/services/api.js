@@ -218,5 +218,34 @@ export const checkPlagiarism = async (text, options = {}) => {
   }
 };
 
-// ==================== OTHER API ====================
+// Lấy thông tin so sánh chi tiết với document giống nhất
+export const getDetailedComparison = async (checkId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/detailed-comparison`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
 
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get detailed comparison error:', error);
+    throw error;
+  }
+};
+
+// Lấy danh sách so sánh với tất cả documents
+export const getAllDocumentsComparison = async (checkId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/all-documents-comparison`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get all documents comparison error:', error);
+    throw error;
+  }
+};
+
+// ==================== OTHER API ====================

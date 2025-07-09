@@ -212,6 +212,7 @@ exports.checkPlagiarism = async (req, res) => {
     
     res.json({
       success: true,
+      checkId: plagiarismCheck._id,
       duplicatePercentage: result.duplicatePercentage,
       matches: result.matches,
       sources: result.sources,
@@ -381,6 +382,146 @@ exports.deleteUploadedFile = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi xóa file'
+    });
+  }
+};
+
+// Get detailed comparison with most similar document
+exports.getDetailedComparison = async (req, res) => {
+  try {
+    const { checkId } = req.params;
+    const userId = req.user.id;
+    
+    // Lấy thông tin check hiện tại
+    const currentCheck = await PlagiarismCheck.findOne({ 
+      _id: checkId, 
+      user: userId 
+    });
+    
+    if (!currentCheck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy kết quả kiểm tra'
+      });
+    }
+    
+    // Tìm document giống nhất (mock data - trong thực tế sẽ query từ database)
+    const mostSimilarDoc = {
+      id: 'doc_' + Math.random().toString(36).substr(2, 9),
+      fileName: 'sample_document.pdf',
+      fileSize: 1024 * 500, // 500KB
+      fileType: 'application/pdf',
+      duplicateRate: Math.max(...currentCheck.matches.map(m => m.similarity)),
+      uploadedAt: new Date(Date.now() - 86400000 * 7), // 7 days ago
+      author: 'Nguyễn Văn A',
+      content: currentCheck.originalText // Mock - trong thực tế sẽ lấy từ DB
+    };
+    
+    // Tạo detailed matches cho side-by-side comparison
+    const detailedMatches = currentCheck.matches.map((match, index) => ({
+      id: index + 1,
+      originalText: match.text,
+      matchedText: match.text, // Mock - trong thực tế sẽ lấy text chính xác từ source
+      similarity: match.similarity,
+      startPosition: Math.floor(Math.random() * currentCheck.originalText.length / 2),
+      endPosition: Math.floor(Math.random() * currentCheck.originalText.length / 2) + 100,
+      source: match.source,
+      url: match.url
+    }));
+    
+    res.json({
+      success: true,
+      currentDocument: {
+        id: currentCheck._id,
+        fileName: currentCheck.fileName || 'Văn bản nhập tay',
+        fileSize: currentCheck.textLength,
+        fileType: currentCheck.source === 'file' ? 'text/plain' : 'text',
+        duplicateRate: currentCheck.duplicatePercentage,
+        content: currentCheck.originalText,
+        wordCount: currentCheck.wordCount,
+        checkedAt: currentCheck.createdAt
+      },
+      mostSimilarDocument: mostSimilarDoc,
+      detailedMatches,
+      overallSimilarity: mostSimilarDoc.duplicateRate
+    });
+    
+  } catch (error) {
+    console.error('Get detailed comparison error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thông tin so sánh chi tiết'
+    });
+  }
+};
+
+// Get all documents with duplicate rates
+exports.getAllDocumentsComparison = async (req, res) => {
+  try {
+    const { checkId } = req.params;
+    const userId = req.user.id;
+    
+    // Lấy thông tin check hiện tại
+    const currentCheck = await PlagiarismCheck.findOne({ 
+      _id: checkId, 
+      user: userId 
+    });
+    
+    if (!currentCheck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy kết quả kiểm tra'
+      });
+    }
+    
+    // Mock data - trong thực tế sẽ query tất cả documents trong database
+    const allDocuments = [];
+    const numDocs = Math.floor(Math.random() * 20) + 10; // 10-30 documents
+    
+    for (let i = 0; i < numDocs; i++) {
+      const duplicateRate = Math.floor(Math.random() * 60) + 5; // 5-65%
+      const fileTypes = ['pdf', 'docx', 'txt', 'doc'];
+      const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)];
+      
+      allDocuments.push({
+        id: 'doc_' + i.toString().padStart(3, '0'),
+        fileName: `document_${i + 1}.${fileType}`,
+        fileSize: Math.floor(Math.random() * 2048 * 1024) + 100 * 1024, // 100KB - 2MB
+        fileType: `application/${fileType === 'txt' ? 'plain' : fileType}`,
+        duplicateRate: duplicateRate,
+        uploadedAt: new Date(Date.now() - Math.random() * 86400000 * 30), // Random date within 30 days
+        author: `User ${i + 1}`,
+        matchedSegments: Math.floor(duplicateRate / 10) + 1,
+        status: duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low'
+      });
+    }
+    
+    // Sắp xếp theo tỷ lệ trùng lặp giảm dần
+    allDocuments.sort((a, b) => b.duplicateRate - a.duplicateRate);
+    
+    res.json({
+      success: true,
+      currentDocument: {
+        id: currentCheck._id,
+        fileName: currentCheck.fileName || 'Văn bản nhập tay',
+        fileSize: currentCheck.textLength,
+        fileType: currentCheck.source === 'file' ? 'text/plain' : 'text',
+        duplicateRate: currentCheck.duplicatePercentage,
+        wordCount: currentCheck.wordCount,
+        checkedAt: currentCheck.createdAt
+      },
+      allDocuments,
+      totalDocuments: allDocuments.length,
+      highRiskCount: allDocuments.filter(doc => doc.status === 'high').length,
+      mediumRiskCount: allDocuments.filter(doc => doc.status === 'medium').length,
+      lowRiskCount: allDocuments.filter(doc => doc.status === 'low').length
+    });
+    
+  } catch (error) {
+    console.error('Get all documents comparison error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách so sánh với tất cả documents'
     });
   }
 };

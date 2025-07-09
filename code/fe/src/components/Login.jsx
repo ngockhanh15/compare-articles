@@ -45,9 +45,14 @@ const Login = () => {
       const result = await login(formData.email, formData.password);
       
       if (result.success) {
-        // Redirect to the page user was trying to access, or to text checker
-        const from = location.state?.from?.pathname || "/text-checker";
-        navigate(from, { replace: true });
+        // Check if user is admin and redirect accordingly
+        if (result.data.user.role === 'admin') {
+          navigate("/admin", { replace: true });
+        } else {
+          // Redirect to the page user was trying to access, or to text checker
+          const from = location.state?.from?.pathname || "/text-checker";
+          navigate(from, { replace: true });
+        }
       }
     } catch (error) {
       console.error("Login error:", error);

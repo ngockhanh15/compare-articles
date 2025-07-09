@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { uploadFile, checkPlagiarism } from '../services/api';
+import { Link } from 'react-router-dom';
 
 const TextChecker = () => {
   const { user } = useAuth();
@@ -94,6 +95,7 @@ const TextChecker = () => {
       const charCount = textToCheck.length;
 
       setResults({
+        checkId: plagiarismResult.checkId,
         duplicateRate: plagiarismResult.duplicatePercentage || 0,
         matches: plagiarismResult.matches || [],
         sources: plagiarismResult.sources || [],
@@ -352,6 +354,85 @@ const TextChecker = () => {
                       {results.sources ? results.sources.length : 0}
                     </div>
                     <div className="text-sm text-neutral-600">Nguồn tìm thấy</div>
+                  </div>
+                </div>
+
+                {/* Document Information */}
+                <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
+                  <h4 className="flex items-center mb-3 font-semibold text-blue-800">
+                    <span className="mr-2">📄</span>
+                    Thông tin document
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <span className="text-sm font-medium text-blue-700">Tên file:</span>
+                      <p className="text-sm text-blue-600">
+                        {results.fileName || 'Văn bản nhập tay'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-blue-700">Kích thước:</span>
+                      <p className="text-sm text-blue-600">
+                        {results.source === 'file' 
+                          ? `${(results.charCount / 1024).toFixed(2)} KB` 
+                          : `${results.charCount} ký tự`
+                        }
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-blue-700">Loại file:</span>
+                      <p className="text-sm text-blue-600">
+                        {results.source === 'file' ? 'File upload' : 'Text input'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-blue-700">Tỷ lệ trùng lặp:</span>
+                      <p className={`text-sm font-semibold ${
+                        results.status === 'low' ? 'text-green-600' : 
+                        results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {results.duplicateRate}%
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Comparison Buttons */}
+                  <div className="flex gap-3">
+                    {results?.checkId ? (
+                      <Link
+                        to={`/detailed-comparison/${results.checkId}`}
+                        className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <span className="mr-2">🔍</span>
+                        So sánh với document giống nhất
+                      </Link>
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gray-400 rounded-lg opacity-50 cursor-not-allowed"
+                      >
+                        <span className="mr-2">🔍</span>
+                        So sánh với document giống nhất
+                      </button>
+                    )}
+                    
+                    {results?.checkId ? (
+                      <Link
+                        to={`/all-documents-comparison/${results.checkId}`}
+                        className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <span className="mr-2">📊</span>
+                        So sánh với toàn bộ database
+                      </Link>
+                    ) : (
+                      <button
+                        disabled
+                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-400 transition-all duration-200 bg-white border border-gray-300 rounded-lg opacity-50 cursor-not-allowed"
+                      >
+                        <span className="mr-2">📊</span>
+                        So sánh với toàn bộ database
+                      </button>
+                    )}
                   </div>
                 </div>
 

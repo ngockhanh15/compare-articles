@@ -110,7 +110,23 @@ const Header = () => {
                       <p className="text-xs text-neutral-500">
                         {user?.email || 'user@example.com'}
                       </p>
+                      {user?.role === 'admin' && (
+                        <span className="inline-flex px-2 py-1 mt-1 text-xs font-semibold text-purple-800 bg-purple-100 rounded-full">
+                          Quản trị viên
+                        </span>
+                      )}
                     </div>
+
+                    {user?.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
+                      >
+                        <span className="text-lg">🛠️</span>
+                        <span>Bảng điều khiển Admin</span>
+                      </Link>
+                    )}
 
                     <a
                       href="#"
