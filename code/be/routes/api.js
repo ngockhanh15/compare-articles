@@ -207,4 +207,12 @@ router.post('/cache/find-similar', protect, plagiarismController.findSimilarText
 // Clear all cache (admin only)
 router.delete('/cache/clear', protect, authorize('admin'), plagiarismController.clearCache);
 
+// ===== System Management Routes =====
+
+// Get system statistics (detection + cache)
+router.get('/system/stats', protect, plagiarismController.getSystemStats);
+
+// Initialize/Reset plagiarism detection system (admin only)
+router.post('/system/initialize', protect, authorize('admin'), plagiarismController.initializeSystem);
+
 module.exports = router;

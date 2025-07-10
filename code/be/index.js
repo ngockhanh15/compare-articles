@@ -4,14 +4,38 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const createDefaultAdmin = require('./utils/createDefaultAdmin');
+const initializePlagiarismSystem = require('./scripts/initializePlagiarismSystem');
 
 // Load env vars
 dotenv.config();
 
-// Connect to database and create default admin
+// Connect to database and initialize system
 const initializeApp = async () => {
-  await connectDB();
-  await createDefaultAdmin();
+  try {
+    console.log('🚀 Starting application initialization...');
+    
+    // 1. Connect to database
+    await connectDB();
+    console.log('✅ Database connected');
+    
+    // 2. Create default admin
+    await createDefaultAdmin();
+    console.log('✅ Default admin created/verified');
+    
+    // 3. Initialize plagiarism detection system
+    const plagiarismResult = await initializePlagiarismSystem();
+    if (plagiarismResult.success) {
+      console.log('✅ Plagiarism detection system initialized');
+    } else {
+      console.warn('⚠️ Plagiarism detection system initialization failed:', plagiarismResult.error);
+    }
+    
+    console.log('🎉 Application initialization completed!');
+    
+  } catch (error) {
+    console.error('❌ Application initialization failed:', error);
+    // Không exit process, để server vẫn có thể chạy
+  }
 };
 
 initializeApp();

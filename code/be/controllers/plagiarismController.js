@@ -1,5 +1,6 @@
 const PlagiarismCheck = require('../models/PlagiarismCheck');
 const plagiarismCacheService = require('../services/PlagiarismCacheService');
+const plagiarismDetectionService = require('../services/PlagiarismDetectionService');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
@@ -28,112 +29,116 @@ const upload = multer({
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = [
-      'text/plain',
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'text/plain'
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Chỉ hỗ trợ file định dạng: TXT, PDF, DOC, DOCX'), false);
+      cb(new Error('Hiện tại chỉ hỗ trợ file định dạng TXT'), false);
     }
   }
 });
 
-// Enhanced plagiarism checking with TreeAVL cache optimization
-const simulatePlagiarismCheck = async (text, options = {}) => {
+// Real plagiarism checking using TreeAVL and database comparison
+const performPlagiarismCheck = async (text, options = {}) => {
   const startTime = Date.now();
   
-  // Kiểm tra cache trước
-  const cachedResult = plagiarismCacheService.findCachedResult(text);
-  
-  if (cachedResult && cachedResult.type === 'exact') {
-    console.log('Cache hit: exact match found');
+  try {
+    // 1. Kiểm tra cache trước (để tăng tốc độ)
+    const cachedResult = plagiarismCacheService.findCachedResult(text);
+    
+    if (cachedResult && cachedResult.type === 'exact') {
+      console.log('Cache hit: exact match found');
+      return {
+        ...cachedResult.data.result,
+        fromCache: true,
+        cacheType: 'exact',
+        processingTime: Date.now() - startTime
+      };
+    }
+    
+    // 2. Thực hiện kiểm tra plagiarism thật sự với cây AVL
+    console.log('Performing real plagiarism check using AVL tree...');
+    const result = await plagiarismDetectionService.checkPlagiarism(text, options);
+    
+    // 3. Kết hợp với cache để tối ưu hóa
+    const similarChunks = plagiarismCacheService.findSimilarChunks(text, 0.8);
+    
+    // Nếu có similar chunks từ cache, thêm vào kết quả
+    if (similarChunks.length > 0) {
+      console.log(`Found ${similarChunks.length} similar chunks in cache`);
+      
+      similarChunks.slice(0, 2).forEach((chunk, index) => {
+        if (chunk.similarity > 80) {
+          // Kiểm tra xem match này đã có chưa để tránh duplicate
+          const existingMatch = result.matches.find(m => 
+            m.text.includes(chunk.originalChunk.text.substring(0, 50))
+          );
+          
+          if (!existingMatch) {
+            result.matches.push({
+              text: chunk.originalChunk.text.substring(0, 200) + '...',
+              source: `cached-database-${index + 1}`,
+              similarity: Math.floor(chunk.similarity),
+              url: `internal://cached/${chunk.matchedChunk.fullHash}`,
+              matchedWords: Math.floor(chunk.originalChunk.text.split(/\s+/).length * chunk.similarity / 100),
+              fromCache: true
+            });
+          }
+        }
+      });
+      
+      // Cập nhật sources
+      const cacheSource = 'cached-database';
+      if (!result.sources.includes(cacheSource)) {
+        result.sources.push(cacheSource);
+      }
+      
+      // Điều chỉnh duplicate percentage nếu cần
+      if (similarChunks.length > 0) {
+        const avgCacheSimilarity = similarChunks.reduce((sum, chunk) => sum + chunk.similarity, 0) / similarChunks.length;
+        result.duplicatePercentage = Math.max(result.duplicatePercentage, Math.floor(avgCacheSimilarity * 0.9));
+      }
+    }
+    
+    // 4. Cập nhật confidence dựa trên kết quả cuối cùng
+    if (result.duplicatePercentage > 30) {
+      result.confidence = 'high';
+    } else if (result.duplicatePercentage > 15) {
+      result.confidence = 'medium';
+    } else {
+      result.confidence = 'low';
+    }
+    
+    // 5. Cache kết quả mới để sử dụng cho lần sau
+    plagiarismCacheService.cacheResult(text, result);
+    
+    // 6. Cập nhật processing time
+    result.processingTime = Date.now() - startTime;
+    result.fromCache = false;
+    result.cacheOptimized = similarChunks.length > 0;
+    result.similarChunksFound = similarChunks.length;
+    
+    console.log(`Plagiarism check completed: ${result.duplicatePercentage}% duplicate found in ${result.processingTime}ms`);
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Error in plagiarism check:', error);
+    
+    // Fallback: trả về kết quả cơ bản nếu có lỗi
     return {
-      ...cachedResult.data.result,
-      fromCache: true,
-      cacheType: 'exact',
-      processingTime: Date.now() - startTime
+      duplicatePercentage: 0,
+      matches: [],
+      sources: [],
+      confidence: 'low',
+      processingTime: Date.now() - startTime,
+      fromCache: false,
+      error: 'Error occurred during plagiarism check',
+      errorDetails: error.message
     };
   }
-  
-  // Tìm các chunks tương tự để tăng tốc độ xử lý
-  const similarChunks = plagiarismCacheService.findSimilarChunks(text, 0.8);
-  
-  // Simulate processing time (giảm thời gian nếu có similar chunks)
-  const baseProcessingTime = 1000 + Math.random() * 2000;
-  const optimizedTime = similarChunks.length > 0 ? baseProcessingTime * 0.7 : baseProcessingTime;
-  await new Promise(resolve => setTimeout(resolve, optimizedTime));
-  
-  const words = text.trim().split(/\s+/);
-  const wordCount = words.length;
-  
-  // Tính duplicate percentage dựa trên similar chunks
-  let baseDuplicatePercentage = Math.floor(Math.random() * 50) + 5; // 5-55%
-  
-  if (similarChunks.length > 0) {
-    // Điều chỉnh duplicate percentage dựa trên similar chunks
-    const avgSimilarity = similarChunks.reduce((sum, chunk) => sum + chunk.similarity, 0) / similarChunks.length;
-    baseDuplicatePercentage = Math.max(baseDuplicatePercentage, Math.floor(avgSimilarity * 0.8));
-  }
-  
-  const duplicatePercentage = Math.min(baseDuplicatePercentage, 95);
-  
-  // Tạo matches, ưu tiên sử dụng thông tin từ similar chunks
-  const matches = [];
-  
-  // Thêm matches từ similar chunks
-  similarChunks.slice(0, 2).forEach((chunk, index) => {
-    if (chunk.similarity > 80) {
-      matches.push({
-        text: chunk.originalChunk.text.substring(0, 120) + '...',
-        source: `cached-source-${index + 1}.com`,
-        similarity: Math.floor(chunk.similarity),
-        url: `https://cached-source-${index + 1}.com/document`,
-        matchedWords: Math.floor(chunk.originalChunk.text.split(/\s+/).length * chunk.similarity / 100),
-        fromCache: true
-      });
-    }
-  });
-  
-  // Thêm mock matches nếu cần
-  if (duplicatePercentage > 10) {
-    const additionalMatches = Math.max(0, Math.floor(duplicatePercentage / 15) + 1 - matches.length);
-    
-    for (let i = 0; i < Math.min(additionalMatches, 3 - matches.length); i++) {
-      const startPos = Math.floor(Math.random() * Math.max(1, text.length - 100));
-      const endPos = Math.min(startPos + 80 + Math.floor(Math.random() * 40), text.length);
-      
-      matches.push({
-        text: text.substring(startPos, endPos) + '...',
-        source: ['example.com', 'sample-site.org', 'academic-database.edu'][i] || 'unknown-source.com',
-        similarity: Math.floor(duplicatePercentage * (0.8 + Math.random() * 0.4)),
-        url: `https://${['example.com', 'sample-site.org', 'academic-database.edu'][i] || 'unknown-source.com'}/article${i + 1}`,
-        matchedWords: Math.floor(wordCount * duplicatePercentage / 100 / (additionalMatches + matches.length)),
-        fromCache: false
-      });
-    }
-  }
-  
-  const sources = [...new Set(matches.map(m => m.source))];
-  
-  const result = {
-    duplicatePercentage,
-    matches,
-    sources,
-    confidence: duplicatePercentage > 30 ? 'high' : duplicatePercentage > 15 ? 'medium' : 'low',
-    processingTime: Date.now() - startTime,
-    fromCache: false,
-    cacheOptimized: similarChunks.length > 0,
-    similarChunksFound: similarChunks.length
-  };
-  
-  // Cache kết quả mới
-  plagiarismCacheService.cacheResult(text, result);
-  
-  return result;
 };
 
 // Extract text from uploaded file
@@ -143,18 +148,8 @@ const extractTextFromFile = async (filePath, fileType) => {
       return await fs.readFile(filePath, 'utf8');
     }
     
-    // For PDF, DOC, DOCX files, you would use libraries like:
-    // - pdf-parse for PDF
-    // - mammoth for DOCX
-    // - textract for various formats
-    
-    // Mock implementation - in reality, implement proper text extraction
-    const mockText = `Đây là nội dung được trích xuất từ file ${path.basename(filePath)}. 
-    Trong thực tế, bạn cần sử dụng các thư viện như pdf-parse, mammoth, hoặc textract 
-    để trích xuất text từ các định dạng file khác nhau. Nội dung này chỉ là mock data 
-    để test chức năng upload file.`;
-    
-    return mockText;
+    // For other file types, throw error - no mock data
+    throw new Error(`Định dạng file ${fileType} chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file .txt`);
   } catch (error) {
     throw new Error('Không thể đọc nội dung file');
   }
@@ -226,7 +221,7 @@ exports.checkPlagiarism = async (req, res) => {
     const startTime = Date.now();
     
     // Perform plagiarism check
-    const result = await simulatePlagiarismCheck(text, options);
+    const result = await performPlagiarismCheck(text, options);
     
     const processingTime = Date.now() - startTime;
     
@@ -262,6 +257,14 @@ exports.checkPlagiarism = async (req, res) => {
     
     await plagiarismCheck.save();
     
+    // Thêm document mới vào cây AVL để sử dụng cho các lần kiểm tra sau
+    try {
+      await plagiarismDetectionService.addNewDocument(text, result);
+    } catch (error) {
+      console.error('Error adding document to AVL tree:', error);
+      // Không throw error vì việc lưu vào database đã thành công
+    }
+    
     res.json({
       success: true,
       checkId: plagiarismCheck._id,
@@ -269,7 +272,9 @@ exports.checkPlagiarism = async (req, res) => {
       matches: result.matches,
       sources: result.sources,
       confidence: result.confidence,
-      processingTime: result.processingTime
+      processingTime: result.processingTime,
+      totalDocumentsInDatabase: result.totalDocumentsChecked || 0,
+      totalChunksInDatabase: result.totalChunksChecked || 0
     });
     
   } catch (error) {
@@ -396,6 +401,51 @@ exports.getUploadedFiles = async (req, res) => {
   }
 };
 
+// Get plagiarism detection system statistics
+exports.getSystemStats = async (req, res) => {
+  try {
+    const detectionStats = plagiarismDetectionService.getStats();
+    const cacheStats = plagiarismCacheService.getCacheStats();
+    
+    res.json({
+      success: true,
+      detectionSystem: detectionStats,
+      cacheSystem: cacheStats,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Get system stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê hệ thống'
+    });
+  }
+};
+
+// Initialize plagiarism detection system
+exports.initializeSystem = async (req, res) => {
+  try {
+    await plagiarismDetectionService.reset();
+    await plagiarismDetectionService.initialize();
+    
+    const stats = plagiarismDetectionService.getStats();
+    
+    res.json({
+      success: true,
+      message: 'Hệ thống plagiarism detection đã được khởi tạo lại',
+      stats: stats
+    });
+    
+  } catch (error) {
+    console.error('Initialize system error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi khởi tạo hệ thống'
+    });
+  }
+};
+
 // Delete uploaded file
 exports.deleteUploadedFile = async (req, res) => {
   try {
@@ -438,142 +488,161 @@ exports.deleteUploadedFile = async (req, res) => {
   }
 };
 
+// Get cache statistics
+exports.getCacheStats = async (req, res) => {
+  try {
+    const stats = plagiarismCacheService.getCacheStats();
+    
+    res.json({
+      success: true,
+      cacheStats: stats
+    });
+    
+  } catch (error) {
+    console.error('Get cache stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê cache'
+    });
+  }
+};
+
+// Find similar texts in cache
+exports.findSimilarTexts = async (req, res) => {
+  try {
+    const { text, threshold = 0.8 } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Văn bản không được để trống'
+      });
+    }
+    
+    const similarChunks = plagiarismCacheService.findSimilarChunks(text, threshold);
+    
+    res.json({
+      success: true,
+      similarChunks: similarChunks,
+      total: similarChunks.length,
+      threshold: threshold
+    });
+    
+  } catch (error) {
+    console.error('Find similar texts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi tìm kiếm văn bản tương tự'
+    });
+  }
+};
+
+// Clear all cache
+exports.clearCache = async (req, res) => {
+  try {
+    const result = plagiarismCacheService.clearAllCache();
+    
+    res.json({
+      success: true,
+      message: 'Đã xóa toàn bộ cache',
+      result: result
+    });
+    
+  } catch (error) {
+    console.error('Clear cache error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi xóa cache'
+    });
+  }
+};
+
 // Get detailed comparison with most similar document
 exports.getDetailedComparison = async (req, res) => {
   try {
     const { checkId } = req.params;
     const userId = req.user.id;
     
-    // Lấy thông tin check hiện tại
-    const currentCheck = await PlagiarismCheck.findOne({ 
+    const plagiarismCheck = await PlagiarismCheck.findOne({ 
       _id: checkId, 
       user: userId 
     });
     
-    if (!currentCheck) {
+    if (!plagiarismCheck) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy kết quả kiểm tra'
       });
     }
     
-    // Tìm document giống nhất (mock data - trong thực tế sẽ query từ database)
-    const mostSimilarDoc = {
-      id: 'doc_' + Math.random().toString(36).substr(2, 9),
-      fileName: 'sample_document.pdf',
-      fileSize: 1024 * 500, // 500KB
-      fileType: 'application/pdf',
-      duplicateRate: Math.max(...currentCheck.matches.map(m => m.similarity)),
-      uploadedAt: new Date(Date.now() - 86400000 * 7), // 7 days ago
-      author: 'Nguyễn Văn A',
-      content: currentCheck.originalText // Mock - trong thực tế sẽ lấy từ DB
-    };
-    
-    // Tạo detailed matches cho side-by-side comparison
-    const detailedMatches = currentCheck.matches.map((match, index) => ({
-      id: index + 1,
-      originalText: match.text,
-      matchedText: match.text, // Mock - trong thực tế sẽ lấy text chính xác từ source
-      similarity: match.similarity,
-      startPosition: Math.floor(Math.random() * currentCheck.originalText.length / 2),
-      endPosition: Math.floor(Math.random() * currentCheck.originalText.length / 2) + 100,
-      source: match.source,
-      url: match.url
-    }));
+    // Tìm document tương tự nhất trong cây AVL
+    const similarChunks = plagiarismCacheService.findSimilarChunks(
+      plagiarismCheck.originalText, 
+      0.7
+    );
     
     res.json({
       success: true,
-      currentDocument: {
-        id: currentCheck._id,
-        fileName: currentCheck.fileName || 'Văn bản nhập tay',
-        fileSize: currentCheck.textLength,
-        fileType: currentCheck.source === 'file' ? 'text/plain' : 'text',
-        duplicateRate: currentCheck.duplicatePercentage,
-        content: currentCheck.originalText,
-        wordCount: currentCheck.wordCount,
-        checkedAt: currentCheck.createdAt
-      },
-      mostSimilarDocument: mostSimilarDoc,
-      detailedMatches,
-      overallSimilarity: mostSimilarDoc.duplicateRate
+      originalText: plagiarismCheck.originalText,
+      matches: plagiarismCheck.matches,
+      duplicatePercentage: plagiarismCheck.duplicatePercentage,
+      similarChunks: similarChunks.slice(0, 3), // Top 3 similar chunks
+      detailedAnalysis: {
+        wordCount: plagiarismCheck.wordCount,
+        textLength: plagiarismCheck.textLength,
+        confidence: plagiarismCheck.confidence,
+        status: plagiarismCheck.status
+      }
     });
     
   } catch (error) {
     console.error('Get detailed comparison error:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi khi lấy thông tin so sánh chi tiết'
+      message: 'Lỗi khi lấy so sánh chi tiết'
     });
   }
 };
 
-// Get all documents with duplicate rates
+// Get all documents comparison
 exports.getAllDocumentsComparison = async (req, res) => {
   try {
     const { checkId } = req.params;
     const userId = req.user.id;
     
-    // Lấy thông tin check hiện tại
-    const currentCheck = await PlagiarismCheck.findOne({ 
+    const plagiarismCheck = await PlagiarismCheck.findOne({ 
       _id: checkId, 
       user: userId 
     });
     
-    if (!currentCheck) {
+    if (!plagiarismCheck) {
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy kết quả kiểm tra'
       });
     }
     
-    // Mock data - trong thực tế sẽ query tất cả documents trong database
-    const allDocuments = [];
-    const numDocs = Math.floor(Math.random() * 20) + 10; // 10-30 documents
-    
-    for (let i = 0; i < numDocs; i++) {
-      const duplicateRate = Math.floor(Math.random() * 60) + 5; // 5-65%
-      const fileTypes = ['pdf', 'docx', 'txt', 'doc'];
-      const fileType = fileTypes[Math.floor(Math.random() * fileTypes.length)];
-      
-      allDocuments.push({
-        id: 'doc_' + i.toString().padStart(3, '0'),
-        fileName: `document_${i + 1}.${fileType}`,
-        fileSize: Math.floor(Math.random() * 2048 * 1024) + 100 * 1024, // 100KB - 2MB
-        fileType: `application/${fileType === 'txt' ? 'plain' : fileType}`,
-        duplicateRate: duplicateRate,
-        uploadedAt: new Date(Date.now() - Math.random() * 86400000 * 30), // Random date within 30 days
-        author: `User ${i + 1}`,
-        matchedSegments: Math.floor(duplicateRate / 10) + 1,
-        status: duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low'
-      });
-    }
-    
-    // Sắp xếp theo tỷ lệ trùng lặp giảm dần
-    allDocuments.sort((a, b) => b.duplicateRate - a.duplicateRate);
+    // Lấy thống kê từ detection service
+    const systemStats = plagiarismDetectionService.getStats();
     
     res.json({
       success: true,
-      currentDocument: {
-        id: currentCheck._id,
-        fileName: currentCheck.fileName || 'Văn bản nhập tay',
-        fileSize: currentCheck.textLength,
-        fileType: currentCheck.source === 'file' ? 'text/plain' : 'text',
-        duplicateRate: currentCheck.duplicatePercentage,
-        wordCount: currentCheck.wordCount,
-        checkedAt: currentCheck.createdAt
-      },
-      allDocuments,
-      totalDocuments: allDocuments.length,
-      highRiskCount: allDocuments.filter(doc => doc.status === 'high').length,
-      mediumRiskCount: allDocuments.filter(doc => doc.status === 'medium').length,
-      lowRiskCount: allDocuments.filter(doc => doc.status === 'low').length
+      checkId: checkId,
+      originalText: plagiarismCheck.originalText.substring(0, 500) + '...',
+      totalDocumentsCompared: systemStats.totalDocuments,
+      totalChunksCompared: systemStats.totalChunks,
+      matches: plagiarismCheck.matches,
+      sources: plagiarismCheck.sources,
+      duplicatePercentage: plagiarismCheck.duplicatePercentage,
+      processingTime: plagiarismCheck.processingTime,
+      systemInitialized: systemStats.initialized
     });
     
   } catch (error) {
     console.error('Get all documents comparison error:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi khi lấy danh sách so sánh với tất cả documents'
+      message: 'Lỗi khi lấy so sánh với tất cả tài liệu'
     });
   }
 };
@@ -602,39 +671,33 @@ exports.getFileContent = async (req, res) => {
       });
     }
     
-    // Lấy thông tin file
+    // Đọc thông tin file
     const stats = await fs.stat(filePath);
     const fileExtension = path.extname(fileName).toLowerCase();
     
-    // Xác định mime type dựa trên extension
-    let mimeType = 'application/octet-stream';
-    switch (fileExtension) {
-      case '.txt':
-        mimeType = 'text/plain';
-        break;
-      case '.pdf':
-        mimeType = 'application/pdf';
-        break;
-      case '.doc':
-        mimeType = 'application/msword';
-        break;
-      case '.docx':
-        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        break;
-    }
+    let content = '';
+    let fileType = 'unknown';
     
-    // Extract text từ file
-    const extractedText = await extractTextFromFile(filePath, mimeType);
+    // Xác định loại file và đọc nội dung
+    if (fileExtension === '.txt') {
+      content = await fs.readFile(filePath, 'utf8');
+      fileType = 'text/plain';
+    } else {
+      // Với các file khác, chỉ trả về thông tin cơ bản
+      content = 'Binary file - content not displayable';
+      fileType = 'binary';
+    }
     
     res.json({
       success: true,
       fileName: fileName,
       filePath: filePath,
       fileSize: stats.size,
-      mimeType: mimeType,
-      extractedText: extractedText,
+      fileType: fileType,
       uploadedAt: stats.birthtime,
-      modifiedAt: stats.mtime
+      modifiedAt: stats.mtime,
+      content: content.length > 1000 ? content.substring(0, 1000) + '...' : content,
+      fullContentLength: content.length
     });
     
   } catch (error) {
@@ -646,32 +709,28 @@ exports.getFileContent = async (req, res) => {
   }
 };
 
-// Clean up old files (utility function)
+// Clean up old files (admin only)
 exports.cleanupOldFiles = async (req, res) => {
   try {
-    const { daysOld = 7 } = req.query; // Mặc định xóa file cũ hơn 7 ngày
+    const { daysOld = 30 } = req.body; // Mặc định xóa file cũ hơn 30 ngày
     const uploadsDir = path.join(__dirname, '../uploads');
     
     const files = await fs.readdir(uploadsDir);
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - parseInt(daysOld));
+    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
     
     let deletedCount = 0;
-    const deletedFiles = [];
+    let totalSize = 0;
     
     for (const file of files) {
       try {
         const filePath = path.join(uploadsDir, file);
         const stats = await fs.stat(filePath);
         
-        if (stats.isFile() && stats.birthtime < cutoffDate) {
+        if (stats.isFile() && stats.mtime < cutoffDate) {
+          totalSize += stats.size;
           await fs.unlink(filePath);
           deletedCount++;
-          deletedFiles.push({
-            fileName: file,
-            uploadedAt: stats.birthtime,
-            size: stats.size
-          });
         }
       } catch (error) {
         console.error(`Error processing file ${file}:`, error);
@@ -681,90 +740,17 @@ exports.cleanupOldFiles = async (req, res) => {
     res.json({
       success: true,
       message: `Đã xóa ${deletedCount} file cũ`,
-      deletedCount,
-      deletedFiles,
-      cutoffDate
+      deletedCount: deletedCount,
+      totalSizeFreed: totalSize,
+      cutoffDate: cutoffDate.toISOString(),
+      daysOld: daysOld
     });
     
   } catch (error) {
-    console.error('Cleanup files error:', error);
+    console.error('Cleanup old files error:', error);
     res.status(500).json({
       success: false,
       message: 'Lỗi khi dọn dẹp file cũ'
-    });
-  }
-};
-
-// ===== TreeAVL Cache Management Endpoints =====
-
-// Get cache statistics
-exports.getCacheStats = async (req, res) => {
-  try {
-    const stats = plagiarismCacheService.getCacheStats();
-    
-    res.json({
-      success: true,
-      cacheStats: stats,
-      message: 'Thống kê cache được lấy thành công'
-    });
-    
-  } catch (error) {
-    console.error('Get cache stats error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi lấy thống kê cache'
-    });
-  }
-};
-
-// Clear all cache
-exports.clearCache = async (req, res) => {
-  try {
-    const result = plagiarismCacheService.clearAllCache();
-    
-    res.json({
-      success: result.success,
-      message: result.message || 'Cache đã được xóa thành công'
-    });
-    
-  } catch (error) {
-    console.error('Clear cache error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa cache'
-    });
-  }
-};
-
-// Find similar texts in cache
-exports.findSimilarTexts = async (req, res) => {
-  try {
-    const { text, threshold = 0.8 } = req.body;
-    
-    if (!text || !text.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Văn bản không được để trống'
-      });
-    }
-    
-    // Tìm kết quả tương tự trong cache
-    const cachedResult = plagiarismCacheService.findCachedResult(text);
-    const similarChunks = plagiarismCacheService.findSimilarChunks(text, threshold);
-    
-    res.json({
-      success: true,
-      cachedResult: cachedResult,
-      similarChunks: similarChunks,
-      totalSimilarChunks: similarChunks.length,
-      message: 'Tìm kiếm văn bản tương tự thành công'
-    });
-    
-  } catch (error) {
-    console.error('Find similar texts error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi tìm kiếm văn bản tương tự'
     });
   }
 };

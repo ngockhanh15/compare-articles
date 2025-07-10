@@ -118,14 +118,24 @@ const Header = () => {
                     </div>
 
                     {user?.role === 'admin' && (
-                      <Link
-                        to="/admin"
-                        onClick={() => setShowUserMenu(false)}
-                        className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
-                      >
-                        <span className="text-lg">🛠️</span>
-                        <span>Bảng điều khiển Admin</span>
-                      </Link>
+                      <>
+                        <Link
+                          to="/admin"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
+                        >
+                          <span className="text-lg">🛠️</span>
+                          <span>Bảng điều khiển Admin</span>
+                        </Link>
+                        <Link
+                          to="/system-stats"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
+                        >
+                          <span className="text-lg">📊</span>
+                          <span>Thống kê Hệ thống</span>
+                        </Link>
+                      </>
                     )}
 
                     <a
@@ -142,13 +152,7 @@ const Header = () => {
                       <span className="text-lg">⚙️</span>
                       <span>Cài đặt</span>
                     </a>
-                    <a
-                      href="#"
-                      className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
-                    >
-                      <span className="text-lg">📊</span>
-                      <span>Thống kê</span>
-                    </a>
+
 
                     <hr className="my-2 border-neutral-100" />
 

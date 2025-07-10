@@ -106,7 +106,13 @@ const TextChecker = () => {
         checkedAt: new Date().toLocaleString('vi-VN'),
         source: selectedFile ? 'file' : 'text',
         fileName: selectedFile ? selectedFile.name : null,
-        confidence: plagiarismResult.confidence || 'medium'
+        confidence: plagiarismResult.confidence || 'medium',
+        // Thông tin mới từ hệ thống AVL
+        processingTime: plagiarismResult.processingTime || 0,
+        totalDocumentsInDatabase: plagiarismResult.totalDocumentsInDatabase || 0,
+        totalChunksInDatabase: plagiarismResult.totalChunksInDatabase || 0,
+        fromCache: plagiarismResult.fromCache || false,
+        cacheOptimized: plagiarismResult.cacheOptimized || false
       });
     } catch (error) {
       console.error('Text checker error:', error);
@@ -170,7 +176,7 @@ const TextChecker = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,.pdf,.doc,.docx"
+                  accept=".txt"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="file-upload"
@@ -183,7 +189,7 @@ const TextChecker = () => {
                   Chọn file
                 </label>
                 <span className="text-sm text-neutral-500">
-                  Hỗ trợ: TXT, PDF, DOC, DOCX (tối đa 10MB)
+                  Hiện tại chỉ hỗ trợ: TXT (tối đa 10MB)
                 </span>
               </div>
 
@@ -393,6 +399,46 @@ const TextChecker = () => {
                           </span>
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Database Statistics */}
+                {(results.totalDocumentsInDatabase > 0 || results.totalChunksInDatabase > 0) && (
+                  <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+                    <h4 className="flex items-center mb-3 font-semibold text-purple-800">
+                      <span className="mr-2">🗄️</span>
+                      Thống kê cơ sở dữ liệu
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      {results.totalDocumentsInDatabase > 0 && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-purple-600">📚</span>
+                          <span className="text-purple-700">
+                            {results.totalDocumentsInDatabase.toLocaleString()} tài liệu
+                          </span>
+                        </div>
+                      )}
+                      {results.totalChunksInDatabase > 0 && (
+                        <div className="flex items-center">
+                          <span className="mr-2 text-purple-600">🧩</span>
+                          <span className="text-purple-700">
+                            {results.totalChunksInDatabase.toLocaleString()} đoạn văn
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <span className="mr-2 text-purple-600">🔍</span>
+                        <span className="text-purple-700">
+                          Sử dụng cây AVL để tối ưu
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="mr-2 text-purple-600">⚡</span>
+                        <span className="text-purple-700">
+                          Kiểm tra thời gian thực
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}

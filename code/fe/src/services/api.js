@@ -248,4 +248,83 @@ export const getAllDocumentsComparison = async (checkId) => {
   }
 };
 
+// Lấy thống kê hệ thống (detection + cache)
+export const getSystemStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/system/stats`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get system stats error:', error);
+    throw error;
+  }
+};
+
+// Khởi tạo lại hệ thống plagiarism detection (admin only)
+export const initializeSystem = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/system/initialize`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Initialize system error:', error);
+    throw error;
+  }
+};
+
+// Lấy thống kê cache
+export const getCacheStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/cache/stats`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get cache stats error:', error);
+    throw error;
+  }
+};
+
+// Tìm văn bản tương tự trong cache
+export const findSimilarTexts = async (text, threshold = 0.8) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/cache/find-similar`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        threshold: threshold
+      }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Find similar texts error:', error);
+    throw error;
+  }
+};
+
+// Xóa toàn bộ cache (admin only)
+export const clearCache = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/cache/clear`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Clear cache error:', error);
+    throw error;
+  }
+};
+
 // ==================== OTHER API ====================

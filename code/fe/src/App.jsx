@@ -9,13 +9,14 @@ import TextChecker from './components/TextChecker'
 import DetailedComparison from './components/DetailedComparison'
 import AllDocumentsComparison from './components/AllDocumentsComparison'
 import AdminDashboard from './components/AdminDashboard'
+import SystemStats from './components/SystemStats'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 
 // Layout component để hiển thị Header và Footer chỉ khi không phải trang login/register/admin
 const Layout = ({ children }) => {
   const location = useLocation();
-  const hideHeaderFooter = ['/login', '/register', '/forgot-password', '/admin'].includes(location.pathname);
+  const hideHeaderFooter = ['/login', '/register', '/forgot-password', '/admin', '/system-stats'].includes(location.pathname);
 
   if (hideHeaderFooter) {
     return children;
@@ -129,6 +130,14 @@ function App() {
               element={
                 <AdminRoute>
                   <AdminDashboard />
+                </AdminRoute>
+              } 
+            />
+            <Route 
+              path="/system-stats" 
+              element={
+                <AdminRoute>
+                  <SystemStats />
                 </AdminRoute>
               } 
             />
