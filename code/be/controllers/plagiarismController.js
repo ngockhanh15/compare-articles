@@ -5,6 +5,8 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
 const fsSync = require('fs');
+const mammoth = require('mammoth');
+const pdfParse = require('pdf-parse');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -29,13 +31,16 @@ const upload = multer({
   },
   fileFilter: function (req, file, cb) {
     const allowedTypes = [
-      'text/plain'
+      'text/plain',
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword' // .doc
     ];
     
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Hiện tại chỉ hỗ trợ file định dạng TXT'), false);
+      cb(new Error('Chỉ hỗ trợ file định dạng TXT, DOC, DOCX và PDF'), false);
     }
   }
 });
@@ -144,14 +149,41 @@ const performPlagiarismCheck = async (text, options = {}) => {
 // Extract text from uploaded file
 const extractTextFromFile = async (filePath, fileType) => {
   try {
-    if (fileType === 'text/plain') {
-      return await fs.readFile(filePath, 'utf8');
+    switch (fileType) {
+      case 'text/plain':
+        return await fs.readFile(filePath, 'utf8');
+        
+      case 'application/pdf':
+        const pdfBuffer = await fs.readFile(filePath);
+        const pdfData = await pdfParse(pdfBuffer);
+        return pdfData.text;
+        
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': // .docx
+        const docxResult = await mammoth.extractRawText({ path: filePath });
+        return docxResult.value;
+        
+      case 'application/msword': // .doc
+        // Mammoth cũng có thể đọc .doc nhưng không hoàn hảo
+        try {
+          const docResult = await mammoth.extractRawText({ path: filePath });
+          return docResult.value;
+        } catch (docError) {
+          throw new Error('File .doc này có thể không được hỗ trợ đầy đủ. Vui lòng chuyển đổi sang .docx hoặc .pdf');
+        }
+        
+      default:
+        throw new Error(`Định dạng file ${fileType} chưa được hỗ trợ. Hiện tại hỗ trợ: TXT, DOC, DOCX, PDF`);
+    }
+  } catch (error) {
+    console.error('Error extracting text from file:', error);
+    
+    // Nếu là lỗi từ việc xử lý file cụ thể, throw lại message gốc
+    if (error.message.includes('không được hỗ trợ') || error.message.includes('chưa được hỗ trợ')) {
+      throw error;
     }
     
-    // For other file types, throw error - no mock data
-    throw new Error(`Định dạng file ${fileType} chưa được hỗ trợ. Hiện tại chỉ hỗ trợ file .txt`);
-  } catch (error) {
-    throw new Error('Không thể đọc nội dung file');
+    // Lỗi chung
+    throw new Error(`Không thể đọc nội dung file ${fileType}. Vui lòng kiểm tra file có bị hỏng không.`);
   }
 };
 
@@ -173,16 +205,14 @@ exports.uploadFile = [
       // Extract text from file
       const extractedText = await extractTextFromFile(filePath, fileType);
       
-      // Không xóa file, giữ lại để xử lý sau
-      // await fs.unlink(filePath);
+      // Xóa file ngay sau khi extract text thành công
+      await fs.unlink(filePath);
       
       res.json({
         success: true,
         extractedText,
         fileName: req.file.originalname,
         fileSize: req.file.size,
-        filePath: filePath, // Trả về đường dẫn file để xử lý sau
-        uploadedFileName: req.file.filename, // Tên file đã được rename
         fileType: fileType
       });
       
@@ -218,12 +248,8 @@ exports.checkPlagiarism = async (req, res) => {
       });
     }
     
-    const startTime = Date.now();
-    
     // Perform plagiarism check
     const result = await performPlagiarismCheck(text, options);
-    
-    const processingTime = Date.now() - startTime;
     
     // Determine status based on duplicate percentage
     const getStatus = (percentage) => {
@@ -232,49 +258,19 @@ exports.checkPlagiarism = async (req, res) => {
       return 'low';
     };
 
-    // Save to database
-    const plagiarismCheck = new PlagiarismCheck({
-      user: req.user.id,
-      originalText: text,
-      textLength: text.length,
-      wordCount: text.trim().split(/\s+/).length,
-      duplicatePercentage: result.duplicatePercentage,
-      status: getStatus(result.duplicatePercentage),
-      matches: result.matches,
-      sources: result.sources,
-      confidence: result.confidence,
-      source: 'text',
-      processingTime,
-      options: {
-        checkInternet: options.checkInternet !== false,
-        checkDatabase: options.checkDatabase !== false,
-        sensitivity: options.sensitivity || 'medium',
-        language: options.language || 'vi'
-      },
-      ipAddress: req.ip,
-      userAgent: req.get('User-Agent')
-    });
-    
-    await plagiarismCheck.save();
-    
-    // Thêm document mới vào cây AVL để sử dụng cho các lần kiểm tra sau
-    try {
-      await plagiarismDetectionService.addNewDocument(text, result);
-    } catch (error) {
-      console.error('Error adding document to AVL tree:', error);
-      // Không throw error vì việc lưu vào database đã thành công
-    }
-    
     res.json({
       success: true,
-      checkId: plagiarismCheck._id,
       duplicatePercentage: result.duplicatePercentage,
       matches: result.matches,
       sources: result.sources,
       confidence: result.confidence,
+      status: getStatus(result.duplicatePercentage),
       processingTime: result.processingTime,
       totalDocumentsInDatabase: result.totalDocumentsChecked || 0,
-      totalChunksInDatabase: result.totalChunksChecked || 0
+      totalChunksInDatabase: result.totalChunksChecked || 0,
+      fromCache: result.fromCache || false,
+      cacheOptimized: result.cacheOptimized || false,
+      similarChunksFound: result.similarChunksFound || 0
     });
     
   } catch (error) {
@@ -358,38 +354,12 @@ exports.getUserStats = async (req, res) => {
 // Get list of uploaded files
 exports.getUploadedFiles = async (req, res) => {
   try {
-    const uploadsDir = path.join(__dirname, '../uploads');
-    
-    // Đọc danh sách file trong thư mục uploads
-    const files = await fs.readdir(uploadsDir);
-    
-    const fileList = [];
-    for (const file of files) {
-      try {
-        const filePath = path.join(uploadsDir, file);
-        const stats = await fs.stat(filePath);
-        
-        if (stats.isFile()) {
-          fileList.push({
-            fileName: file,
-            filePath: filePath,
-            size: stats.size,
-            uploadedAt: stats.birthtime,
-            modifiedAt: stats.mtime
-          });
-        }
-      } catch (error) {
-        console.error(`Error reading file ${file}:`, error);
-      }
-    }
-    
-    // Sắp xếp theo thời gian upload (mới nhất trước)
-    fileList.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
-    
+    // Hệ thống không lưu file sau khi xử lý, trả về danh sách rỗng
     res.json({
       success: true,
-      files: fileList,
-      total: fileList.length
+      files: [],
+      total: 0,
+      message: 'Hệ thống không lưu file sau khi xử lý để bảo mật và tiết kiệm dung lượng'
     });
     
   } catch (error) {
@@ -442,48 +412,6 @@ exports.initializeSystem = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi khởi tạo hệ thống'
-    });
-  }
-};
-
-// Delete uploaded file
-exports.deleteUploadedFile = async (req, res) => {
-  try {
-    const { fileName } = req.params;
-    
-    if (!fileName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tên file không được để trống'
-      });
-    }
-    
-    const filePath = path.join(__dirname, '../uploads', fileName);
-    
-    // Kiểm tra file có tồn tại không
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      return res.status(404).json({
-        success: false,
-        message: 'File không tồn tại'
-      });
-    }
-    
-    // Xóa file
-    await fs.unlink(filePath);
-    
-    res.json({
-      success: true,
-      message: 'Đã xóa file thành công',
-      deletedFile: fileName
-    });
-    
-  } catch (error) {
-    console.error('Delete file error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi xóa file'
     });
   }
 };
@@ -643,114 +571,6 @@ exports.getAllDocumentsComparison = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy so sánh với tất cả tài liệu'
-    });
-  }
-};
-
-// Get file content for analysis
-exports.getFileContent = async (req, res) => {
-  try {
-    const { fileName } = req.params;
-    
-    if (!fileName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tên file không được để trống'
-      });
-    }
-    
-    const filePath = path.join(__dirname, '../uploads', fileName);
-    
-    // Kiểm tra file có tồn tại không
-    try {
-      await fs.access(filePath);
-    } catch (error) {
-      return res.status(404).json({
-        success: false,
-        message: 'File không tồn tại'
-      });
-    }
-    
-    // Đọc thông tin file
-    const stats = await fs.stat(filePath);
-    const fileExtension = path.extname(fileName).toLowerCase();
-    
-    let content = '';
-    let fileType = 'unknown';
-    
-    // Xác định loại file và đọc nội dung
-    if (fileExtension === '.txt') {
-      content = await fs.readFile(filePath, 'utf8');
-      fileType = 'text/plain';
-    } else {
-      // Với các file khác, chỉ trả về thông tin cơ bản
-      content = 'Binary file - content not displayable';
-      fileType = 'binary';
-    }
-    
-    res.json({
-      success: true,
-      fileName: fileName,
-      filePath: filePath,
-      fileSize: stats.size,
-      fileType: fileType,
-      uploadedAt: stats.birthtime,
-      modifiedAt: stats.mtime,
-      content: content.length > 1000 ? content.substring(0, 1000) + '...' : content,
-      fullContentLength: content.length
-    });
-    
-  } catch (error) {
-    console.error('Get file content error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi đọc nội dung file'
-    });
-  }
-};
-
-// Clean up old files (admin only)
-exports.cleanupOldFiles = async (req, res) => {
-  try {
-    const { daysOld = 30 } = req.body; // Mặc định xóa file cũ hơn 30 ngày
-    const uploadsDir = path.join(__dirname, '../uploads');
-    
-    const files = await fs.readdir(uploadsDir);
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - daysOld);
-    
-    let deletedCount = 0;
-    let totalSize = 0;
-    
-    for (const file of files) {
-      try {
-        const filePath = path.join(uploadsDir, file);
-        const stats = await fs.stat(filePath);
-        
-        if (stats.isFile() && stats.mtime < cutoffDate) {
-          totalSize += stats.size;
-          await fs.unlink(filePath);
-          deletedCount++;
-        }
-      } catch (error) {
-        console.error(`Error processing file ${file}:`, error);
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: `Đã xóa ${deletedCount} file cũ`,
-      deletedCount: deletedCount,
-      totalSizeFreed: totalSize,
-      cutoffDate: cutoffDate.toISOString(),
-      daysOld: daysOld
-    });
-    
-  } catch (error) {
-    console.error('Cleanup old files error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Lỗi khi dọn dẹp file cũ'
     });
   }
 };

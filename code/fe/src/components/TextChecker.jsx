@@ -176,7 +176,7 @@ const TextChecker = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt"
+                  accept=".txt,.doc,.docx,.pdf"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="file-upload"
@@ -189,7 +189,7 @@ const TextChecker = () => {
                   Chọn file
                 </label>
                 <span className="text-sm text-neutral-500">
-                  Hiện tại chỉ hỗ trợ: TXT (tối đa 10MB)
+                  Hiện tại chỉ hỗ trợ: TXT, DOC, DOCX, PDF (tối đa 10MB)
                 </span>
               </div>
 
