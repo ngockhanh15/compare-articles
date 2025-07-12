@@ -185,6 +185,10 @@ const Home = () => {
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
                   Xem báo cáo chi tiết để theo dõi xu hướng và hiệu suất hệ thống
                 </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
+                  Hệ thống sử dụng cây AVL để tối ưu hóa tốc độ kiểm tra trùng lặp
+                </li>
               </ul>
             </div>
           </div>

@@ -41,6 +41,15 @@ const Header = () => {
               <span>📝</span>
               <span>Kiểm tra</span>
             </Link>
+            {isAuthenticated && (
+              <Link
+                to="/documents"
+                className="flex items-center gap-2 px-4 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
+              >
+                <span>📄</span>
+                <span>Tài liệu</span>
+              </Link>
+            )}
             <a
               href="#"
               className="flex items-center gap-2 px-4 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"

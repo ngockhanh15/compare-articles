@@ -129,7 +129,7 @@ plagiarismCheckSchema.methods.determineStatus = function() {
 
 // Pre-save middleware to set status
 plagiarismCheckSchema.pre('save', function(next) {
-  if (this.isModified('duplicatePercentage')) {
+  if (this.isModified('duplicatePercentage') || this.isNew) {
     this.status = this.determineStatus();
   }
   next();

@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadFile, checkPlagiarism } from '../services/api';
+import { uploadFileForCheck, checkTextContent, getUserDocuments, getDocumentText, getTreeStats } from '../services/api';
 import { Link } from 'react-router-dom';
 
 const TextChecker = () => {
@@ -12,6 +12,68 @@ const TextChecker = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const fileInputRef = useRef(null);
+  const [userDocuments, setUserDocuments] = useState([]);
+  const [showDocumentSelector, setShowDocumentSelector] = useState(false);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [checkOptions, setCheckOptions] = useState({
+    sensitivity: 'medium',
+    language: 'vi'
+  });
+  const [treeStats, setTreeStats] = useState(null);
+
+  useEffect(() => {
+    loadUserDocuments();
+    loadTreeStats();
+  }, []);
+
+  const loadTreeStats = async () => {
+    try {
+      const response = await getTreeStats();
+      if (response.success) {
+        setTreeStats(response.stats);
+      }
+    } catch (error) {
+      console.error('Error loading tree stats:', error);
+    }
+  };
+
+  const loadUserDocuments = async () => {
+    try {
+      setLoadingDocuments(true);
+      const response = await getUserDocuments({
+        limit: 20,
+        status: 'processed' // Only show processed documents
+      });
+      
+      if (response.success) {
+        setUserDocuments(response.documents);
+      }
+    } catch (error) {
+      console.error('Error loading user documents:', error);
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  const handleDocumentSelect = async (documentId) => {
+    try {
+      setError('');
+      setIsUploading(true);
+      
+      const response = await getDocumentText(documentId);
+      
+      if (response.success) {
+        setInputText(response.extractedText);
+        setSelectedFile(null); // Clear any selected file
+        setResults(null); // Clear previous results
+        setShowDocumentSelector(false);
+      }
+    } catch (error) {
+      setError('Không thể lấy nội dung tài liệu: ' + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -24,18 +86,22 @@ const TextChecker = () => {
     const allowedTypes = [
       'text/plain',
       'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+      'application/msword', // .doc
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+      'application/vnd.ms-powerpoint' // .ppt
     ];
     
     if (!allowedTypes.includes(file.type)) {
-      setError('Chỉ hỗ trợ file định dạng: TXT, PDF, DOC, DOCX');
+      setError('Chỉ hỗ trợ file định dạng: TXT, PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX');
       return;
     }
 
-    // Kiểm tra kích thước file (tối đa 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File không được vượt quá 10MB');
+    // Kiểm tra kích thước file (tối đa 50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      setError('File không được vượt quá 50MB');
       return;
     }
 
@@ -71,48 +137,52 @@ const TextChecker = () => {
     setIsChecking(true);
 
     try {
+      let plagiarismResult;
+      
       if (selectedFile) {
         setIsUploading(true);
         
-        // Upload file và lấy text đã extract
-        const uploadResult = await uploadFile(selectedFile);
-        textToCheck = uploadResult.extractedText || '';
+        // Upload file for plagiarism check (new API)
+        plagiarismResult = await uploadFileForCheck(selectedFile, checkOptions);
         setIsUploading(false);
         
-        if (!textToCheck.trim()) {
-          setError('Không thể đọc nội dung từ file này');
+        if (!plagiarismResult.success) {
+          setError('Không thể kiểm tra file này');
           setIsChecking(false);
           return;
         }
+        
+        textToCheck = plagiarismResult.result.textLength ? 'File content processed' : '';
       } else {
         textToCheck = inputText;
+        
+        // Check text content for plagiarism (new API)
+        plagiarismResult = await checkTextContent(textToCheck, checkOptions);
       }
       
-      // Gọi API kiểm tra trùng lặp
-      const plagiarismResult = await checkPlagiarism(textToCheck);
-      
-      const wordCount = textToCheck.trim().split(/\s+/).length;
-      const charCount = textToCheck.length;
+      // Extract data from new API response structure
+      const result = plagiarismResult.result;
+      const wordCount = result.wordCount || 0;
+      const charCount = result.textLength || 0;
 
       setResults({
         checkId: plagiarismResult.checkId,
-        duplicateRate: plagiarismResult.duplicatePercentage || 0,
-        matches: plagiarismResult.matches || [],
-        sources: plagiarismResult.sources || [],
+        duplicateRate: result.duplicatePercentage || 0,
+        matches: result.matches || [],
+        sources: result.sources || [],
         wordCount,
         charCount,
-        status: plagiarismResult.duplicatePercentage > 30 ? 'high' : 
-                plagiarismResult.duplicatePercentage > 15 ? 'medium' : 'low',
+        status: result.confidence || 'medium',
         checkedAt: new Date().toLocaleString('vi-VN'),
         source: selectedFile ? 'file' : 'text',
         fileName: selectedFile ? selectedFile.name : null,
-        confidence: plagiarismResult.confidence || 'medium',
+        confidence: result.confidence || 'medium',
         // Thông tin mới từ hệ thống AVL
-        processingTime: plagiarismResult.processingTime || 0,
-        totalDocumentsInDatabase: plagiarismResult.totalDocumentsInDatabase || 0,
-        totalChunksInDatabase: plagiarismResult.totalChunksInDatabase || 0,
-        fromCache: plagiarismResult.fromCache || false,
-        cacheOptimized: plagiarismResult.cacheOptimized || false
+        processingTime: result.processingTime || 0,
+        totalMatches: result.totalMatches || 0,
+        checkedDocuments: result.checkedDocuments || 0,
+        // Tree stats info
+        treeStats: treeStats
       });
     } catch (error) {
       console.error('Text checker error:', error);
@@ -170,13 +240,64 @@ const TextChecker = () => {
               Nhập văn bản cần kiểm tra
             </h2>
 
+            {/* Check Options */}
+            <div className="p-4 mb-6 bg-neutral-50 rounded-xl">
+              <h3 className="flex items-center mb-3 text-sm font-medium text-neutral-700">
+                <span className="mr-2">⚙️</span>
+                Tùy chọn kiểm tra
+              </h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-neutral-600">
+                    Độ nhạy
+                  </label>
+                  <select
+                    value={checkOptions.sensitivity}
+                    onChange={(e) => setCheckOptions(prev => ({ ...prev, sensitivity: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="low">Thấp (80%)</option>
+                    <option value="medium">Trung bình (70%)</option>
+                    <option value="high">Cao (60%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-neutral-600">
+                    Ngôn ngữ
+                  </label>
+                  <select
+                    value={checkOptions.language}
+                    onChange={(e) => setCheckOptions(prev => ({ ...prev, language: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Database Stats */}
+            {treeStats && (
+              <div className="p-3 mb-4 border border-blue-200 rounded-lg bg-blue-50">
+                <div className="flex items-center mb-2">
+                  <span className="mr-2 text-blue-600">📊</span>
+                  <span className="text-sm font-medium text-blue-800">Thống kê cơ sở dữ liệu</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+                  <div>Tài liệu: {treeStats.totalDocuments || 0}</div>
+                  <div>Đã khởi tạo: {treeStats.initialized ? 'Có' : 'Không'}</div>
+                </div>
+              </div>
+            )}
+
             {/* File Upload Section */}
             <div className="mb-4">
               <div className="flex items-center gap-4 mb-3">
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".txt,.doc,.docx,.pdf"
+                  accept=".txt,.doc,.docx,.pdf,.xls,.xlsx,.ppt,.pptx"
                   onChange={handleFileSelect}
                   className="hidden"
                   id="file-upload"
@@ -189,7 +310,7 @@ const TextChecker = () => {
                   Chọn file
                 </label>
                 <span className="text-sm text-neutral-500">
-                  Hiện tại chỉ hỗ trợ: TXT, DOC, DOCX, PDF (tối đa 10MB)
+                  Hỗ trợ: TXT, DOC, DOCX, PDF, XLS, XLSX, PPT, PPTX (tối đa 50MB)
                 </span>
               </div>
 
@@ -227,8 +348,19 @@ const TextChecker = () => {
                 />
                 
                 <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-neutral-500">
-                    {inputText.length} ký tự • {inputText.trim() ? inputText.trim().split(/\s+/).length : 0} từ
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-neutral-500">
+                      {inputText.length} ký tự • {inputText.trim() ? inputText.trim().split(/\s+/).length : 0} từ
+                    </div>
+                    {userDocuments.length > 0 && (
+                      <button
+                        onClick={() => setShowDocumentSelector(true)}
+                        disabled={isUploading}
+                        className="px-3 py-1 text-xs font-medium text-blue-600 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200 disabled:opacity-50"
+                      >
+                        📄 Chọn từ tài liệu đã upload
+                      </button>
+                    )}
                   </div>
                 </div>
               </>
@@ -364,84 +496,46 @@ const TextChecker = () => {
                 </div>
 
                 {/* Processing Information */}
-                {(results.fromCache || results.cacheOptimized || results.processingTime) && (
-                  <div className="p-4 border border-green-200 rounded-xl bg-green-50">
-                    <h4 className="flex items-center mb-3 font-semibold text-green-800">
-                      <span className="mr-2">⚡</span>
-                      Thông tin xử lý
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      {results.fromCache && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-green-600">✅</span>
-                          <span className="text-green-700">Từ cache (tối ưu)</span>
-                        </div>
-                      )}
-                      {results.cacheOptimized && !results.fromCache && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-blue-600">🚀</span>
-                          <span className="text-green-700">Đã tối ưu hóa</span>
-                        </div>
-                      )}
-                      {results.processingTime && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-gray-600">⏱️</span>
-                          <span className="text-green-700">
-                            Xử lý: {results.processingTime}ms
-                          </span>
-                        </div>
-                      )}
-                      {results.similarChunksFound > 0 && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-orange-600">🔍</span>
-                          <span className="text-green-700">
-                            {results.similarChunksFound} đoạn tương tự
-                          </span>
-                        </div>
-                      )}
+                <div className="p-4 border border-green-200 rounded-xl bg-green-50">
+                  <h4 className="flex items-center mb-3 font-semibold text-green-800">
+                    <span className="mr-2">⚡</span>
+                    Thông tin xử lý (AVL Tree)
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {results.processingTime && (
+                      <div className="flex items-center">
+                        <span className="mr-2 text-gray-600">⏱️</span>
+                        <span className="text-green-700">
+                          Thời gian: {results.processingTime}ms
+                        </span>
+                      </div>
+                    )}
+                    {results.checkedDocuments && (
+                      <div className="flex items-center">
+                        <span className="mr-2 text-blue-600">📚</span>
+                        <span className="text-green-700">
+                          Đã kiểm tra: {results.checkedDocuments} tài liệu
+                        </span>
+                      </div>
+                    )}
+                    {results.totalMatches && (
+                      <div className="flex items-center">
+                        <span className="mr-2 text-purple-600">🎯</span>
+                        <span className="text-green-700">
+                          Tổng khớp: {results.totalMatches}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center">
+                      <span className="mr-2 text-orange-600">🌳</span>
+                      <span className="text-green-700">
+                        Cấu trúc: AVL Tree
+                      </span>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Database Statistics */}
-                {(results.totalDocumentsInDatabase > 0 || results.totalChunksInDatabase > 0) && (
-                  <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-                    <h4 className="flex items-center mb-3 font-semibold text-purple-800">
-                      <span className="mr-2">🗄️</span>
-                      Thống kê cơ sở dữ liệu
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      {results.totalDocumentsInDatabase > 0 && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-purple-600">📚</span>
-                          <span className="text-purple-700">
-                            {results.totalDocumentsInDatabase.toLocaleString()} tài liệu
-                          </span>
-                        </div>
-                      )}
-                      {results.totalChunksInDatabase > 0 && (
-                        <div className="flex items-center">
-                          <span className="mr-2 text-purple-600">🧩</span>
-                          <span className="text-purple-700">
-                            {results.totalChunksInDatabase.toLocaleString()} đoạn văn
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <span className="mr-2 text-purple-600">🔍</span>
-                        <span className="text-purple-700">
-                          Sử dụng cây AVL để tối ưu
-                        </span>
-                      </div>
-                      <div className="flex items-center">
-                        <span className="mr-2 text-purple-600">⚡</span>
-                        <span className="text-purple-700">
-                          Kiểm tra thời gian thực
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+
 
                 {/* Document Information */}
                 <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
@@ -614,7 +708,7 @@ const TextChecker = () => {
               <div className="mb-2 text-2xl">📎</div>
               <h4 className="mb-2 font-medium text-neutral-800">Cách 2: Upload file</h4>
               <p className="text-sm text-neutral-600">
-                Chọn file TXT, PDF, DOC, DOCX để kiểm tra nội dung trùng lặp
+                Chọn file TXT, PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX để kiểm tra nội dung trùng lặp
               </p>
             </div>
             
@@ -634,6 +728,127 @@ const TextChecker = () => {
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Document Selector Modal */}
+        {showDocumentSelector && (
+          <DocumentSelectorModal
+            documents={userDocuments}
+            onClose={() => setShowDocumentSelector(false)}
+            onSelect={handleDocumentSelect}
+            loading={loadingDocuments}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Document Selector Modal Component
+const DocumentSelectorModal = ({ documents, onClose, onSelect, loading }) => {
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString("vi-VN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
+  const getFileIcon = (fileType) => {
+    switch (fileType) {
+      case 'pdf': return '📄';
+      case 'docx': case 'doc': return '📝';
+      case 'txt': return '📃';
+      case 'xlsx': case 'xls': return '📊';
+      case 'pptx': case 'ppt': return '📊';
+      default: return '📁';
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-4xl p-6 mx-4 bg-white rounded-2xl max-h-[80vh] overflow-hidden">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold text-neutral-900">
+            Chọn tài liệu đã upload
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-neutral-400 hover:text-neutral-600"
+          >
+            ✕
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 border-b-2 rounded-full border-primary-500 animate-spin"></div>
+              <span className="text-neutral-600">Đang tải...</span>
+            </div>
+          </div>
+        ) : documents.length === 0 ? (
+          <div className="py-12 text-center">
+            <div className="mb-4 text-4xl">📄</div>
+            <p className="mb-4 text-neutral-600">Bạn chưa có tài liệu nào đã upload</p>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Đóng
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-y-auto max-h-96">
+            <div className="grid gap-3">
+              {documents.map((document) => (
+                <div
+                  key={document._id}
+                  onClick={() => onSelect(document._id)}
+                  className="flex items-center p-4 transition-colors border cursor-pointer border-neutral-200 rounded-xl hover:bg-neutral-50"
+                >
+                  <div className="mr-4 text-2xl">
+                    {getFileIcon(document.fileType)}
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-neutral-900">
+                      {document.title}
+                    </div>
+                    <div className="text-sm text-neutral-500">
+                      {document.fileName} • {formatFileSize(document.fileSize)}
+                    </div>
+                    <div className="text-xs text-neutral-400">
+                      Upload: {formatDate(document.uploadedAt)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-blue-600">
+                      Chọn
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+          >
+            Hủy
+          </button>
         </div>
       </div>
     </div>

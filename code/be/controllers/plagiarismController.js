@@ -239,7 +239,7 @@ exports.uploadFile = [
 // Check plagiarism
 exports.checkPlagiarism = async (req, res) => {
   try {
-    const { text, options = {} } = req.body;
+    const { text, options = {}, fileName, fileType } = req.body;
     
     if (!text || !text.trim()) {
       return res.status(400).json({
@@ -258,8 +258,36 @@ exports.checkPlagiarism = async (req, res) => {
       return 'low';
     };
 
+    // Save plagiarism check to database
+    const plagiarismCheck = new PlagiarismCheck({
+      user: req.user.id,
+      originalText: text,
+      textLength: text.length,
+      wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
+      duplicatePercentage: result.duplicatePercentage,
+      matches: result.matches || [],
+      sources: result.sources || [],
+      confidence: result.confidence,
+      status: getStatus(result.duplicatePercentage),
+      source: fileName ? 'file' : 'text',
+      fileName: fileName || null,
+      fileType: fileType || null,
+      processingTime: result.processingTime,
+      options: {
+        checkInternet: options.checkInternet !== false,
+        checkDatabase: options.checkDatabase !== false,
+        sensitivity: options.sensitivity || 'medium',
+        language: options.language || 'vi'
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await plagiarismCheck.save();
+
     res.json({
       success: true,
+      checkId: plagiarismCheck._id,
       duplicatePercentage: result.duplicatePercentage,
       matches: result.matches,
       sources: result.sources,
@@ -354,12 +382,73 @@ exports.getUserStats = async (req, res) => {
 // Get list of uploaded files
 exports.getUploadedFiles = async (req, res) => {
   try {
-    // Hệ thống không lưu file sau khi xử lý, trả về danh sách rỗng
+    const Document = require('../models/Document');
+    
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      fileType = 'all',
+      status = 'all'
+    } = req.query;
+
+    const query = { uploadedBy: req.user.id };
+
+    // Add search filter
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { originalFileName: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Add file type filter
+    if (fileType !== 'all') {
+      query.fileType = fileType;
+    }
+
+    // Add status filter
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const documents = await Document.find(query)
+      .populate('uploadedBy', 'name email')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Document.countDocuments(query);
+
+    const files = documents.map(doc => ({
+      _id: doc._id,
+      title: doc.title,
+      fileName: doc.originalFileName,
+      fileType: doc.fileType,
+      fileSize: doc.fileSize,
+      uploadedBy: {
+        name: doc.uploadedBy.name,
+        email: doc.uploadedBy.email
+      },
+      uploadedAt: doc.createdAt,
+      checkCount: doc.checkCount,
+      lastChecked: doc.lastChecked,
+      downloadCount: doc.downloadCount,
+      status: doc.status
+    }));
+
     res.json({
       success: true,
-      files: [],
-      total: 0,
-      message: 'Hệ thống không lưu file sau khi xử lý để bảo mật và tiết kiệm dung lượng'
+      files,
+      total,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / parseInt(limit)),
+        hasNext: parseInt(page) * parseInt(limit) < total,
+        hasPrev: parseInt(page) > 1
+      }
     });
     
   } catch (error) {
@@ -509,19 +598,193 @@ exports.getDetailedComparison = async (req, res) => {
       0.7
     );
     
-    res.json({
-      success: true,
-      originalText: plagiarismCheck.originalText,
-      matches: plagiarismCheck.matches,
-      duplicatePercentage: plagiarismCheck.duplicatePercentage,
-      similarChunks: similarChunks.slice(0, 3), // Top 3 similar chunks
-      detailedAnalysis: {
-        wordCount: plagiarismCheck.wordCount,
-        textLength: plagiarismCheck.textLength,
-        confidence: plagiarismCheck.confidence,
-        status: plagiarismCheck.status
+    // Tìm document giống nhất từ database thực tế
+    const Document = require('../models/Document');
+    let mostSimilarDocument = null;
+    let mostSimilarContent = '';
+    let overallSimilarity = plagiarismCheck.duplicatePercentage || 0;
+    
+    // Tìm document có nội dung tương tự nhất
+    if (similarChunks.length > 0) {
+      const topChunk = similarChunks.reduce((prev, current) => 
+        (prev.similarity > current.similarity) ? prev : current
+      );
+      
+      overallSimilarity = Math.max(overallSimilarity, Math.round(topChunk.similarity));
+      mostSimilarContent = topChunk.matchedChunk.text;
+      
+      // Tạo thông tin document từ cache
+      mostSimilarDocument = {
+        fileName: `document-${topChunk.matchedChunk.fullHash.substring(0, 8)}.txt`,
+        fileSize: topChunk.matchedChunk.text.length,
+        fileType: 'text/plain',
+        author: 'Hệ thống',
+        uploadedAt: new Date()
+      };
+    } else {
+      // Tìm document thực tế từ database nếu không có similar chunks
+      try {
+        const documents = await Document.find({ status: 'processed' })
+          .limit(10)
+          .sort({ createdAt: -1 })
+          .populate('uploadedBy', 'name');
+        
+        if (documents.length > 0) {
+          // Tìm document có nội dung tương tự nhất bằng cách so sánh từ khóa
+          let bestMatch = null;
+          let bestSimilarity = 0;
+          
+          const originalWords = plagiarismCheck.originalText.toLowerCase().split(/\s+/);
+          const originalWordSet = new Set(originalWords);
+          
+          for (const doc of documents) {
+            if (doc.extractedText && doc.extractedText.length > 100) {
+              const docWords = doc.extractedText.toLowerCase().split(/\s+/);
+              const docWordSet = new Set(docWords);
+              
+              // Tính similarity dựa trên số từ chung
+              const intersection = new Set([...originalWordSet].filter(x => docWordSet.has(x)));
+              const union = new Set([...originalWordSet, ...docWordSet]);
+              const similarity = (intersection.size / union.size) * 100;
+              
+              if (similarity > bestSimilarity) {
+                bestSimilarity = similarity;
+                bestMatch = doc;
+              }
+            }
+          }
+          
+          if (bestMatch) {
+            mostSimilarDocument = {
+              fileName: bestMatch.originalFileName,
+              fileSize: bestMatch.fileSize,
+              fileType: bestMatch.mimeType,
+              author: bestMatch.uploadedBy?.name || 'Unknown',
+              uploadedAt: bestMatch.createdAt
+            };
+            mostSimilarContent = bestMatch.extractedText;
+            overallSimilarity = Math.max(overallSimilarity, Math.round(bestSimilarity));
+          }
+        }
+      } catch (docError) {
+        console.error('Error finding similar documents:', docError);
       }
-    });
+    }
+    
+    // Tạo detailed matches từ dữ liệu thực tế
+    const detailedMatches = [];
+    
+    // Thêm matches từ plagiarism check
+    if (plagiarismCheck.matches && plagiarismCheck.matches.length > 0) {
+      plagiarismCheck.matches.forEach((match, index) => {
+        const originalTextLower = plagiarismCheck.originalText.toLowerCase();
+        const matchTextLower = match.text.toLowerCase();
+        const startIndex = originalTextLower.indexOf(matchTextLower);
+        
+        detailedMatches.push({
+          id: `match-${index + 1}`,
+          originalText: match.text,
+          matchedText: match.text,
+          similarity: match.similarity || 85,
+          source: match.source,
+          url: match.url,
+          startPosition: startIndex >= 0 ? startIndex : 0,
+          endPosition: startIndex >= 0 ? startIndex + match.text.length : match.text.length
+        });
+      });
+    }
+    
+    // Thêm matches từ similar chunks
+    if (similarChunks.length > 0) {
+      similarChunks.slice(0, 5).forEach((chunk, index) => {
+        const originalTextLower = plagiarismCheck.originalText.toLowerCase();
+        const chunkTextLower = chunk.originalChunk.text.toLowerCase();
+        const startIndex = originalTextLower.indexOf(chunkTextLower);
+        
+        if (startIndex >= 0) {
+          detailedMatches.push({
+            id: `cache-match-${index + 1}`,
+            originalText: chunk.originalChunk.text,
+            matchedText: chunk.matchedChunk.text,
+            similarity: Math.round(chunk.similarity),
+            source: 'database-cache',
+            url: `internal://cache/${chunk.matchedChunk.fullHash}`,
+            startPosition: startIndex,
+            endPosition: startIndex + chunk.originalChunk.text.length
+          });
+        }
+      });
+    } else if (mostSimilarContent && mostSimilarContent.length > 100) {
+      // Tạo matches thực tế bằng cách tìm đoạn văn tương tự
+      const originalText = plagiarismCheck.originalText;
+      const originalSentences = originalText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      const similarSentences = mostSimilarContent.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      
+      originalSentences.forEach((origSentence, origIndex) => {
+        const origWords = origSentence.toLowerCase().trim().split(/\s+/);
+        if (origWords.length < 5) return; // Skip short sentences
+        
+        let bestMatch = null;
+        let bestSimilarity = 0;
+        
+        similarSentences.forEach((simSentence, simIndex) => {
+          const simWords = simSentence.toLowerCase().trim().split(/\s+/);
+          if (simWords.length < 5) return;
+          
+          // Tính similarity giữa hai câu
+          const origWordSet = new Set(origWords);
+          const simWordSet = new Set(simWords);
+          const intersection = new Set([...origWordSet].filter(x => simWordSet.has(x)));
+          const union = new Set([...origWordSet, ...simWordSet]);
+          const similarity = (intersection.size / union.size) * 100;
+          
+          if (similarity > bestSimilarity && similarity > 30) { // Threshold 30%
+            bestSimilarity = similarity;
+            bestMatch = simSentence.trim();
+          }
+        });
+        
+        if (bestMatch && detailedMatches.length < 10) { // Limit to 10 matches
+          const startPosition = originalText.indexOf(origSentence.trim());
+          if (startPosition >= 0) {
+            detailedMatches.push({
+              id: `real-match-${origIndex + 1}`,
+              originalText: origSentence.trim(),
+              matchedText: bestMatch,
+              similarity: Math.round(bestSimilarity),
+              source: mostSimilarDocument?.fileName || 'similar-document',
+              url: `internal://document/${mostSimilarDocument?.fileName}`,
+              startPosition: startPosition,
+              endPosition: startPosition + origSentence.trim().length
+            });
+          }
+        }
+      });
+    }
+    
+    // Sắp xếp matches theo vị trí trong text
+    detailedMatches.sort((a, b) => a.startPosition - b.startPosition);
+    
+    const response = {
+      success: true,
+      currentDocument: {
+        fileName: plagiarismCheck.fileName || 'document.txt',
+        fileSize: plagiarismCheck.textLength,
+        fileType: plagiarismCheck.fileType || 'text/plain',
+        wordCount: plagiarismCheck.wordCount,
+        duplicateRate: plagiarismCheck.duplicatePercentage,
+        checkedAt: plagiarismCheck.createdAt,
+        content: plagiarismCheck.originalText
+      },
+      mostSimilarDocument: mostSimilarDocument ? {
+        ...mostSimilarDocument,
+        content: mostSimilarContent
+      } : null,
+      overallSimilarity: overallSimilarity,
+      detailedMatches: detailedMatches
+    };
+    
+    res.json(response);
     
   } catch (error) {
     console.error('Get detailed comparison error:', error);
@@ -553,17 +816,126 @@ exports.getAllDocumentsComparison = async (req, res) => {
     // Lấy thống kê từ detection service
     const systemStats = plagiarismDetectionService.getStats();
     
+    // Tìm tất cả similar chunks từ cache
+    const similarChunks = plagiarismCacheService.findSimilarChunks(
+      plagiarismCheck.originalText, 
+      0.3 // Lower threshold để lấy nhiều kết quả hơn
+    );
+    
+    // Tìm documents thực tế từ database
+    const Document = require('../models/Document');
+    let allDocuments = [];
+    
+    try {
+      const documents = await Document.find({ status: 'processed' })
+        .limit(50)
+        .sort({ createdAt: -1 })
+        .populate('uploadedBy', 'name');
+      
+      const originalWords = plagiarismCheck.originalText.toLowerCase().split(/\s+/);
+      const originalWordSet = new Set(originalWords);
+      
+      // So sánh với từng document
+      for (const doc of documents) {
+        if (doc.extractedText && doc.extractedText.length > 100) {
+          const docWords = doc.extractedText.toLowerCase().split(/\s+/);
+          const docWordSet = new Set(docWords);
+          
+          // Tính similarity dựa trên số từ chung
+          const intersection = new Set([...originalWordSet].filter(x => docWordSet.has(x)));
+          const union = new Set([...originalWordSet, ...docWordSet]);
+          const similarity = (intersection.size / union.size) * 100;
+          
+          if (similarity > 5) { // Chỉ lấy những document có similarity > 5%
+            const duplicateRate = Math.round(similarity);
+            const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
+            
+            allDocuments.push({
+              id: doc._id,
+              fileName: doc.originalFileName,
+              fileSize: doc.fileSize,
+              fileType: doc.mimeType,
+              author: doc.uploadedBy?.name || 'Unknown',
+              uploadedAt: doc.createdAt,
+              duplicateRate: duplicateRate,
+              status: status
+            });
+          }
+        }
+      }
+    } catch (docError) {
+      console.error('Error finding documents:', docError);
+    }
+    
+    // Thêm documents từ cache
+    const cacheDocuments = [];
+    if (similarChunks.length > 0) {
+      const groupedChunks = {};
+      
+      // Nhóm chunks theo hash để tạo thành documents
+      similarChunks.forEach(chunk => {
+        const docId = chunk.matchedChunk.fullHash.substring(0, 12);
+        if (!groupedChunks[docId]) {
+          groupedChunks[docId] = {
+            chunks: [],
+            totalSimilarity: 0,
+            maxSimilarity: 0
+          };
+        }
+        groupedChunks[docId].chunks.push(chunk);
+        groupedChunks[docId].totalSimilarity += chunk.similarity;
+        groupedChunks[docId].maxSimilarity = Math.max(groupedChunks[docId].maxSimilarity, chunk.similarity);
+      });
+      
+      // Tạo documents từ grouped chunks
+      Object.keys(groupedChunks).forEach(docId => {
+        const group = groupedChunks[docId];
+        const avgSimilarity = group.totalSimilarity / group.chunks.length;
+        const duplicateRate = Math.round(Math.min(avgSimilarity, group.maxSimilarity));
+        const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
+        
+        cacheDocuments.push({
+          id: `cache-${docId}`,
+          fileName: `document-${docId}.txt`,
+          fileSize: group.chunks.reduce((sum, chunk) => sum + chunk.matchedChunk.text.length, 0),
+          fileType: 'text/plain',
+          author: 'Hệ thống',
+          uploadedAt: new Date(),
+          duplicateRate: duplicateRate,
+          status: status
+        });
+      });
+    }
+    
+    // Kết hợp và sắp xếp tất cả documents
+    allDocuments = [...allDocuments, ...cacheDocuments];
+    allDocuments.sort((a, b) => b.duplicateRate - a.duplicateRate);
+    
+    // Tính thống kê
+    const totalDocuments = allDocuments.length;
+    const highRiskCount = allDocuments.filter(doc => doc.status === 'high').length;
+    const mediumRiskCount = allDocuments.filter(doc => doc.status === 'medium').length;
+    const lowRiskCount = allDocuments.filter(doc => doc.status === 'low').length;
+    
     res.json({
       success: true,
       checkId: checkId,
-      originalText: plagiarismCheck.originalText.substring(0, 500) + '...',
-      totalDocumentsCompared: systemStats.totalDocuments,
-      totalChunksCompared: systemStats.totalChunks,
-      matches: plagiarismCheck.matches,
-      sources: plagiarismCheck.sources,
-      duplicatePercentage: plagiarismCheck.duplicatePercentage,
-      processingTime: plagiarismCheck.processingTime,
-      systemInitialized: systemStats.initialized
+      currentDocument: {
+        fileName: plagiarismCheck.fileName || 'document.txt',
+        fileSize: plagiarismCheck.textLength,
+        fileType: plagiarismCheck.fileType || 'text/plain',
+        duplicateRate: plagiarismCheck.duplicatePercentage
+      },
+      totalDocuments: totalDocuments,
+      highRiskCount: highRiskCount,
+      mediumRiskCount: mediumRiskCount,
+      lowRiskCount: lowRiskCount,
+      allDocuments: allDocuments,
+      systemStats: {
+        totalDocumentsInSystem: systemStats.totalDocuments,
+        totalChunksInSystem: systemStats.totalChunks,
+        systemInitialized: systemStats.initialized
+      }
     });
     
   } catch (error) {
@@ -571,6 +943,239 @@ exports.getAllDocumentsComparison = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy so sánh với tất cả tài liệu'
+    });
+  }
+};
+
+// Get detailed comparison with all documents (for visual comparison)
+exports.getDetailedAllDocumentsComparison = async (req, res) => {
+  try {
+    const { checkId } = req.params;
+    const userId = req.user.id;
+    
+    const plagiarismCheck = await PlagiarismCheck.findOne({ 
+      _id: checkId, 
+      user: userId 
+    });
+    
+    if (!plagiarismCheck) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy kết quả kiểm tra'
+      });
+    }
+    
+    // Tìm tất cả similar chunks từ cache
+    const similarChunks = plagiarismCacheService.findSimilarChunks(
+      plagiarismCheck.originalText, 
+      0.2 // Lower threshold để lấy nhiều kết quả hơn
+    );
+    
+    // Tìm documents thực tế từ database
+    const Document = require('../models/Document');
+    let matchingDocuments = [];
+    
+    try {
+      const documents = await Document.find({ status: 'processed' })
+        .limit(20)
+        .sort({ createdAt: -1 })
+        .populate('uploadedBy', 'name');
+      
+      const originalWords = plagiarismCheck.originalText.toLowerCase().split(/\s+/);
+      const originalWordSet = new Set(originalWords);
+      
+      // So sánh với từng document
+      for (const doc of documents) {
+        if (doc.extractedText && doc.extractedText.length > 100) {
+          const docWords = doc.extractedText.toLowerCase().split(/\s+/);
+          const docWordSet = new Set(docWords);
+          
+          // Tính similarity dựa trên số từ chung
+          const intersection = new Set([...originalWordSet].filter(x => docWordSet.has(x)));
+          const union = new Set([...originalWordSet, ...docWordSet]);
+          const similarity = (intersection.size / union.size) * 100;
+          
+          if (similarity > 10) { // Chỉ lấy những document có similarity > 10%
+            const duplicateRate = Math.round(similarity);
+            const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
+            
+            matchingDocuments.push({
+              id: doc._id,
+              fileName: doc.originalFileName,
+              fileSize: doc.fileSize,
+              fileType: doc.mimeType,
+              author: doc.uploadedBy?.name || 'Unknown',
+              uploadedAt: doc.createdAt,
+              duplicateRate: duplicateRate,
+              status: status,
+              content: doc.extractedText
+            });
+          }
+        }
+      }
+    } catch (docError) {
+      console.error('Error finding documents:', docError);
+    }
+    
+    // Thêm documents từ cache
+    if (similarChunks.length > 0) {
+      const groupedChunks = {};
+      
+      // Nhóm chunks theo hash để tạo thành documents
+      similarChunks.forEach(chunk => {
+        const docId = chunk.matchedChunk.fullHash.substring(0, 12);
+        if (!groupedChunks[docId]) {
+          groupedChunks[docId] = {
+            chunks: [],
+            totalSimilarity: 0,
+            maxSimilarity: 0,
+            content: ''
+          };
+        }
+        groupedChunks[docId].chunks.push(chunk);
+        groupedChunks[docId].totalSimilarity += chunk.similarity;
+        groupedChunks[docId].maxSimilarity = Math.max(groupedChunks[docId].maxSimilarity, chunk.similarity);
+        groupedChunks[docId].content += chunk.matchedChunk.text + ' ';
+      });
+      
+      // Tạo documents từ grouped chunks
+      Object.keys(groupedChunks).forEach(docId => {
+        const group = groupedChunks[docId];
+        const avgSimilarity = group.totalSimilarity / group.chunks.length;
+        const duplicateRate = Math.round(Math.min(avgSimilarity, group.maxSimilarity));
+        const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
+        
+        if (duplicateRate > 10) { // Chỉ lấy những document có similarity > 10%
+          matchingDocuments.push({
+            id: `cache-${docId}`,
+            fileName: `document-${docId}.txt`,
+            fileSize: group.content.length,
+            fileType: 'text/plain',
+            author: 'Hệ thống',
+            uploadedAt: new Date(),
+            duplicateRate: duplicateRate,
+            status: status,
+            content: group.content.trim()
+          });
+        }
+      });
+    }
+    
+    // Sắp xếp theo tỷ lệ trùng lặp
+    matchingDocuments.sort((a, b) => b.duplicateRate - a.duplicateRate);
+    
+    // Tạo highlighted text cho document gốc
+    const originalText = plagiarismCheck.originalText;
+    const highlightedSegments = [];
+    
+    // Tạo màu sắc cho từng document
+    const colors = [
+      '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+      '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
+    ];
+    
+    // Tìm các đoạn trùng lặp trong text gốc
+    matchingDocuments.forEach((doc, docIndex) => {
+      const color = colors[docIndex % colors.length];
+      const originalSentences = originalText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      const docSentences = doc.content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+      
+      originalSentences.forEach((origSentence) => {
+        const origWords = origSentence.toLowerCase().trim().split(/\s+/);
+        if (origWords.length < 5) return;
+        
+        let bestMatch = null;
+        let bestSimilarity = 0;
+        
+        docSentences.forEach((docSentence) => {
+          const docWords = docSentence.toLowerCase().trim().split(/\s+/);
+          if (docWords.length < 5) return;
+          
+          // Tính similarity giữa hai câu
+          const origWordSet = new Set(origWords);
+          const docWordSet = new Set(docWords);
+          const intersection = new Set([...origWordSet].filter(x => docWordSet.has(x)));
+          const union = new Set([...origWordSet, ...docWordSet]);
+          const similarity = (intersection.size / union.size) * 100;
+          
+          if (similarity > bestSimilarity && similarity > 40) { // Threshold 40%
+            bestSimilarity = similarity;
+            bestMatch = docSentence.trim();
+          }
+        });
+        
+        if (bestMatch) {
+          const startPosition = originalText.indexOf(origSentence.trim());
+          if (startPosition >= 0) {
+            highlightedSegments.push({
+              start: startPosition,
+              end: startPosition + origSentence.trim().length,
+              text: origSentence.trim(),
+              documentId: doc.id,
+              documentName: doc.fileName,
+              similarity: Math.round(bestSimilarity),
+              color: color
+            });
+          }
+        }
+      });
+    });
+    
+    // Sắp xếp segments theo vị trí
+    highlightedSegments.sort((a, b) => a.start - b.start);
+    
+    // Tạo text với highlight
+    let highlightedText = '';
+    let lastIndex = 0;
+    
+    highlightedSegments.forEach(segment => {
+      // Thêm text trước segment
+      if (segment.start > lastIndex) {
+        highlightedText += originalText.substring(lastIndex, segment.start);
+      }
+      
+      // Thêm segment với highlight
+      highlightedText += `<span style="background-color: ${segment.color}20; border-left: 3px solid ${segment.color}; padding: 2px 4px; margin: 1px;" data-document-id="${segment.documentId}" data-similarity="${segment.similarity}" title="${segment.documentName} (${segment.similarity}%)">${segment.text}</span>`;
+      
+      lastIndex = segment.end;
+    });
+    
+    // Thêm phần còn lại của text
+    if (lastIndex < originalText.length) {
+      highlightedText += originalText.substring(lastIndex);
+    }
+    
+    res.json({
+      success: true,
+      checkId: checkId,
+      currentDocument: {
+        fileName: plagiarismCheck.fileName || 'document.txt',
+        fileSize: plagiarismCheck.textLength,
+        fileType: plagiarismCheck.fileType || 'text/plain',
+        duplicateRate: plagiarismCheck.duplicatePercentage,
+        originalText: originalText,
+        highlightedText: highlightedText
+      },
+      matchingDocuments: matchingDocuments.map(doc => ({
+        id: doc.id,
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        fileType: doc.fileType,
+        author: doc.author,
+        uploadedAt: doc.uploadedAt,
+        duplicateRate: doc.duplicateRate,
+        status: doc.status
+        // Không trả về content để giảm kích thước response
+      })),
+      highlightedSegments: highlightedSegments,
+      totalMatches: matchingDocuments.length
+    });
+    
+  } catch (error) {
+    console.error('Get detailed all documents comparison error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy so sánh chi tiết với tất cả tài liệu'
     });
   }
 };

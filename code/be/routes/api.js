@@ -1,6 +1,7 @@
 const express = require('express');
 const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const plagiarismController = require('../controllers/plagiarismController');
+const userUploadRoutes = require('./userUpload');
 const router = express.Router();
 
 // ===== PLAGIARISM CHECKING ROUTES =====
@@ -22,6 +23,9 @@ router.get('/plagiarism/:checkId/detailed-comparison', protect, plagiarismContro
 
 // Get all documents comparison
 router.get('/plagiarism/:checkId/all-documents-comparison', protect, plagiarismController.getAllDocumentsComparison);
+
+// Get detailed comparison with all documents (for visual comparison)
+router.get('/plagiarism/:checkId/detailed-all-documents-comparison', protect, plagiarismController.getDetailedAllDocumentsComparison);
 
 // ===== FILE MANAGEMENT ROUTES =====
 
@@ -46,5 +50,8 @@ router.get('/system/stats', protect, plagiarismController.getSystemStats);
 
 // Initialize/Reset plagiarism detection system (admin only)
 router.post('/system/initialize', protect, authorize('admin'), plagiarismController.initializeSystem);
+
+// ===== USER UPLOAD ROUTES (FOR PLAGIARISM CHECK ONLY) =====
+router.use('/user-upload', userUploadRoutes);
 
 module.exports = router;

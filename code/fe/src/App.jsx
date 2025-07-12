@@ -8,6 +8,7 @@ import ForgotPassword from './components/ForgotPassword'
 import TextChecker from './components/TextChecker'
 import DetailedComparison from './components/DetailedComparison'
 import AllDocumentsComparison from './components/AllDocumentsComparison'
+import DocumentManagement from './components/DocumentManagement'
 import AdminDashboard from './components/AdminDashboard'
 import SystemStats from './components/SystemStats'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -122,6 +123,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <AllDocumentsComparison />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/documents" 
+              element={
+                <ProtectedRoute>
+                  <DocumentManagement />
                 </ProtectedRoute>
               } 
             />

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { getAllDocumentsComparison } from '../services/api';
+import { getDetailedAllDocumentsComparison } from '../services/api';
 
 const AllDocumentsComparison = () => {
   const { checkId } = useParams();
@@ -18,10 +18,10 @@ const AllDocumentsComparison = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await getAllDocumentsComparison(checkId);
+        const response = await getDetailedAllDocumentsComparison(checkId);
         setData(response);
       } catch (error) {
-        console.error('Error fetching all documents comparison:', error);
+        console.error('Error fetching detailed all documents comparison:', error);
         setError(error.message || 'Lỗi khi tải dữ liệu so sánh');
       } finally {
         setLoading(false);
@@ -61,8 +61,8 @@ const AllDocumentsComparison = () => {
     }
   };
 
-  const sortedAndFilteredDocuments = data?.allDocuments ? 
-    data.allDocuments
+  const sortedAndFilteredDocuments = data?.matchingDocuments ? 
+    data.matchingDocuments
       .filter(doc => filterStatus === 'all' || doc.status === filterStatus)
       .sort((a, b) => {
         let aValue = a[sortBy];
@@ -117,7 +117,7 @@ const AllDocumentsComparison = () => {
     );
   }
 
-  if (!data) {
+  if (!data || !data.currentDocument) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
         <div className="px-4 py-8 mx-auto max-w-7xl">
@@ -214,8 +214,8 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">📊</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-blue-600">{data.totalDocuments}</div>
-                <div className="text-sm text-neutral-600">Tổng documents</div>
+                <div className="text-2xl font-bold text-blue-600">{data.totalMatches || 0}</div>
+                <div className="text-sm text-neutral-600">Documents trùng lặp</div>
               </div>
             </div>
           </div>
@@ -226,7 +226,7 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">🚨</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-red-600">{data.highRiskCount}</div>
+                <div className="text-2xl font-bold text-red-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'high').length}</div>
                 <div className="text-sm text-neutral-600">Rủi ro cao</div>
               </div>
             </div>
@@ -238,7 +238,7 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">⚠️</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-yellow-600">{data.mediumRiskCount}</div>
+                <div className="text-2xl font-bold text-yellow-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'medium').length}</div>
                 <div className="text-sm text-neutral-600">Rủi ro trung bình</div>
               </div>
             </div>
@@ -250,7 +250,7 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">✅</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{data.lowRiskCount}</div>
+                <div className="text-2xl font-bold text-green-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'low').length}</div>
                 <div className="text-sm text-neutral-600">Rủi ro thấp</div>
               </div>
             </div>
@@ -305,72 +305,133 @@ const AllDocumentsComparison = () => {
           </div>
         </div>
 
-        {/* Documents List */}
-        <div className="p-6 bg-white shadow-xl rounded-2xl">
-          <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
-            <span className="mr-2">📋</span>
-            Danh sách documents ({sortedAndFilteredDocuments.length})
-          </h2>
+        {/* Detailed Comparison View */}
+        <div className="grid gap-8 lg:grid-cols-3">
+          {/* Left Side - Original Text with Highlights */}
+          <div className="lg:col-span-2">
+            <div className="p-6 bg-white shadow-xl rounded-2xl">
+              <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
+                <span className="mr-2">�</span>
+                Nội dung văn bản cần kiểm tra
+              </h2>
+              
+              {data?.currentDocument?.highlightedText ? (
+                <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
+                  <div 
+                    className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
+                    dangerouslySetInnerHTML={{ __html: data.currentDocument.highlightedText }}
+                  />
+                </div>
+              ) : data?.currentDocument?.originalText ? (
+                <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800">
+                    {data.currentDocument.originalText}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <div className="mb-4 text-4xl">📄</div>
+                  <p className="text-neutral-600">Không có nội dung để hiển thị</p>
+                </div>
+              )}
+              
+              {/* Legend for colors */}
+              {data?.highlightedSegments && data.highlightedSegments.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="mb-3 text-sm font-semibold text-neutral-700">Chú thích màu sắc:</h3>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {Array.from(new Set(data.highlightedSegments.map(segment => segment.documentId)))
+                      .slice(0, 10) // Limit to 10 colors
+                      .map((docId, index) => {
+                        const segment = data.highlightedSegments.find(s => s.documentId === docId);
+                        const colors = [
+                          '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+                          '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
+                        ];
+                        const color = colors[index % colors.length];
+                        
+                        return (
+                          <div key={docId} className="flex items-center text-xs">
+                            <div 
+                              className="w-4 h-4 mr-2 border rounded"
+                              style={{ backgroundColor: `${color}20`, borderColor: color }}
+                            ></div>
+                            <span className="truncate text-neutral-600">
+                              {segment?.documentName || `Document ${index + 1}`}
+                            </span>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-          {sortedAndFilteredDocuments.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="mb-4 text-4xl">📄</div>
-              <p className="text-neutral-600">Không tìm thấy documents phù hợp với bộ lọc</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-neutral-200">
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Tên file</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Kích thước</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Loại file</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Tỷ lệ trùng lặp</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Mức độ</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Ngày upload</th>
-                    <th className="px-4 py-3 text-sm font-medium text-left text-neutral-700">Tác giả</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedAndFilteredDocuments.map((doc, index) => (
-                    <tr key={doc.id} className={`border-b border-neutral-100 ${index % 2 === 0 ? 'bg-neutral-50' : 'bg-white'} hover:bg-blue-50 transition-colors`}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center">
-                          <span className="mr-2 text-lg">📄</span>
-                          <span className="font-medium text-neutral-800">{doc.fileName}</span>
+          {/* Right Side - Matching Documents List */}
+          <div className="lg:col-span-1">
+            <div className="p-6 bg-white shadow-xl rounded-2xl">
+              <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
+                <span className="mr-2">📋</span>
+                Documents trùng lặp ({sortedAndFilteredDocuments.length})
+              </h2>
+
+              {sortedAndFilteredDocuments.length === 0 ? (
+                <div className="py-12 text-center">
+                  <div className="mb-4 text-4xl">📄</div>
+                  <p className="text-neutral-600">Không tìm thấy documents trùng lặp</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sortedAndFilteredDocuments.map((doc, index) => {
+                    const colors = [
+                      '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', 
+                      '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
+                    ];
+                    const color = colors[index % colors.length];
+                    
+                    return (
+                      <div 
+                        key={doc.id} 
+                        className="p-4 transition-shadow border rounded-lg border-neutral-200 hover:shadow-md"
+                        style={{ borderLeftColor: color, borderLeftWidth: '4px' }}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center mb-2">
+                              <span className="mr-2 text-lg">📄</span>
+                              <h3 className="font-medium truncate text-neutral-800" title={doc.fileName}>
+                                {doc.fileName}
+                              </h3>
+                            </div>
+                            
+                            <div className="space-y-1 text-xs text-neutral-600">
+                              <div>Kích thước: {formatFileSize(doc.fileSize)}</div>
+                              <div>Loại: {doc.fileType}</div>
+                              <div>Tác giả: {doc.author}</div>
+                              <div>Ngày: {formatDate(doc.uploadedAt)}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="ml-3 text-right">
+                            <div className={`text-lg font-bold ${
+                              doc.duplicateRate > 30 ? 'text-red-600' : 
+                              doc.duplicateRate > 15 ? 'text-yellow-600' : 'text-green-600'
+                            }`}>
+                              {doc.duplicateRate}%
+                            </div>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(doc.status)}`}>
+                              {getStatusText(doc.status)}
+                            </span>
+                          </div>
                         </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-neutral-600">
-                        {formatFileSize(doc.fileSize)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-neutral-600">
-                        {doc.fileType}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`font-semibold ${
-                          doc.duplicateRate > 30 ? 'text-red-600' : 
-                          doc.duplicateRate > 15 ? 'text-yellow-600' : 'text-green-600'
-                        }`}>
-                          {doc.duplicateRate}%
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full border ${getStatusColor(doc.status)}`}>
-                          {getStatusText(doc.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-neutral-600">
-                        {formatDate(doc.uploadedAt)}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-neutral-600">
-                        {doc.author}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

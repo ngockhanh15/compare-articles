@@ -170,7 +170,7 @@ export const resetPassword = async (resetToken, password) => {
 
 // ==================== TEXT CHECKER API ====================
 
-// Upload file và extract text
+// Upload file và extract text (old API - deprecated)
 export const uploadFile = async (file) => {
   try {
     const formData = new FormData();
@@ -194,14 +194,84 @@ export const uploadFile = async (file) => {
   }
 };
 
+// ==================== USER UPLOAD API (FOR PLAGIARISM CHECK ONLY) ====================
+
+// Upload file for plagiarism check (temporary, not saved)
+export const uploadFileForCheck = async (file, options = {}) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Add check options
+    if (options.sensitivity) formData.append('sensitivity', options.sensitivity);
+    if (options.language) formData.append('language', options.language);
+
+    const response = await fetch(`${API_BASE_URL}/user-upload/check-file`, {
+      method: 'POST',
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it
+        ...(localStorage.getItem('token') && { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        })
+      },
+      body: formData,
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Upload file for check error:', error);
+    throw error;
+  }
+};
+
+// Check text content for plagiarism (no file upload)
+export const checkTextContent = async (text, options = {}) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/user-upload/check-text`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        options: {
+          sensitivity: 'medium',
+          language: 'vi',
+          ...options
+        }
+      }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Check text content error:', error);
+    throw error;
+  }
+};
+
+// Get AVL tree statistics
+export const getTreeStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/user-upload/tree-stats`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get tree stats error:', error);
+    throw error;
+  }
+};
+
 // Kiểm tra plagiarism
-export const checkPlagiarism = async (text, options = {}) => {
+export const checkPlagiarism = async (text, options = {}, fileName = null, fileType = null) => {
   try {
     const response = await fetch(`${API_BASE_URL}/check-plagiarism`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
         text: text,
+        fileName: fileName,
+        fileType: fileType,
         options: {
           checkInternet: true,
           checkDatabase: true,
@@ -244,6 +314,21 @@ export const getAllDocumentsComparison = async (checkId) => {
     return await handleResponse(response);
   } catch (error) {
     console.error('Get all documents comparison error:', error);
+    throw error;
+  }
+};
+
+// Lấy so sánh chi tiết với tất cả documents (bao gồm highlighted text)
+export const getDetailedAllDocumentsComparison = async (checkId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/detailed-all-documents-comparison`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get detailed all documents comparison error:', error);
     throw error;
   }
 };
@@ -323,6 +408,187 @@ export const clearCache = async () => {
     return await handleResponse(response);
   } catch (error) {
     console.error('Clear cache error:', error);
+    throw error;
+  }
+};
+
+// ==================== DOCUMENT MANAGEMENT API ====================
+
+// Upload document (persistent storage)
+export const uploadDocument = async (file, metadata = {}) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    // Add metadata
+    if (metadata.title) formData.append('title', metadata.title);
+    if (metadata.description) formData.append('description', metadata.description);
+    if (metadata.tags) formData.append('tags', metadata.tags);
+    if (metadata.isPublic !== undefined) formData.append('isPublic', metadata.isPublic);
+
+    const response = await fetch(`${API_BASE_URL}/documents/upload`, {
+      method: 'POST',
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it
+        ...(localStorage.getItem('token') && { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        })
+      },
+      body: formData,
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Upload document error:', error);
+    throw error;
+  }
+};
+
+// Get user documents with pagination and filters
+export const getUserDocuments = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page);
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.fileType) queryParams.append('fileType', params.fileType);
+    if (params.status) queryParams.append('status', params.status);
+    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+    const response = await fetch(`${API_BASE_URL}/documents?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get user documents error:', error);
+    throw error;
+  }
+};
+
+// Get document by ID
+export const getDocumentById = async (documentId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get document by ID error:', error);
+    throw error;
+  }
+};
+
+// Get extracted text from document for plagiarism check
+export const getDocumentText = async (documentId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}/text`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get document text error:', error);
+    throw error;
+  }
+};
+
+// Download document
+export const downloadDocument = async (documentId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}/download`, {
+      method: 'GET',
+      headers: {
+        ...(localStorage.getItem('token') && { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        })
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Download failed');
+    }
+
+    // Return the response for blob handling
+    return response;
+  } catch (error) {
+    console.error('Download document error:', error);
+    throw error;
+  }
+};
+
+// Update document metadata
+export const updateDocument = async (documentId, metadata) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(metadata),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Update document error:', error);
+    throw error;
+  }
+};
+
+// Delete document
+export const deleteDocument = async (documentId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Delete document error:', error);
+    throw error;
+  }
+};
+
+// Get document statistics
+export const getDocumentStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/stats`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get document stats error:', error);
+    throw error;
+  }
+};
+
+// Get uploaded files (legacy support - now uses getUserDocuments)
+export const getUploadedFiles = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    
+    if (params.page) queryParams.append('page', params.page);
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.fileType) queryParams.append('fileType', params.fileType);
+    if (params.status) queryParams.append('status', params.status);
+
+    const response = await fetch(`${API_BASE_URL}/files?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Get uploaded files error:', error);
     throw error;
   }
 };

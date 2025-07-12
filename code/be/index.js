@@ -5,6 +5,7 @@ const connectDB = require('./config/database');
 const { generalLimiter } = require('./middleware/rateLimiter');
 const createDefaultAdmin = require('./utils/createDefaultAdmin');
 const initializePlagiarismSystem = require('./scripts/initializePlagiarismSystem');
+const initializeDocumentAVL = require('./scripts/initializeDocumentAVL');
 
 // Load env vars
 dotenv.config();
@@ -28,6 +29,14 @@ const initializeApp = async () => {
       console.log('✅ Plagiarism detection system initialized');
     } else {
       console.warn('⚠️ Plagiarism detection system initialization failed:', plagiarismResult.error);
+    }
+    
+    // 4. Initialize Document AVL Tree
+    try {
+      await initializeDocumentAVL();
+      console.log('✅ Document AVL Tree initialized');
+    } catch (avlError) {
+      console.warn('⚠️ Document AVL Tree initialization failed:', avlError.message);
     }
     
     console.log('🎉 Application initialization completed!');
@@ -71,6 +80,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/documents', require('./routes/documents'));
 app.use('/api', require('./routes/api'));
 
 // Error handling middleware

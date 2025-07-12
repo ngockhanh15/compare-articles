@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { getSystemStats, initializeSystem, clearCache } from '../services/api';
+import { getSystemStats, initializeSystem, clearCache, getTreeStats } from '../services/api';
 
 const SystemStats = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
+  const [treeStats, setTreeStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isInitializing, setIsInitializing] = useState(false);
@@ -17,8 +18,14 @@ const SystemStats = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await getSystemStats();
-      setStats(response);
+      const [systemResponse, treeResponse] = await Promise.all([
+        getSystemStats(),
+        getTreeStats()
+      ]);
+      setStats(systemResponse);
+      if (treeResponse.success) {
+        setTreeStats(treeResponse.stats);
+      }
     } catch (error) {
       console.error('Error fetching system stats:', error);
       setError(error.message || 'Lỗi khi lấy thống kê hệ thống');
@@ -278,6 +285,51 @@ const SystemStats = () => {
                   <div className="p-3 border border-gray-200 rounded-lg bg-gray-50">
                     <div className="font-medium text-gray-700">Cache Misses:</div>
                     <div className="text-gray-600">{stats.cacheSystem?.cacheMisses || 0}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AVL Tree Stats */}
+        {treeStats && (
+          <div className="mt-8">
+            <div className="p-6 bg-white shadow-xl rounded-2xl">
+              <h2 className="flex items-center mb-4 text-xl font-semibold text-neutral-800">
+                <span className="mr-2">🌳</span>
+                AVL Tree (Hệ thống kiểm tra trùng lặp)
+              </h2>
+              
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="p-4 border border-green-200 rounded-xl bg-green-50">
+                  <div className="text-2xl font-bold text-green-600">
+                    {treeStats.totalDocuments || 0}
+                  </div>
+                  <div className="text-sm text-green-700">Tài liệu trong cây</div>
+                </div>
+                
+                <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {treeStats.initialized ? 'Có' : 'Không'}
+                  </div>
+                  <div className="text-sm text-blue-700">Đã khởi tạo</div>
+                </div>
+                
+                <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+                  <div className="text-2xl font-bold text-purple-600">
+                    AVL
+                  </div>
+                  <div className="text-sm text-purple-700">Cấu trúc dữ liệu</div>
+                </div>
+              </div>
+              
+              <div className="p-4 mt-4 border border-yellow-200 rounded-xl bg-yellow-50">
+                <div className="flex items-center">
+                  <span className="mr-2 text-yellow-600">💡</span>
+                  <div className="text-sm text-yellow-700">
+                    <strong>AVL Tree</strong> được sử dụng để tối ưu hóa việc tìm kiếm và so sánh nội dung trùng lặp. 
+                    Cấu trúc này đảm bảo thời gian tìm kiếm O(log n) và tự động cân bằng.
                   </div>
                 </div>
               </div>
