@@ -53,7 +53,7 @@ textCheckSchema.index({ source: 1 });
 // ✅ Static method: thống kê cho user
 textCheckSchema.statics.getUserStats = function (userId) {
   return this.aggregate([
-    { $match: { user: mongoose.Types.ObjectId(userId) } },
+    { $match: { user: new mongoose.Types.ObjectId(userId) } },
     {
       $group: {
         _id: '$status',

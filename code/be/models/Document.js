@@ -132,7 +132,7 @@ documentSchema.statics.getUserDocuments = function(userId, options = {}) {
 // Static method to get document statistics
 documentSchema.statics.getDocumentStats = function(userId) {
   return this.aggregate([
-    { $match: { uploadedBy: mongoose.Types.ObjectId(userId) } },
+    { $match: { uploadedBy: new mongoose.Types.ObjectId(userId) } },
     {
       $group: {
         _id: '$fileType',
