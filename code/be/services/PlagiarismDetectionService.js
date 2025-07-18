@@ -96,7 +96,11 @@ class PlagiarismDetectionService {
         processingTime: 0,
         fromCache: false,
         totalDocumentsChecked: this.documentTree.getSize(),
-        totalChunksChecked: this.chunkTree.getSize()
+        totalChunksChecked: this.chunkTree.getSize(),
+        // Thêm các thông số mới
+        dtotal: 0, // Tổng số câu trùng không lặp lại với tất cả câu/csdl mẫu
+        dab: 0, // Tổng câu trùng không lặp lại so với Document B nào đó
+        mostSimilarDocument: null // Thông tin document giống nhất
       };
 
       // 1. Kiểm tra exact match với toàn bộ document
@@ -125,6 +129,11 @@ class PlagiarismDetectionService {
         const inputWordCount = inputText.trim().split(/\s+/).length;
         let totalMatchedWords = 0;
         const uniqueSources = new Set();
+        
+        // Tính toán Dtotal và DA/B
+        const uniqueMatchedSentences = new Set(); // Để tránh đếm trùng câu
+        let mostSimilarMatch = null;
+        let highestSimilarity = 0;
 
         partialMatches.forEach(match => {
           result.matches.push({
@@ -138,7 +147,38 @@ class PlagiarismDetectionService {
 
           totalMatchedWords += match.matchedWords;
           uniqueSources.add(match.source || 'internal-database');
+          
+          // Thêm câu vào set để tính Dtotal (tránh trùng lặp)
+          const sentences = match.text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+          sentences.forEach(sentence => {
+            if (sentence.trim().length > 10) {
+              uniqueMatchedSentences.add(sentence.trim().toLowerCase());
+            }
+          });
+          
+          // Tìm document có similarity cao nhất cho DA/B
+          if (match.similarity > highestSimilarity) {
+            highestSimilarity = match.similarity;
+            mostSimilarMatch = match;
+          }
         });
+
+        // Tính Dtotal: số câu duy nhất trùng với toàn bộ CSDL
+        result.dtotal = uniqueMatchedSentences.size;
+        
+        // Tính DA/B: số câu trùng với document giống nhất
+        if (mostSimilarMatch) {
+          const mostSimilarSentences = mostSimilarMatch.text.split(/[.!?]+/)
+            .filter(s => s.trim().length > 10);
+          result.dab = mostSimilarSentences.length;
+          
+          // Thông tin document giống nhất
+          result.mostSimilarDocument = {
+            id: mostSimilarMatch.metadata?.id || 'unknown',
+            name: `Document-${mostSimilarMatch.metadata?.id?.toString().substring(0, 8) || 'unknown'}`,
+            similarity: mostSimilarMatch.similarity
+          };
+        }
 
         result.duplicatePercentage = Math.min(
           Math.round((totalMatchedWords / inputWordCount) * 100), 

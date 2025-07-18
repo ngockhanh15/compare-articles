@@ -227,12 +227,19 @@ class DocumentAVLService {
       // Calculate overall duplicate percentage
       const duplicatePercentage = this.calculateOverallDuplicatePercentage(text, topMatches);
 
+      // Tính toán Dtotal và DA/B
+      const { dtotal, dab, mostSimilarDocument } = this.calculateDtotalAndDAB(text, topMatches);
+
       return {
         duplicatePercentage,
         matches: topMatches,
         totalMatches: matches.length,
         checkedDocuments: this.documentTree.getSize(),
-        sources: [...new Set(topMatches.map(m => m.title))]
+        sources: [...new Set(topMatches.map(m => m.title))],
+        // Thêm các thông số mới
+        dtotal,
+        dab,
+        mostSimilarDocument
       };
 
     } catch (error) {
@@ -279,6 +286,88 @@ class DocumentAVLService {
     duplicateWords = duplicateWordSet.size;
     
     return Math.min(Math.round((duplicateWords / originalWords) * 100), 100);
+  }
+
+  // Tính toán Dtotal và DA/B
+  calculateDtotalAndDAB(originalText, matches) {
+    if (matches.length === 0) {
+      return {
+        dtotal: 0,
+        dab: 0,
+        mostSimilarDocument: null
+      };
+    }
+
+    // Tách câu từ văn bản gốc
+    const originalSentences = originalText.split(/[.!?]+/)
+      .map(s => s.trim())
+      .filter(s => s.length > 10);
+
+    // Tính Dtotal: số câu duy nhất trùng với toàn bộ CSDL
+    const uniqueMatchedSentences = new Set();
+    
+    // Tìm document có similarity cao nhất
+    let mostSimilarMatch = null;
+    let highestSimilarity = 0;
+
+    matches.forEach(match => {
+      // Thêm câu vào set để tính Dtotal (tránh trùng lặp)
+      const matchSentences = match.matchedText.split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 10);
+
+      // So sánh từng câu trong văn bản gốc với câu trong match
+      originalSentences.forEach(origSentence => {
+        matchSentences.forEach(matchSentence => {
+          const similarity = this.calculateTextSimilarity(origSentence, matchSentence);
+          if (similarity >= 70) { // Threshold 70% để coi là trùng
+            uniqueMatchedSentences.add(origSentence.toLowerCase());
+          }
+        });
+      });
+
+      // Tìm document có similarity cao nhất cho DA/B
+      if (match.similarity > highestSimilarity) {
+        highestSimilarity = match.similarity;
+        mostSimilarMatch = match;
+      }
+    });
+
+    // Tính DA/B: số câu trùng với document giống nhất
+    let dab = 0;
+    let mostSimilarDocument = null;
+
+    if (mostSimilarMatch) {
+      const mostSimilarSentences = mostSimilarMatch.matchedText.split(/[.!?]+/)
+        .map(s => s.trim())
+        .filter(s => s.length > 10);
+
+      // Đếm số câu trong văn bản gốc trùng với document giống nhất
+      const matchedWithMostSimilar = new Set();
+      
+      originalSentences.forEach(origSentence => {
+        mostSimilarSentences.forEach(simSentence => {
+          const similarity = this.calculateTextSimilarity(origSentence, simSentence);
+          if (similarity >= 70) { // Threshold 70%
+            matchedWithMostSimilar.add(origSentence.toLowerCase());
+          }
+        });
+      });
+
+      dab = matchedWithMostSimilar.size;
+
+      mostSimilarDocument = {
+        id: mostSimilarMatch.documentId,
+        name: mostSimilarMatch.title,
+        similarity: mostSimilarMatch.similarity
+      };
+    }
+
+    return {
+      dtotal: uniqueMatchedSentences.size,
+      dab: dab,
+      mostSimilarDocument: mostSimilarDocument
+    };
   }
 
   // Get tree statistics

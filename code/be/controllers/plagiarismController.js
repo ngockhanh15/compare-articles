@@ -288,17 +288,21 @@ exports.checkPlagiarism = async (req, res) => {
     res.json({
       success: true,
       checkId: plagiarismCheck._id,
-      duplicatePercentage: result.duplicatePercentage,
-      matches: result.matches,
-      sources: result.sources,
-      confidence: result.confidence,
-      status: getStatus(result.duplicatePercentage),
-      processingTime: result.processingTime,
-      totalDocumentsInDatabase: result.totalDocumentsChecked || 0,
-      totalChunksInDatabase: result.totalChunksChecked || 0,
-      fromCache: result.fromCache || false,
-      cacheOptimized: result.cacheOptimized || false,
-      similarChunksFound: result.similarChunksFound || 0
+      result: {
+        duplicatePercentage: result.duplicatePercentage,
+        matches: result.matches,
+        sources: result.sources,
+        confidence: result.confidence,
+        textLength: text.length,
+        wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
+        processingTime: result.processingTime,
+        totalMatches: result.matches ? result.matches.length : 0,
+        checkedDocuments: result.totalDocumentsChecked || 0,
+        // Thêm các thông số mới
+        dtotal: result.dtotal || 0,
+        dab: result.dab || 0,
+        mostSimilarDocument: result.mostSimilarDocument || null
+      }
     });
     
   } catch (error) {

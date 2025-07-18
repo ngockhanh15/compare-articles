@@ -196,7 +196,11 @@ exports.uploadForCheck = [
           })),
           sources: duplicateResult.sources,
           totalMatches: duplicateResult.totalMatches,
-          checkedDocuments: duplicateResult.checkedDocuments
+          checkedDocuments: duplicateResult.checkedDocuments,
+          // Thêm các thông số mới
+          dtotal: duplicateResult.dtotal || 0,
+          dab: duplicateResult.dab || 0,
+          mostSimilarDocument: duplicateResult.mostSimilarDocument || null
         },
         file: {
           name: req.file.originalname,
@@ -314,7 +318,11 @@ exports.checkTextContent = async (req, res) => {
         })),
         sources: duplicateResult.sources,
         totalMatches: duplicateResult.totalMatches,
-        checkedDocuments: duplicateResult.checkedDocuments
+        checkedDocuments: duplicateResult.checkedDocuments,
+        // Thêm các thông số mới
+        dtotal: duplicateResult.dtotal || 0,
+        dab: duplicateResult.dab || 0,
+        mostSimilarDocument: duplicateResult.mostSimilarDocument || null
       },
       message: 'Kiểm tra đạo văn hoàn tất'
     };
