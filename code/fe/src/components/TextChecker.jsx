@@ -285,7 +285,7 @@ const TextChecker = () => {
                 />
                 <label
                   htmlFor="file-upload"
-                  className="flex items-center px-4 py-2 text-sm font-medium transition-all duration-200 border rounded-lg cursor-pointer border-neutral-300 text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-4 py-2 text-sm font-medium transition-all duration-200 bg-white border rounded-lg cursor-pointer text-neutral-700 border-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="mr-2">📎</span>
                   Chọn file
@@ -325,7 +325,7 @@ const TextChecker = () => {
                   value={inputText}
                   onChange={handleInputChange}
                   placeholder="Nhập hoặc dán văn bản của bạn vào đây..."
-                  className="w-full h-64 p-4 transition-all duration-200 border resize-none border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-neutral-50 focus:bg-white"
+                  className="w-full h-64 p-4 transition-all duration-200 border resize-none bg-neutral-50 border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white"
                 />
                 
                 <div className="flex items-center justify-between mt-4">
@@ -346,7 +346,7 @@ const TextChecker = () => {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center h-64 border-2 border-dashed border-neutral-300 rounded-xl bg-neutral-50">
+              <div className="flex items-center justify-center h-64 border-2 border-dashed bg-neutral-50 border-neutral-300 rounded-xl">
                 <div className="text-center">
                   <div className="mb-3 text-4xl">📄</div>
                   <p className="font-medium text-neutral-700">File đã được chọn</p>
@@ -362,7 +362,7 @@ const TextChecker = () => {
               <button
                 onClick={handleClear}
                 disabled={(!inputText && !selectedFile) || isChecking}
-                className="px-4 py-2 text-sm font-medium transition-all duration-200 border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium transition-all duration-200 bg-white border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Xóa
               </button>
@@ -834,18 +834,6 @@ const TextChecker = () => {
                   Văn bản được chia thành chunks 50 từ và so sánh bằng thuật toán Jaccard similarity.
                 </p>
               </div>
-              
-              <div className="p-3 bg-white border border-green-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <span className="mr-2 text-green-600">🎚️</span>
-                  <span className="font-medium text-green-800">Độ nhạy kiểm tra</span>
-                </div>
-                <p className="text-green-700">
-                  <strong>Cao (≥60%):</strong> Phát hiện nhiều trùng lặp nhất<br/>
-                  <strong>Trung bình (≥70%):</strong> Cân bằng giữa độ chính xác và phát hiện<br/>
-                  <strong>Thấp (≥80%):</strong> Chỉ phát hiện trùng lặp rõ ràng
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -896,7 +884,7 @@ const DocumentSelectorModal = ({ documents, onClose, onSelect, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-4xl p-6 mx-4 bg-white rounded-2xl max-h-[80vh] overflow-hidden">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-neutral-900">
