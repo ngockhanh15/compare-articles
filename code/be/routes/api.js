@@ -2,6 +2,7 @@ const express = require('express');
 const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const plagiarismController = require('../controllers/plagiarismController');
 const userUploadRoutes = require('./userUpload');
+const stopwordsRoutes = require('./stopwords');
 const router = express.Router();
 
 // ===== PLAGIARISM CHECKING ROUTES =====
@@ -53,5 +54,8 @@ router.post('/system/initialize', protect, authorize('admin'), plagiarismControl
 
 // ===== USER UPLOAD ROUTES (FOR PLAGIARISM CHECK ONLY) =====
 router.use('/user-upload', userUploadRoutes);
+
+// ===== VIETNAMESE STOPWORDS ROUTES =====
+router.use('/stopwords', stopwordsRoutes);
 
 module.exports = router;

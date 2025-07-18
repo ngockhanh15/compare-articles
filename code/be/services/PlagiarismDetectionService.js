@@ -1,5 +1,6 @@
 const { TreeAVL, TextHasher } = require('../utils/TreeAVL');
 const PlagiarismCheck = require('../models/PlagiarismCheck');
+const vietnameseStopwordService = require('./VietnameseStopwordService');
 
 class PlagiarismDetectionService {
   constructor() {
@@ -12,6 +13,11 @@ class PlagiarismDetectionService {
   async initialize() {
     try {
       console.log('Initializing plagiarism detection service...');
+      
+      // Khởi tạo Vietnamese stopword service trước
+      if (!vietnameseStopwordService.initialized) {
+        await vietnameseStopwordService.initialize();
+      }
       
       // Lấy tất cả các document đã kiểm tra từ database
       const existingChecks = await PlagiarismCheck.find({})
@@ -32,6 +38,7 @@ class PlagiarismDetectionService {
 
       this.initialized = true;
       console.log(`Plagiarism detection service initialized with ${this.documentTree.getSize()} documents and ${this.chunkTree.getSize()} chunks`);
+      console.log(`Vietnamese stopwords: ${vietnameseStopwordService.getStats().totalStopwords} words loaded`);
       
     } catch (error) {
       console.error('Error initializing plagiarism detection service:', error);
@@ -53,8 +60,8 @@ class PlagiarismDetectionService {
         wordCount: text.trim().split(/\s+/).length
       });
 
-      // Chia thành chunks và thêm vào cây chunks
-      const chunks = TextHasher.createChunkHashes(text, 50); // 50 từ mỗi chunk
+      // Chia thành chunks và thêm vào cây chunks (sử dụng stopwords)
+      const chunks = TextHasher.createChunkHashes(text, 50, true); // 50 từ mỗi chunk, sử dụng stopwords
       
       chunks.forEach(chunk => {
         this.chunkTree.insert(chunk.hash, {
@@ -110,7 +117,7 @@ class PlagiarismDetectionService {
         return result;
       }
 
-      // 2. Kiểm tra partial matches thông qua chunks
+      // 2. Kiểm tra partial matches thông qua chunks (sử dụng stopwords)
       const partialMatches = this.findPartialMatches(inputText, options.sensitivity || 'medium');
       
       if (partialMatches.length > 0) {
@@ -165,9 +172,9 @@ class PlagiarismDetectionService {
     return node ? node.data : null;
   }
 
-  // Tìm partial matches thông qua chunks
+  // Tìm partial matches thông qua chunks (sử dụng stopwords)
   findPartialMatches(text, sensitivity = 'medium') {
-    const chunks = TextHasher.createChunkHashes(text, 50);
+    const chunks = TextHasher.createChunkHashes(text, 50, true); // Sử dụng stopwords
     const matches = [];
     const foundSources = new Map(); // Để tránh duplicate từ cùng một source
 
@@ -188,16 +195,18 @@ class PlagiarismDetectionService {
         
         // Tránh duplicate matches từ cùng một document
         if (!foundSources.has(sourceKey)) {
-          const similarity = this.calculateSimilarity(chunk.text, exactChunkMatch.data.text);
+          // Sử dụng meaningful similarity để so sánh chính xác hơn
+          const similarity = TextHasher.calculateMeaningfulSimilarity(chunk.text, exactChunkMatch.data.text);
           
           if (similarity >= threshold * 100) {
             matches.push({
               text: exactChunkMatch.data.text,
               source: 'internal-database',
               similarity: Math.round(similarity),
-              matchedWords: chunk.text.split(/\s+/).length,
+              matchedWords: chunk.meaningfulWordCount || chunk.text.split(/\s+/).length,
               metadata: exactChunkMatch.data.metadata,
-              chunkIndex: index
+              chunkIndex: index,
+              chunkMethod: chunk.chunkMethod || 'unknown'
             });
             
             foundSources.set(sourceKey, true);
@@ -210,19 +219,9 @@ class PlagiarismDetectionService {
     return matches.sort((a, b) => b.similarity - a.similarity).slice(0, 5); // Giới hạn 5 matches
   }
 
-  // Tính toán độ tương tự giữa hai đoạn text
+  // Tính toán độ tương tự giữa hai đoạn text (sử dụng meaningful similarity)
   calculateSimilarity(text1, text2) {
-    const words1 = text1.toLowerCase().split(/\s+/);
-    const words2 = text2.toLowerCase().split(/\s+/);
-    
-    const set1 = new Set(words1);
-    const set2 = new Set(words2);
-    
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
-    
-    // Jaccard similarity
-    return (intersection.size / union.size) * 100;
+    return TextHasher.calculateMeaningfulSimilarity(text1, text2);
   }
 
   // Thêm document mới sau khi kiểm tra
@@ -247,6 +246,7 @@ class PlagiarismDetectionService {
       totalDocuments: this.documentTree.getSize(),
       totalChunks: this.chunkTree.getSize(),
       initialized: this.initialized,
+      stopwordService: vietnameseStopwordService.getStats(),
       memoryUsage: process.memoryUsage()
     };
   }
