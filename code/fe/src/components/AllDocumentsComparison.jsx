@@ -214,8 +214,14 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">📊</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-blue-600">{data.totalMatches || 0}</div>
-                <div className="text-sm text-neutral-600">Documents trùng lặp</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {data.displayedMatches || data.totalMatches || 0}
+                  {data.hasMoreMatches && <span className="text-sm text-neutral-500">/{data.totalMatches}</span>}
+                </div>
+                <div className="text-sm text-neutral-600">
+                  Documents trùng lặp
+                  {data.hasMoreMatches && <div className="text-xs text-orange-600">Hiển thị top 10</div>}
+                </div>
               </div>
             </div>
           </div>
@@ -256,6 +262,23 @@ const AllDocumentsComparison = () => {
             </div>
           </div>
         </div>
+
+        {/* Warning for too many matches */}
+        {data.hasMoreMatches && (
+          <div className="p-4 mb-6 border-l-4 border-orange-500 rounded-r-lg bg-orange-50">
+            <div className="flex items-center">
+              <div className="mr-3 text-orange-500">
+                <span className="text-xl">⚠️</span>
+              </div>
+              <div>
+                <h4 className="font-semibold text-orange-800">Có quá nhiều documents trùng lặp</h4>
+                <p className="text-sm text-orange-700">
+                  Tìm thấy {data.totalMatches} documents trùng lặp, chỉ hiển thị top 10 documents có tỷ lệ trùng lặp cao nhất.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Filters and Sorting */}
         <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
@@ -336,9 +359,11 @@ const AllDocumentsComparison = () => {
               )}
               
               {/* Legend for colors */}
-              {data?.highlightedSegments && data.highlightedSegments.length > 0 && (
+              {data?.highlightedSegments && data.highlightedSegments.length > 0 ? (
                 <div className="mt-6">
-                  <h3 className="mb-3 text-sm font-semibold text-neutral-700">Chú thích màu sắc:</h3>
+                  <h3 className="mb-3 text-sm font-semibold text-neutral-700">
+                    Chú thích màu sắc ({data.highlightedSegments.length} đoạn được highlight):
+                  </h3>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     {Array.from(new Set(data.highlightedSegments.map(segment => segment.documentId)))
                       .slice(0, 10) // Limit to 10 colors
@@ -356,7 +381,7 @@ const AllDocumentsComparison = () => {
                               className="w-4 h-4 mr-2 border rounded"
                               style={{ backgroundColor: `${color}20`, borderColor: color }}
                             ></div>
-                            <span className="truncate text-neutral-600">
+                            <span className="truncate text-neutral-600" title={segment?.documentName}>
                               {segment?.documentName || `Document ${index + 1}`}
                             </span>
                           </div>
@@ -364,6 +389,21 @@ const AllDocumentsComparison = () => {
                       })}
                   </div>
                 </div>
+              ) : (
+                data?.matchingDocuments && data.matchingDocuments.length > 0 && (
+                  <div className="p-4 mt-6 border border-yellow-200 rounded-lg bg-yellow-50">
+                    <div className="flex items-center">
+                      <span className="mr-2 text-yellow-600">ℹ️</span>
+                      <div>
+                        <h4 className="text-sm font-semibold text-yellow-800">Thông tin về highlighting</h4>
+                        <p className="text-sm text-yellow-700">
+                          Tìm thấy {data.matchingDocuments.length} documents trùng lặp nhưng không có đoạn text nào đủ độ tương tự ({'>'}30%) để highlight. 
+                          Điều này có thể do các documents có cấu trúc khác nhau hoặc độ trùng lặp ở mức từ vựng thay vì câu hoàn chỉnh.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
               )}
             </div>
           </div>

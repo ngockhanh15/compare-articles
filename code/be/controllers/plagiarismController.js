@@ -987,15 +987,21 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
       // So sánh với từng document
       for (const doc of documents) {
         if (doc.extractedText && doc.extractedText.length > 100) {
-          const docWords = doc.extractedText.toLowerCase().split(/\s+/);
+          const docWords = doc.extractedText.toLowerCase().split(/\s+/).filter(word => word.length > 2);
           const docWordSet = new Set(docWords);
           
-          // Tính similarity dựa trên số từ chung
+          // Tính similarity dựa trên số từ chung (Jaccard similarity)
           const intersection = new Set([...originalWordSet].filter(x => docWordSet.has(x)));
           const union = new Set([...originalWordSet, ...docWordSet]);
-          const similarity = (intersection.size / union.size) * 100;
+          const jaccardSimilarity = (intersection.size / union.size) * 100;
           
-          if (similarity > 10) { // Chỉ lấy những document có similarity > 10%
+          // Tính similarity dựa trên tỷ lệ từ chung trong document gốc
+          const overlapSimilarity = (intersection.size / originalWordSet.size) * 100;
+          
+          // Lấy similarity cao hơn trong 2 cách tính
+          const similarity = Math.max(jaccardSimilarity, overlapSimilarity);
+          
+          if (similarity > 8) { // Giảm threshold để lấy nhiều kết quả hơn
             const duplicateRate = Math.round(similarity);
             const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
             
@@ -1045,7 +1051,7 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
         const duplicateRate = Math.round(Math.min(avgSimilarity, group.maxSimilarity));
         const status = duplicateRate > 30 ? 'high' : duplicateRate > 15 ? 'medium' : 'low';
         
-        if (duplicateRate > 10) { // Chỉ lấy những document có similarity > 10%
+        if (duplicateRate > 8) { // Giảm threshold để lấy nhiều kết quả hơn
           matchingDocuments.push({
             id: `cache-${docId}`,
             fileName: `document-${docId}.txt`,
@@ -1061,12 +1067,15 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
       });
     }
     
-    // Sắp xếp theo tỷ lệ trùng lặp
+    // Sắp xếp theo tỷ lệ trùng lặp và giới hạn số lượng
     matchingDocuments.sort((a, b) => b.duplicateRate - a.duplicateRate);
+    
+    // Giới hạn số lượng documents để tránh lỗi hiển thị
+    const limitedDocuments = matchingDocuments.slice(0, 10);
     
     // Tạo highlighted text cho document gốc
     const originalText = plagiarismCheck.originalText;
-    const highlightedSegments = [];
+    let highlightedSegments = [];
     
     // Tạo màu sắc cho từng document
     const colors = [
@@ -1074,61 +1083,98 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
       '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
     ];
     
-    // Tìm các đoạn trùng lặp trong text gốc
-    matchingDocuments.forEach((doc, docIndex) => {
-      const color = colors[docIndex % colors.length];
-      const originalSentences = originalText.split(/[.!?]+/).filter(s => s.trim().length > 20);
-      const docSentences = doc.content.split(/[.!?]+/).filter(s => s.trim().length > 20);
-      
-      originalSentences.forEach((origSentence) => {
-        const origWords = origSentence.toLowerCase().trim().split(/\s+/);
-        if (origWords.length < 5) return;
+    // Chỉ xử lý nếu có documents để so sánh
+    if (limitedDocuments.length > 0) {
+      // Tìm các đoạn trùng lặp trong text gốc
+      limitedDocuments.forEach((doc, docIndex) => {
+        const color = colors[docIndex % colors.length];
         
-        let bestMatch = null;
-        let bestSimilarity = 0;
+        // Kiểm tra doc.content có tồn tại không
+        if (!doc.content || doc.content.trim().length === 0) {
+          return;
+        }
         
-        docSentences.forEach((docSentence) => {
-          const docWords = docSentence.toLowerCase().trim().split(/\s+/);
-          if (docWords.length < 5) return;
+        const originalSentences = originalText.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        const docSentences = doc.content.split(/[.!?]+/).filter(s => s.trim().length > 20);
+        
+        originalSentences.forEach((origSentence) => {
+          const origWords = origSentence.toLowerCase().trim().split(/\s+/);
+          if (origWords.length < 5) return;
           
-          // Tính similarity giữa hai câu
-          const origWordSet = new Set(origWords);
-          const docWordSet = new Set(docWords);
-          const intersection = new Set([...origWordSet].filter(x => docWordSet.has(x)));
-          const union = new Set([...origWordSet, ...docWordSet]);
-          const similarity = (intersection.size / union.size) * 100;
+          let bestMatch = null;
+          let bestSimilarity = 0;
           
-          if (similarity > bestSimilarity && similarity > 40) { // Threshold 40%
-            bestSimilarity = similarity;
-            bestMatch = docSentence.trim();
+          docSentences.forEach((docSentence) => {
+            const docWords = docSentence.toLowerCase().trim().split(/\s+/);
+            if (docWords.length < 5) return;
+            
+            // Tính similarity giữa hai câu
+            const origWordSet = new Set(origWords);
+            const docWordSet = new Set(docWords);
+            const intersection = new Set([...origWordSet].filter(x => docWordSet.has(x)));
+            const union = new Set([...origWordSet, ...docWordSet]);
+            const similarity = (intersection.size / union.size) * 100;
+            
+            if (similarity > bestSimilarity && similarity > 30) { // Giảm threshold xuống 30%
+              bestSimilarity = similarity;
+              bestMatch = docSentence.trim();
+            }
+          });
+          
+          if (bestMatch) {
+            const startPosition = originalText.indexOf(origSentence.trim());
+            if (startPosition >= 0) {
+              highlightedSegments.push({
+                start: startPosition,
+                end: startPosition + origSentence.trim().length,
+                text: origSentence.trim(),
+                documentId: doc.id,
+                documentName: doc.fileName,
+                similarity: Math.round(bestSimilarity),
+                color: color
+              });
+            }
           }
         });
-        
-        if (bestMatch) {
-          const startPosition = originalText.indexOf(origSentence.trim());
-          if (startPosition >= 0) {
-            highlightedSegments.push({
-              start: startPosition,
-              end: startPosition + origSentence.trim().length,
-              text: origSentence.trim(),
-              documentId: doc.id,
-              documentName: doc.fileName,
-              similarity: Math.round(bestSimilarity),
-              color: color
-            });
-          }
-        }
       });
-    });
+    }
     
     // Sắp xếp segments theo vị trí
     highlightedSegments.sort((a, b) => a.start - b.start);
+    
+    // Xử lý overlap segments - loại bỏ các segments bị chồng lấn
+    const cleanedSegments = [];
+    highlightedSegments.forEach(segment => {
+      let hasOverlap = false;
+      
+      for (let existing of cleanedSegments) {
+        // Kiểm tra overlap
+        if ((segment.start >= existing.start && segment.start < existing.end) ||
+            (segment.end > existing.start && segment.end <= existing.end) ||
+            (segment.start <= existing.start && segment.end >= existing.end)) {
+          hasOverlap = true;
+          // Giữ segment có similarity cao hơn
+          if (segment.similarity > existing.similarity) {
+            const index = cleanedSegments.indexOf(existing);
+            cleanedSegments[index] = segment;
+          }
+          break;
+        }
+      }
+      
+      if (!hasOverlap) {
+        cleanedSegments.push(segment);
+      }
+    });
+    
+    // Sắp xếp lại sau khi clean
+    cleanedSegments.sort((a, b) => a.start - b.start);
     
     // Tạo text với highlight
     let highlightedText = '';
     let lastIndex = 0;
     
-    highlightedSegments.forEach(segment => {
+    cleanedSegments.forEach(segment => {
       // Thêm text trước segment
       if (segment.start > lastIndex) {
         highlightedText += originalText.substring(lastIndex, segment.start);
@@ -1145,6 +1191,16 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
       highlightedText += originalText.substring(lastIndex);
     }
     
+    // Cập nhật highlightedSegments để trả về
+    highlightedSegments = cleanedSegments;
+    
+    // Debug logging
+    console.log(`Detailed comparison for checkId ${checkId}:`);
+    console.log(`- Total matching documents found: ${matchingDocuments.length}`);
+    console.log(`- Limited documents for display: ${limitedDocuments.length}`);
+    console.log(`- Highlighted segments found: ${highlightedSegments.length}`);
+    console.log(`- Original text length: ${originalText.length} characters`);
+    
     res.json({
       success: true,
       checkId: checkId,
@@ -1154,9 +1210,9 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
         fileType: plagiarismCheck.fileType || 'text/plain',
         duplicateRate: plagiarismCheck.duplicatePercentage,
         originalText: originalText,
-        highlightedText: highlightedText
+        highlightedText: highlightedText || originalText // Fallback nếu không có highlight
       },
-      matchingDocuments: matchingDocuments.map(doc => ({
+      matchingDocuments: limitedDocuments.map(doc => ({
         id: doc.id,
         fileName: doc.fileName,
         fileSize: doc.fileSize,
@@ -1168,7 +1224,9 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
         // Không trả về content để giảm kích thước response
       })),
       highlightedSegments: highlightedSegments,
-      totalMatches: matchingDocuments.length
+      totalMatches: matchingDocuments.length,
+      displayedMatches: limitedDocuments.length,
+      hasMoreMatches: matchingDocuments.length > 10
     });
     
   } catch (error) {
