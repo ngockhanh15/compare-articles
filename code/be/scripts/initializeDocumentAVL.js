@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const documentAVLService = require('../services/DocumentAVLService');
+const Document = require('../models/Document');
 require('dotenv').config();
 
 const initializeDocumentAVL = async () => {
@@ -8,6 +9,29 @@ const initializeDocumentAVL = async () => {
     
     // Initialize the AVL tree (database connection should already exist)
     await documentAVLService.initialize();
+    
+    // Update existing documents with AVL tree data if they don't have it
+    console.log('Updating existing documents with AVL tree data...');
+    const documentsWithoutAVLData = await Document.find({ 
+      status: 'processed',
+      extractedText: { $exists: true, $ne: '' },
+      avlTreeData: { $exists: false }
+    });
+
+    console.log(`Found ${documentsWithoutAVLData.length} documents without AVL tree data`);
+
+    for (const doc of documentsWithoutAVLData) {
+      try {
+        const avlTreeData = await documentAVLService.addDocumentToTree(doc);
+        if (avlTreeData) {
+          doc.avlTreeData = avlTreeData;
+          await doc.save();
+          console.log(`Updated AVL tree data for document: ${doc.title}`);
+        }
+      } catch (error) {
+        console.error(`Error updating AVL tree data for document ${doc._id}:`, error);
+      }
+    }
     
     // Get statistics
     const stats = documentAVLService.getTreeStats();

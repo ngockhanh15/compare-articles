@@ -159,10 +159,14 @@ exports.uploadDocument = [
         document.status = 'processed';
         await document.save();
 
-        // Add document to AVL tree for plagiarism checking
+        // Add document to AVL tree for plagiarism checking and save tree data
         try {
-          await documentAVLService.addDocumentToTree(document);
-          console.log(`Document "${document.title}" added to AVL tree`);
+          const avlTreeData = await documentAVLService.addDocumentToTree(document);
+          if (avlTreeData) {
+            document.avlTreeData = avlTreeData;
+            await document.save();
+            console.log(`Document "${document.title}" added to AVL tree and tree data saved`);
+          }
         } catch (avlError) {
           console.error('Error adding document to AVL tree:', avlError);
           // Don't fail the upload if AVL tree addition fails

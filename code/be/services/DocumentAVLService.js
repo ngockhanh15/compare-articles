@@ -23,7 +23,8 @@ class DocumentAVLService {
       console.log(`Loading ${documents.length} documents into AVL tree...`);
 
       for (const doc of documents) {
-        await this.addDocumentToTree(doc);
+        // Only add to tree, don't regenerate AVL tree data if it already exists
+        await this.addDocumentToTreeOnly(doc);
       }
 
       this.initialized = true;
@@ -66,8 +67,75 @@ class DocumentAVLService {
       
       console.log(`Added document "${document.title}" to AVL tree`);
       
+      // Return AVL tree data for saving to database
+      return this.generateAVLTreeData(document, sortKey, chunks);
+      
     } catch (error) {
       console.error(`Error adding document ${document._id} to tree:`, error);
+      return null;
+    }
+  }
+
+  // Add document to AVL tree only (for initialization)
+  async addDocumentToTreeOnly(document) {
+    try {
+      if (!document.extractedText || document.extractedText.trim().length === 0) {
+        return;
+      }
+
+      // Create composite key for sorting: fileType + createdAt + _id
+      const sortKey = this.createSortKey(document);
+      
+      // Create chunks from document text
+      const chunks = TextHasher.createChunkHashes(document.extractedText, 50);
+      
+      // Store document metadata with chunks
+      const documentData = {
+        documentId: document._id,
+        title: document.title,
+        fileType: document.fileType,
+        createdAt: document.createdAt,
+        uploadedBy: document.uploadedBy,
+        textLength: document.extractedText.length,
+        wordCount: document.extractedText.split(/\s+/).length,
+        chunks: chunks,
+        fullText: document.extractedText
+      };
+
+      // Insert into tree using composite sort key
+      this.documentTree.insert(sortKey, documentData);
+      
+      console.log(`Added document "${document.title}" to AVL tree`);
+      
+    } catch (error) {
+      console.error(`Error adding document ${document._id} to tree:`, error);
+    }
+  }
+
+  // Generate AVL tree data as hash vector for database storage
+  generateAVLTreeData(document, sortKey, chunks) {
+    try {
+      // Create hash vector representation of the document's position in AVL tree
+      const avlTreeData = {
+        sortKey: sortKey,
+        hashVector: chunks.map(chunk => ({
+          hash: chunk.hash,
+          position: chunk.startIndex,
+          length: chunk.endIndex - chunk.startIndex + 1
+        })),
+        treeMetadata: {
+          documentId: document._id,
+          insertedAt: new Date(),
+          textLength: document.extractedText.length,
+          chunkCount: chunks.length,
+          fileTypeWeight: this.getFileTypeWeight(document.fileType)
+        }
+      };
+
+      return avlTreeData;
+    } catch (error) {
+      console.error('Error generating AVL tree data:', error);
+      return null;
     }
   }
 
