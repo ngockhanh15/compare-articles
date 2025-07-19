@@ -124,7 +124,7 @@ exports.uploadForCheck = [
 
       // Get check options from request
       const options = {
-        minSimilarity: parseInt(req.body.sensitivity === 'high' ? 60 : req.body.sensitivity === 'low' ? 80 : 70),
+        minSimilarity: parseInt(req.body.sensitivity === 'high' ? 60 : req.body.sensitivity === 'low' ? 80 : 50),
         chunkSize: 50,
         maxResults: 20
       };
@@ -157,7 +157,7 @@ exports.uploadForCheck = [
           matchedWords: match.matchedText.split(/\s+/).length
         })),
         sources: duplicateResult.sources,
-        confidence: duplicateResult.duplicatePercentage > 70 ? 'high' : 
+        confidence: duplicateResult.duplicatePercentage > 50 ? 'high' : 
                    duplicateResult.duplicatePercentage > 30 ? 'medium' : 'low',
         status: getStatus(duplicateResult.duplicatePercentage),
         source: 'file',
@@ -248,7 +248,7 @@ exports.checkTextContent = async (req, res) => {
 
     // Get check options
     const checkOptions = {
-      minSimilarity: parseInt(options.sensitivity === 'high' ? 60 : options.sensitivity === 'low' ? 80 : 70),
+      minSimilarity: parseInt(options.sensitivity === 'high' ? 60 : options.sensitivity === 'low' ? 80 : 50),
       chunkSize: 50,
       maxResults: 20
     };
@@ -281,7 +281,7 @@ exports.checkTextContent = async (req, res) => {
         matchedWords: match.matchedText.split(/\s+/).length
       })),
       sources: duplicateResult.sources,
-      confidence: duplicateResult.duplicatePercentage > 70 ? 'high' : 
+      confidence: duplicateResult.duplicatePercentage > 50 ? 'high' : 
                  duplicateResult.duplicatePercentage > 30 ? 'medium' : 'low',
       status: getStatus(duplicateResult.duplicatePercentage),
       source: 'text',

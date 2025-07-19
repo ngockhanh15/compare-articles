@@ -1,5 +1,5 @@
-const crypto = require('crypto');
-const vietnameseStopwordService = require('../services/VietnameseStopwordService');
+const crypto = require("crypto");
+const vietnameseStopwordService = require("../services/VietnameseStopwordService");
 
 class AVLNode {
   constructor(hash, data) {
@@ -27,7 +27,8 @@ class TreeAVL {
 
   updateHeight(node) {
     if (node) {
-      node.height = Math.max(this.getHeight(node.left), this.getHeight(node.right)) + 1;
+      node.height =
+        Math.max(this.getHeight(node.left), this.getHeight(node.right)) + 1;
     }
   }
 
@@ -135,74 +136,77 @@ class TreeAVL {
 
 class TextHasher {
   static createMD5Hash(text) {
-    return crypto.createHash('md5').update(text.trim().toLowerCase()).digest('hex');
+    return crypto
+      .createHash("md5")
+      .update(text.trim().toLowerCase())
+      .digest("hex");
   }
 
-  static createChunkHashes(text, chunkSize = 100, useStopwords = true) {
-    const chunks = [];
-    
-    if (useStopwords && vietnameseStopwordService.initialized) {
-      // Sử dụng stopword service để tách chunks thông minh hơn
-      const stopwordChunks = vietnameseStopwordService.splitByStopwords(text, {
-        minChunkLength: Math.floor(chunkSize * 0.3), // 30% của chunkSize
-        maxChunkLength: chunkSize,
-        preserveStopwords: false
-      });
+  static createWordHashes(text, useStopwords = true) {
+    const wordHashes = [];
 
-      stopwordChunks.forEach((chunk, index) => {
-        if (chunk.text.trim().length > 0) {
-          chunks.push({
-            hash: this.createMD5Hash(chunk.text),
-            text: chunk.text,
-            startIndex: chunk.startIndex,
-            endIndex: chunk.endIndex,
-            meaningfulWordCount: chunk.meaningfulWordCount,
-            totalWordCount: chunk.totalWordCount,
-            chunkMethod: 'stopword-based'
+    if (useStopwords && vietnameseStopwordService.initialized) {
+      // Lọc stopwords và tạo hash cho từng từ có nghĩa
+      const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(text);
+      
+      meaningfulWords.forEach((word, index) => {
+        if (word.trim().length > 0) {
+          wordHashes.push({
+            hash: this.createMD5Hash(word),
+            word: word,
+            index: index,
+            method: "stopword-filtered",
           });
         }
       });
 
-      // Nếu không có chunks từ stopword method, fallback về method cũ
-      if (chunks.length === 0) {
-        return this.createChunkHashesLegacy(text, chunkSize);
+      // Nếu không có từ có nghĩa, fallback về method cũ
+      if (wordHashes.length === 0) {
+        return this.createWordHashesLegacy(text);
       }
     } else {
       // Fallback về method cũ nếu stopword service chưa khởi tạo
-      return this.createChunkHashesLegacy(text, chunkSize);
+      return this.createWordHashesLegacy(text);
     }
-    
-    return chunks;
+
+    return wordHashes;
   }
 
-  // Method cũ để tạo chunks (backup)
-  static createChunkHashesLegacy(text, chunkSize = 100) {
-    const words = text.split(/\s+/);
-    const chunks = [];
+  // Method cũ để tạo word hashes (backup)
+  static createWordHashesLegacy(text) {
+    const words = text.toLowerCase()
+      .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.trim().length > 0);
     
-    for (let i = 0; i < words.length; i += chunkSize) {
-      const chunk = words.slice(i, i + chunkSize).join(' ');
-      if (chunk.trim().length > 0) {
-        chunks.push({
-          hash: this.createMD5Hash(chunk),
-          text: chunk,
-          startIndex: i,
-          endIndex: Math.min(i + chunkSize - 1, words.length - 1),
-          meaningfulWordCount: words.slice(i, i + chunkSize).length,
-          totalWordCount: words.slice(i, i + chunkSize).length,
-          chunkMethod: 'legacy'
+    const wordHashes = [];
+
+    words.forEach((word, index) => {
+      if (word.trim().length > 0) {
+        wordHashes.push({
+          hash: this.createMD5Hash(word),
+          word: word,
+          index: index,
+          method: "legacy",
         });
       }
-    }
-    
-    return chunks;
+    });
+
+    return wordHashes;
+  }
+
+  // Tương thích ngược: tạo chunk hashes (deprecated)
+  static createChunkHashes(text, chunkSize = 100, useStopwords = true) {
+    console.warn('createChunkHashes is deprecated, use createWordHashes instead');
+    return this.createWordHashes(text, useStopwords);
   }
 
   // Tạo hash cho text đã loại bỏ stopwords
   static createMeaningfulHash(text) {
     if (vietnameseStopwordService.initialized) {
-      const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(text);
-      const meaningfulText = meaningfulWords.join(' ');
+      const meaningfulWords =
+        vietnameseStopwordService.extractMeaningfulWords(text);
+      const meaningfulText = meaningfulWords.join(" ");
       return this.createMD5Hash(meaningfulText);
     }
     return this.createMD5Hash(text);
@@ -216,32 +220,31 @@ class TextHasher {
 
     const words1 = vietnameseStopwordService.extractMeaningfulWords(text1);
     const words2 = vietnameseStopwordService.extractMeaningfulWords(text2);
-    
+
     if (words1.length === 0 && words2.length === 0) return 100;
-    if (words1.length === 0 || words2.length === 0) return 0;
-    
+    if (words1.length === 0) return 0;
+
     const set1 = new Set(words1);
     const set2 = new Set(words2);
-    
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
-    
-    // Jaccard similarity
-    return (intersection.size / union.size) * 100;
+
+    const intersection = [...set1].filter((x) => set2.has(x));
+
+    // Copy Rate = số từ trùng / tổng số từ của câu kiểm tra
+    return (intersection.length / set1.size) * 100;
   }
 
   // So sánh cơ bản (fallback)
   static calculateBasicSimilarity(text1, text2) {
     const words1 = text1.toLowerCase().split(/\s+/);
     const words2 = text2.toLowerCase().split(/\s+/);
-    
+
     const set1 = new Set(words1);
     const set2 = new Set(words2);
-    
-    const intersection = new Set([...set1].filter(x => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
-    
-    return (intersection.size / union.size) * 100;
+
+    const intersection = [...set1].filter((x) => set2.has(x));
+
+    // Copy Rate = số từ trùng / tổng số từ của câu kiểm tra
+    return (intersection.length / set1.size) * 100;
   }
 }
 

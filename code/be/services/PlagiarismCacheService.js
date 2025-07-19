@@ -3,7 +3,7 @@ const { TreeAVL, TextHasher } = require('../utils/TreeAVL');
 class PlagiarismCacheService {
   constructor() {
     this.textCache = new TreeAVL();
-    this.chunkCache = new TreeAVL();
+    this.wordCache = new TreeAVL();
     this.stats = {
       totalCached: 0,
       cacheHits: 0,
@@ -14,23 +14,24 @@ class PlagiarismCacheService {
   cacheResult(text, result) {
     try {
       const fullHash = TextHasher.createMD5Hash(text);
-      const chunks = TextHasher.createChunkHashes(text, 50);
+      const words = TextHasher.createWordHashes(text, true);
       
       const cacheData = {
         text: text,
         result: result,
         timestamp: Date.now(),
-        wordCount: text.trim().split(/\s+/).length
+        wordCount: text.trim().split(/\s+/).length,
+        meaningfulWordCount: words.length
       };
       
       this.textCache.insert(fullHash, cacheData);
       
-      chunks.forEach(chunk => {
-        this.chunkCache.insert(chunk.hash, {
-          text: chunk.text,
+      words.forEach(wordData => {
+        this.wordCache.insert(wordData.hash, {
+          word: wordData.word,
           fullHash: fullHash,
-          startIndex: chunk.startIndex,
-          endIndex: chunk.endIndex,
+          index: wordData.index,
+          method: wordData.method,
           timestamp: Date.now()
         });
       });
@@ -40,7 +41,7 @@ class PlagiarismCacheService {
       return {
         success: true,
         fullHash: fullHash,
-        chunksCount: chunks.length
+        wordsCount: words.length
       };
       
     } catch (error) {
@@ -73,27 +74,57 @@ class PlagiarismCacheService {
     }
   }
 
-  findSimilarChunks(text, threshold = 0.8) {
+  findSimilarWords(text, threshold = 0.5) {
     try {
-      const chunks = TextHasher.createChunkHashes(text, 50);
-      const similarChunks = [];
+      const words = TextHasher.createWordHashes(text, true);
+      const similarWords = [];
+      const documentMatches = new Map();
       
-      chunks.forEach(chunk => {
-        const exactMatch = this.chunkCache.search(chunk.hash);
+      words.forEach(wordData => {
+        const exactMatch = this.wordCache.search(wordData.hash);
         if (exactMatch) {
-          similarChunks.push({
-            type: 'exact',
-            originalChunk: chunk,
-            matchedChunk: exactMatch.data,
-            similarity: 100
+          const docHash = exactMatch.data.fullHash;
+          
+          if (!documentMatches.has(docHash)) {
+            documentMatches.set(docHash, {
+              matchedWords: [],
+              totalWords: 0,
+              fullHash: docHash
+            });
+          }
+          
+          const docMatch = documentMatches.get(docHash);
+          docMatch.matchedWords.push({
+            original: wordData.word,
+            matched: exactMatch.data.word
+          });
+          docMatch.totalWords++;
+        }
+      });
+      
+      // Tính similarity cho mỗi document
+      documentMatches.forEach((docMatch, docHash) => {
+        const similarity = (docMatch.matchedWords.length / words.length) * 100;
+        
+        if (similarity >= threshold * 100) {
+          // Lấy thông tin text gốc từ cache
+          const cachedText = this.textCache.search(docHash);
+          
+          similarWords.push({
+            type: 'word-based',
+            originalText: text.substring(0, 200) + '...',
+            matchedText: cachedText ? cachedText.data.text.substring(0, 200) + '...' : 'Unknown',
+            similarity: Math.round(similarity),
+            matchedWords: docMatch.matchedWords.slice(0, 10), // Giới hạn 10 từ
+            fullHash: docHash
           });
         }
       });
       
-      return similarChunks;
+      return similarWords.sort((a, b) => b.similarity - a.similarity);
       
     } catch (error) {
-      console.error('Error finding similar chunks:', error);
+      console.error('Error finding similar words:', error);
       return [];
     }
   }
@@ -102,7 +133,7 @@ class PlagiarismCacheService {
     return {
       ...this.stats,
       textCacheSize: this.textCache.getSize(),
-      chunkCacheSize: this.chunkCache.getSize(),
+      wordCacheSize: this.wordCache.getSize(),
       hitRate: this.stats.cacheHits + this.stats.cacheMisses > 0 
         ? (this.stats.cacheHits / (this.stats.cacheHits + this.stats.cacheMisses) * 100).toFixed(2) + '%'
         : '0%'
@@ -111,13 +142,19 @@ class PlagiarismCacheService {
 
   clearAllCache() {
     this.textCache.clear();
-    this.chunkCache.clear();
+    this.wordCache.clear();
     this.stats = {
       totalCached: 0,
       cacheHits: 0,
       cacheMisses: 0
     };
     return { success: true, message: 'All cache cleared' };
+  }
+
+  // Tương thích ngược
+  findSimilarChunks(text, threshold = 0.5) {
+    console.warn('findSimilarChunks is deprecated, use findSimilarWords instead');
+    return this.findSimilarWords(text, threshold);
   }
 }
 

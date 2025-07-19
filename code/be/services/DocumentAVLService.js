@@ -171,58 +171,43 @@ class DocumentAVLService {
     }
 
     const {
-      minSimilarity = 70,
+      minSimilarity = 50,
       chunkSize = 50,
       maxResults = 10
     } = options;
 
     try {
-      // Create chunks from input text
-      const inputChunks = TextHasher.createChunkHashes(text, chunkSize);
+      // So sánh theo từ thay vì chunk
       const matches = [];
-      const processedDocs = new Set();
+      const allNodes = this.documentTree.getAllNodes();
 
-      // Search for each chunk in the tree
-      for (const inputChunk of inputChunks) {
-        const allNodes = this.documentTree.getAllNodes();
+      // So sánh văn bản input với từng document trong cây AVL
+      for (const node of allNodes) {
+        const docData = node.data;
         
-        for (const node of allNodes) {
-          const docData = node.data;
-          
-          // Skip if already processed this document
-          if (processedDocs.has(docData.documentId.toString())) {
-            continue;
-          }
-
-          // Check chunks for similarity
-          for (const docChunk of docData.chunks) {
-            const similarity = this.calculateTextSimilarity(inputChunk.text, docChunk.text);
-            
-            if (similarity >= minSimilarity) {
-              matches.push({
-                documentId: docData.documentId,
-                title: docData.title,
-                fileType: docData.fileType,
-                createdAt: docData.createdAt,
-                similarity: similarity,
-                matchedText: docChunk.text,
-                inputText: inputChunk.text,
-                matchPosition: {
-                  start: docChunk.startIndex,
-                  end: docChunk.endIndex
-                }
-              });
-
-              processedDocs.add(docData.documentId.toString());
-              break; // Found match in this document, move to next
+        // So sánh toàn bộ văn bản input với toàn bộ văn bản của document
+        const similarity = this.calculateTextSimilarity(text, docData.fullText);
+        
+        if (similarity >= minSimilarity) {
+          matches.push({
+            documentId: docData.documentId,
+            title: docData.title,
+            fileType: docData.fileType,
+            createdAt: docData.createdAt,
+            similarity: similarity,
+            matchedText: docData.fullText,
+            inputText: text,
+            matchPosition: {
+              start: 0,
+              end: docData.fullText.length
             }
-          }
+          });
         }
       }
 
-      // Sort by similarity and limit results
+      // Sort by similarity - lấy toàn bộ matches trong ngưỡng so sánh
       matches.sort((a, b) => b.similarity - a.similarity);
-      const topMatches = matches.slice(0, maxResults);
+      const topMatches = matches; // Lấy toàn bộ matches thay vì giới hạn maxResults
 
       // Calculate overall duplicate percentage
       const duplicatePercentage = this.calculateOverallDuplicatePercentage(text, topMatches);
@@ -268,24 +253,13 @@ class DocumentAVLService {
   calculateOverallDuplicatePercentage(originalText, matches) {
     if (matches.length === 0) return 0;
 
-    const originalWords = originalText.split(/\s+/).length;
-    let duplicateWords = 0;
+    // Nếu có match với similarity 100%, trả về 100%
+    const perfectMatch = matches.find(match => match.similarity >= 100);
+    if (perfectMatch) return 100;
 
-    // Count unique duplicate words to avoid double counting
-    const duplicateWordSet = new Set();
-    
-    for (const match of matches) {
-      const matchWords = match.inputText.split(/\s+/);
-      matchWords.forEach(word => {
-        if (word.length > 2) {
-          duplicateWordSet.add(word.toLowerCase());
-        }
-      });
-    }
-
-    duplicateWords = duplicateWordSet.size;
-    
-    return Math.min(Math.round((duplicateWords / originalWords) * 100), 100);
+    // Nếu không có match hoàn hảo, lấy similarity cao nhất
+    const highestSimilarity = Math.max(...matches.map(match => match.similarity));
+    return highestSimilarity;
   }
 
   // Tính toán Dtotal và DA/B
@@ -320,13 +294,13 @@ class DocumentAVLService {
       originalSentences.forEach(origSentence => {
         matchSentences.forEach(matchSentence => {
           const similarity = this.calculateTextSimilarity(origSentence, matchSentence);
-          if (similarity >= 70) { // Threshold 70% để coi là trùng
+          if (similarity >= 50) { // Threshold 50% để coi là trùng
             uniqueMatchedSentences.add(origSentence.toLowerCase());
           }
         });
       });
 
-      // Tìm document có similarity cao nhất cho DA/B
+      // Tìm document có similarity cao nh  ất cho DA/B
       if (match.similarity > highestSimilarity) {
         highestSimilarity = match.similarity;
         mostSimilarMatch = match;
@@ -348,7 +322,7 @@ class DocumentAVLService {
       originalSentences.forEach(origSentence => {
         mostSimilarSentences.forEach(simSentence => {
           const similarity = this.calculateTextSimilarity(origSentence, simSentence);
-          if (similarity >= 70) { // Threshold 70%
+          if (similarity >= 50) { // Threshold 50%
             matchedWithMostSimilar.add(origSentence.toLowerCase());
           }
         });

@@ -67,28 +67,30 @@ const performPlagiarismCheck = async (text, options = {}) => {
     console.log('Performing real plagiarism check using AVL tree...');
     const result = await plagiarismDetectionService.checkPlagiarism(text, options);
     
-    // 3. Kết hợp với cache để tối ưu hóa
-    const similarChunks = plagiarismCacheService.findSimilarChunks(text, 0.8);
+    // 3. Kết hợp với cache để tối ưu hóa (word-based)
+    const similarWords = plagiarismCacheService.findSimilarWords(text, 0.5);
     
-    // Nếu có similar chunks từ cache, thêm vào kết quả
-    if (similarChunks.length > 0) {
-      console.log(`Found ${similarChunks.length} similar chunks in cache`);
+    // Nếu có similar words từ cache, thêm vào kết quả
+    if (similarWords.length > 0) {
+      console.log(`Found ${similarWords.length} similar word patterns in cache`);
       
-      similarChunks.slice(0, 2).forEach((chunk, index) => {
-        if (chunk.similarity > 80) {
+      similarWords.slice(0, 2).forEach((wordMatch, index) => {
+        if (wordMatch.similarity >= 50) {
           // Kiểm tra xem match này đã có chưa để tránh duplicate
           const existingMatch = result.matches.find(m => 
-            m.text.includes(chunk.originalChunk.text.substring(0, 50))
+            m.url && m.url.includes(wordMatch.fullHash)
           );
           
           if (!existingMatch) {
             result.matches.push({
-              text: chunk.originalChunk.text.substring(0, 200) + '...',
+              text: wordMatch.matchedText,
               source: `cached-database-${index + 1}`,
-              similarity: Math.floor(chunk.similarity),
-              url: `internal://cached/${chunk.matchedChunk.fullHash}`,
-              matchedWords: Math.floor(chunk.originalChunk.text.split(/\s+/).length * chunk.similarity / 100),
-              fromCache: true
+              similarity: wordMatch.similarity,
+              url: `internal://cached/${wordMatch.fullHash}`,
+              matchedWords: wordMatch.matchedWords.length,
+              wordMatches: wordMatch.matchedWords.map(w => w.original).join(', '),
+              fromCache: true,
+              method: 'word-based-cache'
             });
           }
         }
@@ -101,16 +103,16 @@ const performPlagiarismCheck = async (text, options = {}) => {
       }
       
       // Điều chỉnh duplicate percentage nếu cần
-      if (similarChunks.length > 0) {
-        const avgCacheSimilarity = similarChunks.reduce((sum, chunk) => sum + chunk.similarity, 0) / similarChunks.length;
+      if (similarWords.length > 0) {
+        const avgCacheSimilarity = similarWords.reduce((sum, wordMatch) => sum + wordMatch.similarity, 0) / similarWords.length;
         result.duplicatePercentage = Math.max(result.duplicatePercentage, Math.floor(avgCacheSimilarity * 0.9));
       }
     }
     
     // 4. Cập nhật confidence dựa trên kết quả cuối cùng
-    if (result.duplicatePercentage > 30) {
+    if (result.duplicatePercentage >= 50) {
       result.confidence = 'high';
-    } else if (result.duplicatePercentage > 15) {
+    } else if (result.duplicatePercentage >= 25) {
       result.confidence = 'medium';
     } else {
       result.confidence = 'low';
@@ -122,8 +124,8 @@ const performPlagiarismCheck = async (text, options = {}) => {
     // 6. Cập nhật processing time
     result.processingTime = Date.now() - startTime;
     result.fromCache = false;
-    result.cacheOptimized = similarChunks.length > 0;
-    result.similarChunksFound = similarChunks.length;
+    result.cacheOptimized = similarWords.length > 0;
+    result.similarWordsFound = similarWords.length;
     
     console.log(`Plagiarism check completed: ${result.duplicatePercentage}% duplicate found in ${result.processingTime}ms`);
     
@@ -253,8 +255,8 @@ exports.checkPlagiarism = async (req, res) => {
     
     // Determine status based on duplicate percentage
     const getStatus = (percentage) => {
-      if (percentage > 30) return 'high';
-      if (percentage > 15) return 'medium';
+      if (percentage >= 50) return 'high';
+      if (percentage >= 25) return 'medium';
       return 'low';
     };
 

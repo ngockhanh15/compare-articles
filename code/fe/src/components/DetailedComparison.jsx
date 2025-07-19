@@ -277,8 +277,8 @@ const DetailedComparison = () => {
               <div className="flex justify-between">
                 <span className="font-medium text-neutral-700">Tỷ lệ trùng lặp:</span>
                 <span className={`font-semibold ${
-                  (data.currentDocument?.duplicateRate || 0) > 30 ? 'text-red-600' : 
-                  (data.currentDocument?.duplicateRate || 0) > 15 ? 'text-yellow-600' : 'text-green-600'
+                  (data.currentDocument?.duplicateRate || 0) >= 50 ? 'text-red-600' : 
+                  (data.currentDocument?.duplicateRate || 0) >= 25 ? 'text-yellow-600' : 'text-green-600'
                 }`}>
                   {data.currentDocument?.duplicateRate || 0}%
                 </span>

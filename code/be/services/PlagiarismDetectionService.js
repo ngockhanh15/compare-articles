@@ -5,7 +5,7 @@ const vietnameseStopwordService = require('./VietnameseStopwordService');
 class PlagiarismDetectionService {
   constructor() {
     this.documentTree = new TreeAVL();
-    this.chunkTree = new TreeAVL();
+    this.wordTree = new TreeAVL();
     this.initialized = false;
   }
 
@@ -37,7 +37,7 @@ class PlagiarismDetectionService {
       }
 
       this.initialized = true;
-      console.log(`Plagiarism detection service initialized with ${this.documentTree.getSize()} documents and ${this.chunkTree.getSize()} chunks`);
+      console.log(`Plagiarism detection service initialized with ${this.documentTree.getSize()} documents and ${this.wordTree.getSize()} words`);
       console.log(`Vietnamese stopwords: ${vietnameseStopwordService.getStats().totalStopwords} words loaded`);
       
     } catch (error) {
@@ -46,39 +46,41 @@ class PlagiarismDetectionService {
     }
   }
 
-  // Thêm document mới vào cây AVL
+  // Thêm document mới vào cây AVL (chỉ sử dụng word-based hashing)
   addDocumentToTree(text, metadata = {}) {
     try {
-      // Tạo hash cho toàn bộ document
-      const fullHash = TextHasher.createMD5Hash(text);
+      // Tạo unique document ID thay vì hash toàn bộ text
+      const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Thêm document vào cây chính
-      this.documentTree.insert(fullHash, {
+      // Thêm document vào cây chính với document ID
+      this.documentTree.insert(documentId, {
         text: text,
         metadata: metadata,
         timestamp: Date.now(),
         wordCount: text.trim().split(/\s+/).length
       });
 
-      // Chia thành chunks và thêm vào cây chunks (sử dụng stopwords)
-      const chunks = TextHasher.createChunkHashes(text, 50, true); // 50 từ mỗi chunk, sử dụng stopwords
+      // Tách thành từng từ có nghĩa và thêm vào cây words (sử dụng stopwords)
+      const words = TextHasher.createWordHashes(text, true);
       
-      chunks.forEach(chunk => {
-        this.chunkTree.insert(chunk.hash, {
-          text: chunk.text,
-          parentHash: fullHash,
-          startIndex: chunk.startIndex,
-          endIndex: chunk.endIndex,
+      words.forEach(wordData => {
+        this.wordTree.insert(wordData.hash, {
+          word: wordData.word,
+          parentDocumentId: documentId,
+          index: wordData.index,
+          method: wordData.method,
           metadata: metadata
         });
       });
 
+      return documentId;
     } catch (error) {
       console.error('Error adding document to tree:', error);
+      return null;
     }
   }
 
-  // Kiểm tra plagiarism thực sự
+  // Kiểm tra plagiarism chỉ dựa trên word-based matching
   async checkPlagiarism(inputText, options = {}) {
     const startTime = Date.now();
 
@@ -96,35 +98,17 @@ class PlagiarismDetectionService {
         processingTime: 0,
         fromCache: false,
         totalDocumentsChecked: this.documentTree.getSize(),
-        totalChunksChecked: this.chunkTree.getSize(),
+        totalWordsChecked: this.wordTree.getSize(),
         // Thêm các thông số mới
         dtotal: 0, // Tổng số câu trùng không lặp lại với tất cả câu/csdl mẫu
         dab: 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: null // Thông tin document giống nhất
       };
 
-      // 1. Kiểm tra exact match với toàn bộ document
-      const exactMatch = this.findExactMatch(inputText);
-      if (exactMatch) {
-        result.duplicatePercentage = 100;
-        result.matches.push({
-          text: exactMatch.text.substring(0, 200) + '...',
-          source: 'internal-database',
-          similarity: 100,
-          url: `internal://document/${exactMatch.metadata.id}`,
-          matchedWords: exactMatch.wordCount,
-          fromCache: false
-        });
-        result.sources.push('internal-database');
-        result.confidence = 'high';
-        result.processingTime = Date.now() - startTime;
-        return result;
-      }
-
-      // 2. Kiểm tra partial matches thông qua chunks (sử dụng stopwords)
-      const partialMatches = this.findPartialMatches(inputText, options.sensitivity || 'medium');
+      // Chỉ kiểm tra word-based matches (bỏ exact match toàn bộ văn bản)
+      const wordMatches = this.findWordMatches(inputText, options.sensitivity || 'medium');
       
-      if (partialMatches.length > 0) {
+      if (wordMatches.length > 0) {
         // Tính toán duplicate percentage dựa trên matches
         const inputWordCount = inputText.trim().split(/\s+/).length;
         let totalMatchedWords = 0;
@@ -135,7 +119,7 @@ class PlagiarismDetectionService {
         let mostSimilarMatch = null;
         let highestSimilarity = 0;
 
-        partialMatches.forEach(match => {
+        wordMatches.forEach(match => {
           result.matches.push({
             text: match.text.substring(0, 200) + '...',
             source: match.source || 'internal-database',
@@ -187,9 +171,9 @@ class PlagiarismDetectionService {
         result.sources = Array.from(uniqueSources);
         
         // Xác định confidence level
-        if (result.duplicatePercentage > 30) {
+        if (result.duplicatePercentage >= 50) {
           result.confidence = 'high';
-        } else if (result.duplicatePercentage > 15) {
+        } else if (result.duplicatePercentage >= 25) {
           result.confidence = 'medium';
         } else {
           result.confidence = 'low';
@@ -205,52 +189,65 @@ class PlagiarismDetectionService {
     }
   }
 
-  // Tìm exact match
-  findExactMatch(text) {
-    const hash = TextHasher.createMD5Hash(text);
-    const node = this.documentTree.search(hash);
-    return node ? node.data : null;
-  }
 
-  // Tìm partial matches thông qua chunks (sử dụng stopwords)
-  findPartialMatches(text, sensitivity = 'medium') {
-    const chunks = TextHasher.createChunkHashes(text, 50, true); // Sử dụng stopwords
+
+  // Tìm word matches thông qua từng từ (sử dụng stopwords)
+  findWordMatches(text, sensitivity = 'medium') {
+    const words = TextHasher.createWordHashes(text, true); // Sử dụng stopwords
     const matches = [];
     const foundSources = new Map(); // Để tránh duplicate từ cùng một source
+    const wordMatchCounts = new Map(); // Đếm số từ trùng cho mỗi document
 
     // Thiết lập threshold dựa trên sensitivity
     const thresholds = {
-      'low': 0.6,
-      'medium': 0.7,
-      'high': 0.8
+      'low': 0.3,   // 30% từ trùng
+      'medium': 0.5, // 50% từ trùng
+      'high': 0.7   // 70% từ trùng
     };
-    const threshold = thresholds[sensitivity] || 0.7;
+    const threshold = thresholds[sensitivity] || 0.5;
 
-    chunks.forEach((chunk, index) => {
-      // Tìm exact chunk match
-      const exactChunkMatch = this.chunkTree.search(chunk.hash);
+    words.forEach((wordData, index) => {
+      // Tìm exact word match
+      const exactWordMatch = this.wordTree.search(wordData.hash);
       
-      if (exactChunkMatch) {
-        const sourceKey = exactChunkMatch.data.parentHash;
+      if (exactWordMatch) {
+        const sourceKey = exactWordMatch.data.parentDocumentId;
         
-        // Tránh duplicate matches từ cùng một document
-        if (!foundSources.has(sourceKey)) {
-          // Sử dụng meaningful similarity để so sánh chính xác hơn
-          const similarity = TextHasher.calculateMeaningfulSimilarity(chunk.text, exactChunkMatch.data.text);
-          
-          if (similarity >= threshold * 100) {
-            matches.push({
-              text: exactChunkMatch.data.text,
-              source: 'internal-database',
-              similarity: Math.round(similarity),
-              matchedWords: chunk.meaningfulWordCount || chunk.text.split(/\s+/).length,
-              metadata: exactChunkMatch.data.metadata,
-              chunkIndex: index,
-              chunkMethod: chunk.chunkMethod || 'unknown'
-            });
-            
-            foundSources.set(sourceKey, true);
-          }
+        // Đếm số từ trùng cho mỗi document
+        if (!wordMatchCounts.has(sourceKey)) {
+          wordMatchCounts.set(sourceKey, {
+            count: 0,
+            matchedWords: [],
+            metadata: exactWordMatch.data.metadata,
+            parentDocument: null
+          });
+        }
+        
+        const matchInfo = wordMatchCounts.get(sourceKey);
+        matchInfo.count++;
+        matchInfo.matchedWords.push(wordData.word);
+      }
+    });
+
+    // Tính toán similarity cho mỗi document và tạo matches
+    wordMatchCounts.forEach((matchInfo, sourceKey) => {
+      const similarity = (matchInfo.count / words.length) * 100;
+      
+      if (similarity >= threshold * 100) {
+        // Lấy thông tin document gốc
+        const parentDoc = this.documentTree.search(sourceKey);
+        
+        if (parentDoc) {
+          matches.push({
+            text: parentDoc.data.text.substring(0, 200) + '...',
+            source: 'internal-database',
+            similarity: Math.round(similarity),
+            matchedWords: matchInfo.count,
+            totalWords: words.length,
+            metadata: matchInfo.metadata,
+            wordMatches: matchInfo.matchedWords.slice(0, 10), // Giới hạn 10 từ đầu tiên
+            method: 'word-based'
+          });
         }
       }
     });
@@ -267,7 +264,7 @@ class PlagiarismDetectionService {
   // Thêm document mới sau khi kiểm tra
   async addNewDocument(text, checkResult) {
     try {
-      this.addDocumentToTree(text, {
+      const documentId = this.addDocumentToTree(text, {
         duplicatePercentage: checkResult.duplicatePercentage,
         matches: checkResult.matches,
         sources: checkResult.sources,
@@ -275,8 +272,10 @@ class PlagiarismDetectionService {
       });
       
       console.log(`Added new document to plagiarism detection tree. Total documents: ${this.documentTree.getSize()}`);
+      return documentId;
     } catch (error) {
       console.error('Error adding new document:', error);
+      return null;
     }
   }
 
@@ -284,7 +283,7 @@ class PlagiarismDetectionService {
   getStats() {
     return {
       totalDocuments: this.documentTree.getSize(),
-      totalChunks: this.chunkTree.getSize(),
+      totalWords: this.wordTree.getSize(),
       initialized: this.initialized,
       stopwordService: vietnameseStopwordService.getStats(),
       memoryUsage: process.memoryUsage()
@@ -294,7 +293,7 @@ class PlagiarismDetectionService {
   // Reset service
   async reset() {
     this.documentTree.clear();
-    this.chunkTree.clear();
+    this.wordTree.clear();
     this.initialized = false;
     console.log('Plagiarism detection service reset');
   }

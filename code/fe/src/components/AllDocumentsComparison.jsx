@@ -196,8 +196,8 @@ const AllDocumentsComparison = () => {
             </div>
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
               <div className={`text-2xl font-bold ${
-                data.currentDocument.duplicateRate > 30 ? 'text-red-600' : 
-                data.currentDocument.duplicateRate > 15 ? 'text-yellow-600' : 'text-green-600'
+                data.currentDocument.duplicateRate >= 50 ? 'text-red-600' : 
+                data.currentDocument.duplicateRate >= 25 ? 'text-yellow-600' : 'text-green-600'
               }`}>
                 {data.currentDocument.duplicateRate}%
               </div>
@@ -455,8 +455,8 @@ const AllDocumentsComparison = () => {
                           
                           <div className="ml-3 text-right">
                             <div className={`text-lg font-bold ${
-                              doc.duplicateRate > 30 ? 'text-red-600' : 
-                              doc.duplicateRate > 15 ? 'text-yellow-600' : 'text-green-600'
+                              doc.duplicateRate >= 50 ? 'text-red-600' : 
+                              doc.duplicateRate >= 25 ? 'text-yellow-600' : 'text-green-600'
                             }`}>
                               {doc.duplicateRate}%
                             </div>
