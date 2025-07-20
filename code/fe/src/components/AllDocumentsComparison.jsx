@@ -19,6 +19,7 @@ const AllDocumentsComparison = () => {
       try {
         setLoading(true);
         const response = await getDetailedAllDocumentsComparison(checkId);
+        console.log('Detailed all documents comparison response:', response);
         setData(response);
       } catch (error) {
         console.error('Error fetching detailed all documents comparison:', error);
@@ -79,6 +80,13 @@ const AllDocumentsComparison = () => {
           return aValue < bValue ? 1 : -1;
         }
       }) : [];
+
+  // Debug logging
+  console.log('Raw matching documents:', data?.matchingDocuments);
+  console.log('Filter status:', filterStatus);
+  console.log('Sort by:', sortBy);
+  console.log('Sort order:', sortOrder);
+  console.log('Sorted and filtered documents:', sortedAndFilteredDocuments);
 
   if (loading) {
     return (
@@ -207,7 +215,7 @@ const AllDocumentsComparison = () => {
         </div>
 
         {/* Statistics */}
-        <div className="grid gap-6 mb-8 md:grid-cols-4">
+        <div className="grid gap-6 mb-8 md:grid-cols-3">
           <div className="p-6 bg-white shadow-xl rounded-2xl">
             <div className="flex items-center">
               <div className="p-3 mr-4 bg-blue-100 rounded-full">
@@ -233,9 +241,9 @@ const AllDocumentsComparison = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold text-red-600">
-                  {sortedAndFilteredDocuments.filter(doc => doc.duplicatePercentage > 50).length}
+                  {sortedAndFilteredDocuments.filter(doc => doc.duplicateRate > 50).length}
                 </div>
-                <div className="text-sm text-neutral-600">Trùng lặp ({">"} 50%)</div>
+                <div className="text-sm text-neutral-600">Trùng lặp (&gt; 50%)</div>
               </div>
             </div>
           </div>
@@ -247,7 +255,7 @@ const AllDocumentsComparison = () => {
               </div>
               <div>
                 <div className="text-2xl font-bold text-green-600">
-                  {sortedAndFilteredDocuments.filter(doc => doc.duplicatePercentage <= 50).length}
+                  {sortedAndFilteredDocuments.filter(doc => doc.duplicateRate <= 50).length}
                 </div>
                 <div className="text-sm text-neutral-600">Không trùng lặp (≤ 50%)</div>
               </div>
@@ -326,11 +334,11 @@ const AllDocumentsComparison = () => {
           <div className="lg:col-span-2">
             <div className="p-6 bg-white shadow-xl rounded-2xl">
               <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
-                <span className="mr-2">�</span>
+                <span className="mr-2">📝</span>
                 Nội dung văn bản cần kiểm tra
               </h2>
               
-              {data?.currentDocument?.highlightedText ? (
+              {data?.currentDocument?.highlightedText && data.currentDocument.highlightedText !== data.currentDocument.originalText ? (
                 <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
                   <div 
                     className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
@@ -342,6 +350,20 @@ const AllDocumentsComparison = () => {
                   <div className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800">
                     {data.currentDocument.originalText}
                   </div>
+                  {data?.matchingDocuments?.length > 0 && (
+                    <div className="p-3 mt-4 border border-yellow-200 rounded-lg bg-yellow-50">
+                      <div className="flex items-center">
+                        <span className="mr-2 text-yellow-600">ℹ️</span>
+                        <div>
+                          <h4 className="text-sm font-semibold text-yellow-800">Thông tin về highlighting</h4>
+                          <p className="text-sm text-yellow-700">
+                            Tìm thấy {data.matchingDocuments.length} documents trùng lặp nhưng không có đoạn text nào đủ độ tương tự (&gt;30%) để highlight. 
+                            Điều này có thể do các documents có cấu trúc khác nhau hoặc độ trùng lặp ở mức từ vựng thay vì câu hoàn chỉnh.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="py-12 text-center">
@@ -351,7 +373,7 @@ const AllDocumentsComparison = () => {
               )}
               
               {/* Legend for colors */}
-              {data?.highlightedSegments && data.highlightedSegments.length > 0 ? (
+              {data?.highlightedSegments && data.highlightedSegments.length > 0 && (
                 <div className="mt-6">
                   <h3 className="mb-3 text-sm font-semibold text-neutral-700">
                     Chú thích màu sắc ({data.highlightedSegments.length} đoạn được highlight):
@@ -366,14 +388,15 @@ const AllDocumentsComparison = () => {
                           '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', '#84cc16'
                         ];
                         const color = colors[index % colors.length];
+                        const backgroundColor = color + '20';
                         
                         return (
-                          <div key={docId} className="flex items-center text-xs">
+                          <div key={`legend-${docId}-${index}`} className="flex items-center text-xs">
                             <div 
                               className="w-4 h-4 mr-2 border rounded"
-                              style={{ backgroundColor: `${color}20`, borderColor: color }}
-                            ></div>
-                            <span className="truncate text-neutral-600" title={segment?.documentName}>
+                              style={{ backgroundColor: backgroundColor, borderColor: color }}
+                            />
+                            <span className="truncate text-neutral-600" title={segment?.documentName || `Document ${index + 1}`}>
                               {segment?.documentName || `Document ${index + 1}`}
                             </span>
                           </div>
@@ -381,21 +404,6 @@ const AllDocumentsComparison = () => {
                       })}
                   </div>
                 </div>
-              ) : (
-                data?.matchingDocuments && data.matchingDocuments.length > 0 && (
-                  <div className="p-4 mt-6 border border-yellow-200 rounded-lg bg-yellow-50">
-                    <div className="flex items-center">
-                      <span className="mr-2 text-yellow-600">ℹ️</span>
-                      <div>
-                        <h4 className="text-sm font-semibold text-yellow-800">Thông tin về highlighting</h4>
-                        <p className="text-sm text-yellow-700">
-                          Tìm thấy {data.matchingDocuments.length} documents trùng lặp nhưng không có đoạn text nào đủ độ tương tự ({'>'}30%) để highlight. 
-                          Điều này có thể do các documents có cấu trúc khác nhau hoặc độ trùng lặp ở mức từ vựng thay vì câu hoàn chỉnh.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
               )}
             </div>
           </div>
@@ -411,7 +419,20 @@ const AllDocumentsComparison = () => {
               {sortedAndFilteredDocuments.length === 0 ? (
                 <div className="py-12 text-center">
                   <div className="mb-4 text-4xl">📄</div>
-                  <p className="text-neutral-600">Không tìm thấy documents trùng lặp</p>
+                  <p className="text-neutral-600">
+                    {data?.matchingDocuments?.length > 0 
+                      ? `Không có documents nào phù hợp với bộ lọc "${filterStatus}"`
+                      : 'Không tìm thấy documents trùng lặp'
+                    }
+                  </p>
+                  {data?.matchingDocuments?.length > 0 && (
+                    <button
+                      onClick={() => setFilterStatus('all')}
+                      className="px-4 py-2 mt-3 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50"
+                    >
+                      Hiển thị tất cả
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
