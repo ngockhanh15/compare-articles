@@ -257,34 +257,6 @@ const TextChecker = () => {
               Nhập văn bản cần kiểm tra
             </h2>
 
-            {/* Database Stats */}
-            {treeStats && (
-              <div className="p-3 mb-4 border border-blue-200 rounded-lg bg-blue-50">
-                <div className="flex items-center mb-2">
-                  <span className="mr-2 text-blue-600">📊</span>
-                  <span className="text-sm font-medium text-blue-800">Thống kê Documents trong dự án</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-2 text-xs text-blue-700">
-                  <div>Tài liệu: {treeStats.totalDocuments || 0}</div>
-                  <div>Đã khởi tạo: {treeStats.initialized ? 'Có' : 'Không'}</div>
-                  <div>Kích thước tree: {treeStats.treeSize || 0}</div>
-                  <div>Trạng thái: {treeStats.initialized ? '🟢 Hoạt động' : '🔴 Chưa sẵn sàng'}</div>
-                </div>
-                {treeStats.fileTypeDistribution && Object.keys(treeStats.fileTypeDistribution).length > 0 && (
-                  <div className="pt-2 border-t border-blue-300">
-                    <div className="mb-1 text-xs font-medium text-blue-800">Phân bố loại file:</div>
-                    <div className="flex flex-wrap gap-1">
-                      {Object.entries(treeStats.fileTypeDistribution).map(([fileType, count]) => (
-                        <span key={fileType} className="px-2 py-1 text-xs text-blue-800 bg-blue-200 rounded-full">
-                          {fileType.toUpperCase()}: {count}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* File Upload Section */}
             <div className="mb-4">
               <div className="flex items-center gap-4 mb-3">
@@ -445,24 +417,6 @@ const TextChecker = () => {
                           ` • Tìm thấy ${results.matches.length} nguồn tương tự`
                         }
                       </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Threshold Information */}
-                <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
-                  <h4 className="flex items-center mb-2 font-semibold text-blue-800">
-                    <span className="mr-2">⚖️</span>
-                    Ngưỡng đánh giá
-                  </h4>
-                  <div className="text-sm text-blue-700">
-                    <div className="flex items-center justify-between mb-1">
-                      <span>• ≤ 50%: Không trùng lặp</span>
-                      <span className="font-medium text-green-600">✅ An toàn</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>• {">"} 50%: Trùng lặp</span>
-                      <span className="font-medium text-red-600">🚨 Cần xem xét</span>
                     </div>
                   </div>
                 </div>
@@ -649,61 +603,6 @@ const TextChecker = () => {
                   </div>
                 )}
 
-                {/* Processing Information */}
-                <div className="p-4 border border-green-200 rounded-xl bg-green-50">
-                  <h4 className="flex items-center mb-3 font-semibold text-green-800">
-                    <span className="mr-2">⚡</span>
-                    Thông tin xử lý (Document-based AVL Tree)
-                  </h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    {results.processingTime && (
-                      <div className="flex items-center">
-                        <span className="mr-2 text-gray-600">⏱️</span>
-                        <span className="text-green-700">
-                          Thời gian: {results.processingTime}ms
-                        </span>
-                      </div>
-                    )}
-                    {results.checkedDocuments && (
-                      <div className="flex items-center">
-                        <span className="mr-2 text-blue-600">📚</span>
-                        <span className="text-green-700">
-                          Đã kiểm tra: {results.checkedDocuments} documents
-                        </span>
-                      </div>
-                    )}
-                    {results.totalDocumentsInSystem && (
-                      <div className="flex items-center">
-                        <span className="mr-2 text-indigo-600">🗂️</span>
-                        <span className="text-green-700">
-                          Tổng documents: {results.totalDocumentsInSystem}
-                        </span>
-                      </div>
-                    )}
-                    {results.totalMatches && (
-                      <div className="flex items-center">
-                        <span className="mr-2 text-purple-600">🎯</span>
-                        <span className="text-green-700">
-                          Tổng khớp: {results.totalMatches}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex items-center">
-                      <span className="mr-2 text-orange-600">🌳</span>
-                      <span className="text-green-700">
-                        Cấu trúc: AVL Tree
-                      </span>
-                    </div>
-                    {/* Thêm thông tin Dtotal */}
-                    <div className="flex items-center">
-                      <span className="mr-2 text-purple-600">📊</span>
-                      <span className="text-green-700">
-                        Dtotal: {results.dtotal || 0} câu trùng
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Phrase Analysis (New) */}
                 {results.matches && results.matches.some(match => match.method === 'phrase-based') && (
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
@@ -868,23 +767,6 @@ const TextChecker = () => {
                   </div>
                 )}
 
-                {/* Source Info */}
-                {results.source === 'file' && (
-                  <div className="p-3 border border-neutral-200 rounded-xl bg-neutral-50">
-                    <div className="flex items-center">
-                      <span className="mr-2 text-lg">📄</span>
-                      <div>
-                        <div className="font-medium text-neutral-800">
-                          Nguồn: {results.fileName}
-                        </div>
-                        <div className="text-sm text-neutral-600">
-                          Nội dung được trích xuất từ file
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {/* Timestamp */}
                 <div className="pt-4 text-xs text-center border-t border-neutral-200 text-neutral-500">
                   Kiểm tra lúc: {results.checkedAt}
@@ -931,48 +813,6 @@ const TextChecker = () => {
               <p className="text-sm text-neutral-600">
                 Xem tỷ lệ trùng lặp và các nguồn tương tự được tìm thấy
               </p>
-            </div>
-          </div>
-
-          {/* Giải thích các chỉ số */}
-          <div className="p-4 mt-6 border border-blue-200 rounded-xl bg-blue-50">
-            <h4 className="flex items-center mb-3 font-semibold text-blue-800">
-              <span className="mr-2">📈</span>
-              Giải thích các chỉ số trùng lặp
-            </h4>
-            <div className="grid gap-3 text-sm md:grid-cols-2">
-              <div className="p-3 bg-white border border-purple-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <span className="mr-2 text-purple-600">📊</span>
-                  <span className="font-medium text-purple-800">Dtotal</span>
-                </div>
-                <p className="text-purple-700">
-                  Tổng số câu trùng không lặp lại với tất cả câu trong cơ sở dữ liệu mẫu. 
-                  Chỉ số này cho biết có bao nhiêu câu duy nhất trong văn bản của bạn trùng với CSDL.
-                </p>
-              </div>
-              
-              <div className="p-3 bg-white border border-orange-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <span className="mr-2 text-orange-600">🎯</span>
-                  <span className="font-medium text-orange-800">DA/B</span>
-                </div>
-                <p className="text-orange-700">
-                  Tổng số câu trùng không lặp lại so với Document B (document giống nhất). 
-                  Chỉ số này cho biết có bao nhiêu câu duy nhất trùng với tài liệu tương tự nhất.
-                </p>
-              </div>
-              
-              <div className="p-3 bg-white border border-indigo-200 rounded-lg">
-                <div className="flex items-center mb-2">
-                  <span className="mr-2 text-indigo-600">⚙️</span>
-                  <span className="font-medium text-indigo-800">Thuật toán so sánh</span>
-                </div>
-                <p className="text-indigo-700">
-                  Sử dụng cấu trúc dữ liệu AVL Tree để tối ưu tốc độ tìm kiếm. 
-                  Văn bản được chia thành chunks 50 từ và so sánh bằng thuật toán Jaccard similarity.
-                </p>
-              </div>
             </div>
           </div>
         </div>

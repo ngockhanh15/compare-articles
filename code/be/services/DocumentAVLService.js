@@ -302,9 +302,12 @@ class DocumentAVLService {
   calculatePlagiarismRatio(totalInputHashes, matches) {
     if (matches.length === 0 || totalInputHashes === 0) return 0;
 
-    // Lấy document có tỷ lệ trùng cao nhất
+    // Trả về tỷ lệ của document có similarity cao nhất (đảm bảo nhất quán)
     const highestMatch = matches[0]; // matches đã được sort theo similarity desc
-    return highestMatch ? highestMatch.similarity : 0;
+    const result = highestMatch ? highestMatch.similarity : 0;
+    
+    console.log(`🎯 Overall duplicate percentage: ${result}% (based on highest match: ${highestMatch?.title})`);
+    return result;
   }
 
   // Calculate Dtotal and DA/B from hash matches
