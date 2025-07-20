@@ -232,20 +232,10 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">🚨</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-red-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'high').length}</div>
-                <div className="text-sm text-neutral-600">Rủi ro cao</div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6 bg-white shadow-xl rounded-2xl">
-            <div className="flex items-center">
-              <div className="p-3 mr-4 bg-yellow-100 rounded-full">
-                <span className="text-2xl">⚠️</span>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'medium').length}</div>
-                <div className="text-sm text-neutral-600">Rủi ro trung bình</div>
+                <div className="text-2xl font-bold text-red-600">
+                  {sortedAndFilteredDocuments.filter(doc => doc.duplicatePercentage > 50).length}
+                </div>
+                <div className="text-sm text-neutral-600">Trùng lặp ({">"} 50%)</div>
               </div>
             </div>
           </div>
@@ -256,8 +246,10 @@ const AllDocumentsComparison = () => {
                 <span className="text-2xl">✅</span>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{sortedAndFilteredDocuments.filter(doc => doc.status === 'low').length}</div>
-                <div className="text-sm text-neutral-600">Rủi ro thấp</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {sortedAndFilteredDocuments.filter(doc => doc.duplicatePercentage <= 50).length}
+                </div>
+                <div className="text-sm text-neutral-600">Không trùng lặp (≤ 50%)</div>
               </div>
             </div>
           </div>

@@ -196,6 +196,30 @@ export const uploadFile = async (file) => {
 
 // ==================== USER UPLOAD API (FOR PLAGIARISM CHECK ONLY) ====================
 
+// Extract text from file (no plagiarism check)
+export const extractTextFromFile = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/user-upload/extract-text`, {
+      method: 'POST',
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it
+        ...(localStorage.getItem('token') && { 
+          Authorization: `Bearer ${localStorage.getItem('token')}` 
+        })
+      },
+      body: formData,
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Extract text from file error:', error);
+    throw error;
+  }
+};
+
 // Upload file for plagiarism check (temporary, not saved)
 export const uploadFileForCheck = async (file, options = {}) => {
   try {
@@ -284,6 +308,31 @@ export const checkPlagiarism = async (text, options = {}, fileName = null, fileT
     return await handleResponse(response);
   } catch (error) {
     console.error('Check plagiarism error:', error);
+    throw error;
+  }
+};
+
+// Kiểm tra trùng lặp với documents đã upload (sử dụng DocumentAVLService)
+export const checkDocumentSimilarity = async (text, options = {}, fileName = null, fileType = null) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/check-document-similarity`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text: text,
+        fileName: fileName,
+        fileType: fileType,
+        options: {
+          sensitivity: 'medium',
+          language: 'vi',
+          ...options
+        }
+      }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error('Check document similarity error:', error);
     throw error;
   }
 };

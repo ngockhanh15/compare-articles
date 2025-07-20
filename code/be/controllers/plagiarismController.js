@@ -1,6 +1,7 @@
 const PlagiarismCheck = require('../models/PlagiarismCheck');
 const plagiarismCacheService = require('../services/PlagiarismCacheService');
 const plagiarismDetectionService = require('../services/PlagiarismDetectionService');
+const documentAVLService = require('../services/DocumentAVLService');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
@@ -44,6 +45,72 @@ const upload = multer({
     }
   }
 });
+
+// Document-based checking using DocumentAVLService (kiểm tra với documents đã upload)
+const performDocumentCheck = async (text, options = {}) => {
+  const startTime = Date.now();
+  
+  try {
+    console.log('Performing document-based check using DocumentAVLService...');
+    
+    // Sử dụng DocumentAVLService để kiểm tra với các document đã upload
+    const result = await documentAVLService.checkDuplicateContent(text, {
+      minSimilarity: options.sensitivity === 'high' ? 30 : 
+                     options.sensitivity === 'low' ? 70 : 50, // medium = 50
+      chunkSize: 50,
+      maxResults: 20
+    });
+    
+    // Chuyển đổi format để tương thích với frontend
+    const formattedResult = {
+      duplicatePercentage: result.duplicatePercentage || 0,
+      matches: result.matches.map(match => ({
+        text: match.matchedText ? match.matchedText.substring(0, 200) + '...' : 'Document content',
+        source: match.title || `Document-${match.documentId.toString().substring(0, 8)}`,
+        similarity: match.similarity,
+        url: `internal://document/${match.documentId}`,
+        documentId: match.documentId,
+        fileType: match.fileType,
+        createdAt: match.createdAt,
+        method: 'document-based'
+      })),
+      sources: result.sources || [],
+      confidence: result.duplicatePercentage > 70 ? 'high' : 
+                 result.duplicatePercentage > 30 ? 'medium' : 'low',
+      processingTime: Date.now() - startTime,
+      fromCache: false,
+      totalMatches: result.totalMatches || 0,
+      checkedDocuments: result.checkedDocuments || 0,
+      // Thông số mới từ DocumentAVLService
+      dtotal: result.dtotal || 0,
+      dab: result.dab || 0,
+      mostSimilarDocument: result.mostSimilarDocument || null,
+      // Thêm thông tin về documents
+      totalDocumentsInSystem: result.checkedDocuments || 0
+    };
+    
+    console.log(`Document check completed: ${formattedResult.duplicatePercentage}% duplicate found in ${formattedResult.processingTime}ms`);
+    console.log(`Checked against ${formattedResult.checkedDocuments} documents in system`);
+    
+    return formattedResult;
+    
+  } catch (error) {
+    console.error('Error in document check:', error);
+    
+    // Fallback: trả về kết quả cơ bản nếu có lỗi
+    return {
+      duplicatePercentage: 0,
+      matches: [],
+      sources: [],
+      confidence: 'low',
+      processingTime: Date.now() - startTime,
+      fromCache: false,
+      error: 'Error occurred during document check',
+      errorDetails: error.message,
+      totalDocumentsInSystem: 0
+    };
+  }
+};
 
 // Real plagiarism checking using TreeAVL and database comparison
 const performPlagiarismCheck = async (text, options = {}) => {
@@ -109,11 +176,9 @@ const performPlagiarismCheck = async (text, options = {}) => {
       }
     }
     
-    // 4. Cập nhật confidence dựa trên kết quả cuối cùng
-    if (result.duplicatePercentage >= 50) {
+    // 4. Cập nhật confidence dựa trên threshold đơn giản: > 50% = high, <= 50% = low
+    if (result.duplicatePercentage > 50) {
       result.confidence = 'high';
-    } else if (result.duplicatePercentage >= 25) {
-      result.confidence = 'medium';
     } else {
       result.confidence = 'low';
     }
@@ -238,6 +303,100 @@ exports.uploadFile = [
   }
 ];
 
+// Check document similarity (kiểm tra với documents đã upload)
+exports.checkDocumentSimilarity = async (req, res) => {
+  try {
+    const { text, options = {}, fileName, fileType } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Văn bản không được để trống'
+      });
+    }
+    
+    // Perform document-based check
+    const result = await performDocumentCheck(text, options);
+    
+    // Determine status based on simple threshold: > 70% = high, 30-70% = medium, <= 30% = low
+    const getStatus = (percentage) => {
+      if (percentage > 70) return 'high';
+      if (percentage > 30) return 'medium';
+      return 'low';
+    };
+
+    // For test endpoint, skip database save if no user
+    if (!req.user) {
+      return res.json({
+        success: true,
+        duplicateRate: result.duplicatePercentage,
+        confidence: result.confidence,
+        matches: result.matches,
+        sources: result.sources,
+        processingTime: result.processingTime,
+        totalMatches: result.totalMatches,
+        checkedDocuments: result.checkedDocuments
+      });
+    }
+
+    // Save check to database (optional - có thể bỏ nếu không muốn lưu)
+    const plagiarismCheck = new PlagiarismCheck({
+      user: req.user.id,
+      originalText: text,
+      textLength: text.length,
+      wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
+      duplicatePercentage: result.duplicatePercentage,
+      matches: result.matches || [],
+      sources: result.sources || [],
+      confidence: result.confidence,
+      status: getStatus(result.duplicatePercentage),
+      source: fileName ? 'file' : 'text',
+      fileName: fileName || null,
+      fileType: fileType || null,
+      processingTime: result.processingTime,
+      options: {
+        checkInternet: false, // Document-based check không cần internet
+        checkDatabase: true,
+        sensitivity: options.sensitivity || 'medium',
+        language: options.language || 'vi',
+        checkType: 'document-based' // Đánh dấu là document-based check
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    await plagiarismCheck.save();
+
+    res.json({
+      success: true,
+      checkId: plagiarismCheck._id,
+      result: {
+        duplicatePercentage: result.duplicatePercentage,
+        matches: result.matches,
+        sources: result.sources,
+        confidence: result.confidence,
+        textLength: text.length,
+        wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
+        processingTime: result.processingTime,
+        totalMatches: result.totalMatches,
+        checkedDocuments: result.checkedDocuments,
+        // Thêm các thông số mới
+        dtotal: result.dtotal || 0,
+        dab: result.dab || 0,
+        mostSimilarDocument: result.mostSimilarDocument || null,
+        totalDocumentsInSystem: result.totalDocumentsInSystem || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('Document similarity check error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi kiểm tra trùng lặp với documents'
+    });
+  }
+};
+
 // Check plagiarism
 exports.checkPlagiarism = async (req, res) => {
   try {
@@ -253,12 +412,24 @@ exports.checkPlagiarism = async (req, res) => {
     // Perform plagiarism check
     const result = await performPlagiarismCheck(text, options);
     
-    // Determine status based on duplicate percentage
+    // Determine status based on simple threshold: > 50% = high, <= 50% = low
     const getStatus = (percentage) => {
-      if (percentage >= 50) return 'high';
-      if (percentage >= 25) return 'medium';
+      if (percentage > 50) return 'high';
       return 'low';
     };
+
+    // For test endpoint, skip database save if no user
+    if (!req.user) {
+      return res.json({
+        success: true,
+        duplicateRate: result.duplicatePercentage,
+        confidence: result.confidence,
+        matches: result.matches,
+        sources: result.sources,
+        processingTime: result.processingTime,
+        totalMatches: result.matches ? result.matches.length : 0
+      });
+    }
 
     // Save plagiarism check to database
     const plagiarismCheck = new PlagiarismCheck({
@@ -350,6 +521,25 @@ exports.getPlagiarismHistory = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Lỗi khi lấy lịch sử kiểm tra'
+    });
+  }
+};
+
+// Get document tree statistics
+exports.getDocumentTreeStats = async (req, res) => {
+  try {
+    const stats = documentAVLService.getTreeStats();
+    
+    res.json({
+      success: true,
+      stats: stats
+    });
+    
+  } catch (error) {
+    console.error('Get document tree stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê document tree'
     });
   }
 };

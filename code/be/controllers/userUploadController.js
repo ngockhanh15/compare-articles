@@ -4,6 +4,7 @@ const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 const XLSX = require('xlsx');
 const documentAVLService = require('../services/DocumentAVLService');
+const plagiarismDetectionService = require('../services/PlagiarismDetectionService');
 const PlagiarismCheck = require('../models/PlagiarismCheck');
 
 // Configure multer for memory storage (files are not saved to disk)
@@ -96,6 +97,55 @@ const extractTextFromBuffer = async (buffer, mimeType) => {
   }
 };
 
+// Extract text from file (no plagiarism check, just text extraction)
+exports.extractTextFromFile = [
+  upload.single('file'),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có file được upload'
+        });
+      }
+
+      const mimeType = req.file.mimetype;
+      const fileType = getFileTypeFromMime(mimeType);
+
+      console.log(`Extracting text from file: ${req.file.originalname}`);
+
+      // Extract text from file buffer
+      const extractedText = await extractTextFromBuffer(req.file.buffer, mimeType);
+      
+      if (!extractedText || extractedText.trim().length === 0) {
+        throw new Error('Không thể trích xuất nội dung từ file hoặc file rỗng');
+      }
+
+      res.json({
+        success: true,
+        extractedText: extractedText,
+        file: {
+          name: req.file.originalname,
+          type: fileType,
+          size: req.file.size,
+          mimeType: mimeType
+        },
+        textLength: extractedText.length,
+        wordCount: extractedText.split(/\s+/).filter(word => word.length > 0).length,
+        message: 'Trích xuất văn bản thành công'
+      });
+      
+    } catch (error) {
+      console.error('Text extraction error:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Lỗi khi trích xuất văn bản từ file'
+      });
+    }
+  }
+];
+
 // Upload file for plagiarism check (in memory, not saved)
 exports.uploadForCheck = [
   upload.single('file'),
@@ -129,8 +179,8 @@ exports.uploadForCheck = [
         maxResults: 20
       };
 
-      // Check for duplicate content using AVL tree
-      const duplicateResult = await documentAVLService.checkDuplicateContent(extractedText, options);
+      // Check for duplicate content using PlagiarismDetectionService
+      const duplicateResult = await plagiarismDetectionService.checkPlagiarism(extractedText, options);
 
       // Calculate processing time
       const processingTime = Date.now() - startTime;
@@ -150,15 +200,14 @@ exports.uploadForCheck = [
         wordCount: extractedText.split(/\s+/).length,
         duplicatePercentage: duplicateResult.duplicatePercentage,
         matches: duplicateResult.matches.map(match => ({
-          text: match.matchedText.substring(0, 500), // Limit stored text
-          source: match.title,
+          text: match.text ? match.text.substring(0, 500) : '', // Limit stored text
+          source: match.source || 'internal-database',
           similarity: match.similarity,
-          url: '', // No URL for internal documents
-          matchedWords: match.matchedText.split(/\s+/).length
+          url: match.url || '', // No URL for internal documents
+          matchedWords: match.matchedWords || 0
         })),
         sources: duplicateResult.sources,
-        confidence: duplicateResult.duplicatePercentage > 50 ? 'high' : 
-                   duplicateResult.duplicatePercentage > 30 ? 'medium' : 'low',
+        confidence: duplicateResult.confidence,
         status: getStatus(duplicateResult.duplicatePercentage),
         source: 'file',
         fileName: req.file.originalname,
@@ -188,15 +237,14 @@ exports.uploadForCheck = [
           textLength: plagiarismCheck.textLength,
           processingTime: processingTime,
           matches: duplicateResult.matches.map(match => ({
-            source: match.title,
+            source: match.source || 'internal-database',
             similarity: match.similarity,
-            text: match.matchedText.substring(0, 200) + '...',
-            fileType: match.fileType,
-            createdAt: match.createdAt
+            text: match.text ? match.text.substring(0, 200) + '...' : '',
+            method: match.method || 'unknown'
           })),
           sources: duplicateResult.sources,
-          totalMatches: duplicateResult.totalMatches,
-          checkedDocuments: duplicateResult.checkedDocuments,
+          totalMatches: duplicateResult.matches ? duplicateResult.matches.length : 0,
+          checkedDocuments: duplicateResult.totalDocumentsChecked || 0,
           // Thêm các thông số mới
           dtotal: duplicateResult.dtotal || 0,
           dab: duplicateResult.dab || 0,
@@ -253,8 +301,20 @@ exports.checkTextContent = async (req, res) => {
       maxResults: 20
     };
 
-    // Check for duplicate content using AVL tree
-    const duplicateResult = await documentAVLService.checkDuplicateContent(text, checkOptions);
+    // Check for duplicate content using PlagiarismDetectionService
+    const duplicateResult = await plagiarismDetectionService.checkPlagiarism(text, checkOptions);
+
+    // Debug logging
+    console.log('🔍 DEBUG - PlagiarismDetectionService result:');
+    console.log('- duplicatePercentage:', duplicateResult.duplicatePercentage);
+    console.log('- confidence:', duplicateResult.confidence);
+    console.log('- matches count:', duplicateResult.matches ? duplicateResult.matches.length : 0);
+    if (duplicateResult.matches && duplicateResult.matches.length > 0) {
+      console.log('- matches details:');
+      duplicateResult.matches.forEach((match, index) => {
+        console.log(`  ${index + 1}. similarity: ${match.similarity}%, method: ${match.method}`);
+      });
+    }
 
     // Calculate processing time
     const processingTime = Date.now() - startTime;
@@ -274,15 +334,14 @@ exports.checkTextContent = async (req, res) => {
       wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
       duplicatePercentage: duplicateResult.duplicatePercentage,
       matches: duplicateResult.matches.map(match => ({
-        text: match.matchedText.substring(0, 500), // Limit stored text
-        source: match.title,
+        text: match.text ? match.text.substring(0, 500) : '', // Limit stored text
+        source: match.source || 'internal-database',
         similarity: match.similarity,
-        url: '', // No URL for internal documents
-        matchedWords: match.matchedText.split(/\s+/).length
+        url: match.url || '', // No URL for internal documents
+        matchedWords: match.matchedWords || 0
       })),
       sources: duplicateResult.sources,
-      confidence: duplicateResult.duplicatePercentage > 50 ? 'high' : 
-                 duplicateResult.duplicatePercentage > 30 ? 'medium' : 'low',
+      confidence: duplicateResult.confidence,
       status: getStatus(duplicateResult.duplicatePercentage),
       source: 'text',
       processingTime: processingTime,
@@ -310,15 +369,14 @@ exports.checkTextContent = async (req, res) => {
         textLength: plagiarismCheck.textLength,
         processingTime: processingTime,
         matches: duplicateResult.matches.map(match => ({
-          source: match.title,
+          source: match.source || 'internal-database',
           similarity: match.similarity,
-          text: match.matchedText.substring(0, 200) + '...',
-          fileType: match.fileType,
-          createdAt: match.createdAt
+          text: match.text ? match.text.substring(0, 200) + '...' : '',
+          method: match.method || 'unknown'
         })),
         sources: duplicateResult.sources,
-        totalMatches: duplicateResult.totalMatches,
-        checkedDocuments: duplicateResult.checkedDocuments,
+        totalMatches: duplicateResult.matches ? duplicateResult.matches.length : 0,
+        checkedDocuments: duplicateResult.totalDocumentsChecked || 0,
         // Thêm các thông số mới
         dtotal: duplicateResult.dtotal || 0,
         dab: duplicateResult.dab || 0,

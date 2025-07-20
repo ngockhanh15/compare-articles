@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { uploadFileForCheck, checkTextContent, getUserDocuments, getDocumentText, getTreeStats } from '../services/api';
+import { extractTextFromFile, uploadFileForCheck, checkTextContent, checkDocumentSimilarity, getUserDocuments, getDocumentText, getTreeStats } from '../services/api';
 import { Link } from 'react-router-dom';
 
 const TextChecker = () => {
@@ -137,60 +137,73 @@ const TextChecker = () => {
     setIsChecking(true);
 
     try {
-      let plagiarismResult;
+      let similarityResult;
       
       if (selectedFile) {
         setIsUploading(true);
         
-        // Upload file for plagiarism check (new API)
-        plagiarismResult = await uploadFileForCheck(selectedFile, checkOptions);
+        // Extract text from file first (using new API)
+        const fileResult = await extractTextFromFile(selectedFile);
         setIsUploading(false);
         
-        if (!plagiarismResult.success) {
-          setError('Không thể kiểm tra file này');
+        if (!fileResult.success) {
+          setError('Không thể đọc nội dung file này');
           setIsChecking(false);
           return;
         }
         
-        textToCheck = plagiarismResult.result.textLength ? 'File content processed' : '';
-      } else {
-        textToCheck = inputText;
+        textToCheck = fileResult.extractedText;
         
-        // Check text content for plagiarism (new API)
-        plagiarismResult = await checkTextContent(textToCheck, checkOptions);
+        // Validate extracted text
+        if (!textToCheck || textToCheck.trim().length === 0) {
+          setError('File không chứa văn bản có thể đọc được');
+          setIsChecking(false);
+          return;
+        }
+        
+        // Check document similarity with extracted text
+        similarityResult = await checkDocumentSimilarity(textToCheck, checkOptions, selectedFile.name, selectedFile.type);
+      } else {
+        textToCheck = inputText.trim();
+        
+        // Check document similarity with input text
+        similarityResult = await checkDocumentSimilarity(textToCheck, checkOptions);
       }
       
-      // Extract data from new API response structure
-      const result = plagiarismResult.result;
+      // Extract data from document similarity API response
+      const result = similarityResult.result;
       const wordCount = result.wordCount || 0;
       const charCount = result.textLength || 0;
 
       setResults({
-        checkId: plagiarismResult.checkId,
+        checkId: similarityResult.checkId,
         duplicateRate: result.duplicatePercentage || 0,
         matches: result.matches || [],
         sources: result.sources || [],
         wordCount,
         charCount,
-        status: result.confidence || 'medium',
+        status: result.confidence || 'low',
         checkedAt: new Date().toLocaleString('vi-VN'),
         source: selectedFile ? 'file' : 'text',
         fileName: selectedFile ? selectedFile.name : null,
-        confidence: result.confidence || 'medium',
-        // Thông tin mới từ hệ thống AVL
+        confidence: result.confidence || 'low',
+        // Thông tin mới từ DocumentAVLService
         processingTime: result.processingTime || 0,
         totalMatches: result.totalMatches || 0,
         checkedDocuments: result.checkedDocuments || 0,
+        totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
         // Thông tin tỷ lệ trùng lặp mới
         dtotal: result.dtotal || 0, // Tổng số câu trùng không lặp lại với tất cả câu/csdl mẫu
         dab: result.dab || 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: result.mostSimilarDocument || null, // Thông tin document giống nhất
         // Tree stats info
-        treeStats: treeStats
+        treeStats: treeStats,
+        // Thông tin về loại kiểm tra
+        checkType: 'document-based'
       });
     } catch (error) {
-      console.error('Text checker error:', error);
-      setError(error.message || 'Đã xảy ra lỗi khi kiểm tra trùng lặp');
+      console.error('Document similarity check error:', error);
+      setError(error.message || 'Đã xảy ra lỗi khi kiểm tra trùng lặp với documents');
       setIsUploading(false);
     }
 
@@ -217,12 +230,12 @@ const TextChecker = () => {
               <span className="text-3xl">🔍</span>
             </div>
             <h1 className="text-3xl font-bold text-neutral-800">
-              Kiểm tra trùng lặp nội dung
+              Kiểm tra trùng lặp với Documents
             </h1>
           </div>
           <p className="text-neutral-600">
             Chào mừng <span className="font-semibold text-primary-600">{user?.name}</span>! 
-            Kiểm tra văn bản của bạn để phát hiện nội dung trùng lặp trong cơ sở dữ liệu.
+            Kiểm tra văn bản của bạn để phát hiện nội dung trùng lặp với các documents đã upload trong dự án.
           </p>
         </div>
 
@@ -249,7 +262,7 @@ const TextChecker = () => {
               <div className="p-3 mb-4 border border-blue-200 rounded-lg bg-blue-50">
                 <div className="flex items-center mb-2">
                   <span className="mr-2 text-blue-600">📊</span>
-                  <span className="text-sm font-medium text-blue-800">Thống kê cơ sở dữ liệu</span>
+                  <span className="text-sm font-medium text-blue-800">Thống kê Documents trong dự án</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-2 text-xs text-blue-700">
                   <div>Tài liệu: {treeStats.totalDocuments || 0}</div>
@@ -407,37 +420,49 @@ const TextChecker = () => {
               <div className="space-y-6">
                 {/* Status */}
                 <div className={`p-4 rounded-xl ${
-                  results.status === 'low' 
-                    ? 'bg-green-50 border border-green-200' 
-                    : results.status === 'medium'
-                    ? 'bg-yellow-50 border border-yellow-200'
-                    : 'bg-red-50 border border-red-200'
+                  results.duplicateRate > 50
+                    ? 'bg-red-50 border border-red-200' 
+                    : 'bg-green-50 border border-green-200'
                 }`}>
                   <div className="flex items-center">
                     <span className="mr-3 text-2xl">
-                      {results.status === 'low' ? '✅' : results.status === 'medium' ? '⚠️' : '🚨'}
+                      {results.duplicateRate > 50 ? '🚨' : '✅'}
                     </span>
                     <div>
                       <h3 className={`font-semibold ${
-                        results.status === 'low' ? 'text-green-800' : 
-                        results.status === 'medium' ? 'text-yellow-800' : 'text-red-800'
+                        results.duplicateRate > 50 ? 'text-red-800' : 'text-green-800'
                       }`}>
-                        {results.status === 'low' 
-                          ? 'Tỷ lệ trùng lặp thấp' 
-                          : results.status === 'medium'
-                          ? 'Tỷ lệ trùng lặp trung bình'
-                          : 'Tỷ lệ trùng lặp cao'
-                        }
+                        {results.duplicateRate > 50 ? 'PHÁT HIỆN TRÙNG LẶP' : 'KHÔNG TRÙNG LẶP'}
                       </h3>
                       <p className={`text-sm ${
-                        results.status === 'low' ? 'text-green-600' : 
-                        results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
+                        results.duplicateRate > 50 ? 'text-red-600' : 'text-green-600'
                       }`}>
-                        {results.duplicateRate}% nội dung có thể trùng lặp
+                        Tỷ lệ trùng lặp: <span className="font-semibold">{results.duplicateRate}%</span>
+                        <span className="ml-2 text-xs opacity-75">
+                          (Ngưỡng: {">"} 50% = trùng lặp)
+                        </span>
                         {results.matches && results.matches.length > 0 && 
                           ` • Tìm thấy ${results.matches.length} nguồn tương tự`
                         }
                       </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Threshold Information */}
+                <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
+                  <h4 className="flex items-center mb-2 font-semibold text-blue-800">
+                    <span className="mr-2">⚖️</span>
+                    Ngưỡng đánh giá
+                  </h4>
+                  <div className="text-sm text-blue-700">
+                    <div className="flex items-center justify-between mb-1">
+                      <span>• ≤ 50%: Không trùng lặp</span>
+                      <span className="font-medium text-green-600">✅ An toàn</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>• {">"} 50%: Trùng lặp</span>
+                      <span className="font-medium text-red-600">🚨 Cần xem xét</span>
                     </div>
                   </div>
                 </div>
@@ -471,12 +496,14 @@ const TextChecker = () => {
                       </p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-blue-700">Tỷ lệ trùng lặp:</span>
+                      <span className="text-sm font-medium text-blue-700">Đánh giá:</span>
                       <p className={`text-sm font-semibold ${
-                        results.status === 'low' ? 'text-green-600' : 
-                        results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
+                        results.duplicateRate > 50 ? 'text-red-600' : 'text-green-600'
                       }`}>
-                        {results.duplicateRate}%
+                        {results.duplicateRate > 50 ? 'Trùng lặp' : 'Không trùng lặp'}
+                      </p>
+                      <p className="text-xs text-blue-500">
+                        ({results.duplicateRate}% - Ngưỡng: {">"} 50%)
                       </p>
                     </div>
                   </div>
@@ -507,7 +534,7 @@ const TextChecker = () => {
                         className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <span className="mr-2">📊</span>
-                        So sánh với toàn bộ database
+                        So sánh với toàn bộ documents
                       </Link>
                     ) : (
                       <button
@@ -515,7 +542,7 @@ const TextChecker = () => {
                         className="flex items-center px-4 py-2 text-sm font-medium text-gray-400 transition-all duration-200 bg-white border border-gray-300 rounded-lg opacity-50 cursor-not-allowed"
                       >
                         <span className="mr-2">📊</span>
-                        So sánh với toàn bộ database
+                        So sánh với toàn bộ documents
                       </button>
                     )}
                   </div>
@@ -537,14 +564,24 @@ const TextChecker = () => {
                     <div className="text-sm text-neutral-600">Ký tự</div>
                   </div>
                   
-                  <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
+                  <div className={`p-4 border rounded-xl ${
+                    results.duplicateRate > 50 
+                      ? 'border-red-200 bg-red-50' 
+                      : 'border-green-200 bg-green-50'
+                  }`}>
                     <div className={`text-2xl font-bold ${
-                      results.status === 'low' ? 'text-green-600' : 
-                      results.status === 'medium' ? 'text-yellow-600' : 'text-red-600'
+                      results.duplicateRate > 50 ? 'text-red-600' : 'text-green-600'
                     }`}>
                       {results.duplicateRate}%
                     </div>
-                    <div className="text-sm text-neutral-600">Tỷ lệ trùng lặp</div>
+                    <div className={`text-sm ${
+                      results.duplicateRate > 50 ? 'text-red-600' : 'text-green-600'
+                    }`}>
+                      Tỷ lệ trùng lặp
+                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      {results.duplicateRate > 50 ? 'Trùng lặp' : 'Không trùng lặp'}
+                    </div>
                   </div>
                   
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
@@ -616,7 +653,7 @@ const TextChecker = () => {
                 <div className="p-4 border border-green-200 rounded-xl bg-green-50">
                   <h4 className="flex items-center mb-3 font-semibold text-green-800">
                     <span className="mr-2">⚡</span>
-                    Thông tin xử lý (AVL Tree)
+                    Thông tin xử lý (Document-based AVL Tree)
                   </h4>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     {results.processingTime && (
@@ -631,7 +668,15 @@ const TextChecker = () => {
                       <div className="flex items-center">
                         <span className="mr-2 text-blue-600">📚</span>
                         <span className="text-green-700">
-                          Đã kiểm tra: {results.checkedDocuments} tài liệu
+                          Đã kiểm tra: {results.checkedDocuments} documents
+                        </span>
+                      </div>
+                    )}
+                    {results.totalDocumentsInSystem && (
+                      <div className="flex items-center">
+                        <span className="mr-2 text-indigo-600">🗂️</span>
+                        <span className="text-green-700">
+                          Tổng documents: {results.totalDocumentsInSystem}
                         </span>
                       </div>
                     )}
@@ -659,11 +704,67 @@ const TextChecker = () => {
                   </div>
                 </div>
 
+                {/* Phrase Analysis (New) */}
+                {results.matches && results.matches.some(match => match.method === 'phrase-based') && (
+                  <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+                    <h4 className="flex items-center mb-3 font-semibold text-purple-800">
+                      <span className="mr-2">🧩</span>
+                      Phân tích cụm từ (Phrase-based Detection)
+                    </h4>
+                    <div className="space-y-3">
+                      {results.matches
+                        .filter(match => match.method === 'phrase-based')
+                        .slice(0, 2)
+                        .map((match, index) => (
+                        <div key={index} className="p-3 bg-white border border-purple-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-medium text-purple-700">
+                              Document {index + 1}
+                            </span>
+                            <span className="px-2 py-1 text-xs font-semibold text-purple-800 bg-purple-200 rounded-full">
+                              {match.similarity}% cụm từ trùng
+                            </span>
+                          </div>
+                          
+                          {match.matchedPhrases && match.matchedPhrases.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-xs font-medium text-purple-700">Cụm từ trùng lặp:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {match.matchedPhrases.slice(0, 8).map((phrase, phraseIndex) => (
+                                  <span 
+                                    key={phraseIndex}
+                                    className="px-2 py-1 text-xs text-purple-700 bg-purple-100 border border-purple-300 rounded-md"
+                                  >
+                                    {phrase}
+                                  </span>
+                                ))}
+                                {match.matchedPhrases.length > 8 && (
+                                  <span className="px-2 py-1 text-xs text-purple-600">
+                                    +{match.matchedPhrases.length - 8} cụm từ khác
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          
+                          <div className="text-xs text-purple-600">
+                            {match.details || `${match.totalPhrases} cụm từ được phân tích`}
+                          </div>
+                          
+                          <p className="mt-2 text-sm text-purple-600 line-clamp-2">
+                            {match.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Plagiarism Matches */}
                 {results.matches && results.matches.length > 0 && (
                   <div>
                     <h4 className="mb-3 font-semibold text-neutral-800">
-                      Các đoạn trùng lặp được tìm thấy:
+                      Documents tương tự được tìm thấy:
                     </h4>
                     <div className="space-y-3">
                       {results.matches.map((match, index) => (
@@ -687,6 +788,19 @@ const TextChecker = () => {
                                   Cache
                                 </span>
                               )}
+                              {match.method && (
+                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                  match.method === 'phrase-based' 
+                                    ? 'text-purple-700 bg-purple-200' 
+                                    : match.method === 'sentence-based'
+                                    ? 'text-blue-700 bg-blue-200'
+                                    : 'text-gray-700 bg-gray-200'
+                                }`}>
+                                  {match.method === 'phrase-based' ? '🧩 Cụm từ' : 
+                                   match.method === 'sentence-based' ? '📝 Câu' : 
+                                   match.method === 'word-based' ? '🔤 Từ' : match.method}
+                                </span>
+                              )}
                             </div>
                             <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-200 rounded-full">
                               {match.similarity}% tương tự
@@ -704,12 +818,37 @@ const TextChecker = () => {
                             "{match.text}"
                           </p>
                           
+                          {/* Hiển thị matched phrases nếu có */}
+                          {match.matchedPhrases && match.matchedPhrases.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-xs font-medium text-orange-700">Cụm từ trùng lặp:</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {match.matchedPhrases.slice(0, 6).map((phrase, phraseIndex) => (
+                                  <span 
+                                    key={phraseIndex}
+                                    className="px-2 py-1 text-xs text-orange-700 bg-orange-100 border border-orange-300 rounded-md"
+                                  >
+                                    {phrase}
+                                  </span>
+                                ))}
+                                {match.matchedPhrases.length > 6 && (
+                                  <span className="px-2 py-1 text-xs text-orange-600">
+                                    +{match.matchedPhrases.length - 6} cụm từ khác
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           {/* Thông tin chi tiết về match */}
                           <div className="flex items-center justify-between pt-2 mt-2 text-xs border-t border-orange-300 text-neutral-600">
                             <div className="flex items-center gap-4">
                               <span>📏 Độ dài: {match.text ? match.text.length : 0} ký tự</span>
                               {match.matchedWords && (
                                 <span>📝 Từ khớp: {match.matchedWords} từ</span>
+                              )}
+                              {match.totalPhrases && (
+                                <span>🧩 Cụm từ: {match.matchedPhrases?.length || 0}/{match.totalPhrases}</span>
                               )}
                             </div>
                             {match.url && (

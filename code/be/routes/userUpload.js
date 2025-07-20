@@ -8,6 +8,9 @@ router.use(protect);
 
 // ===== USER UPLOAD ROUTES (FOR PLAGIARISM CHECK ONLY) =====
 
+// Extract text from file (no plagiarism check)
+router.post('/extract-text', userUploadController.extractTextFromFile);
+
 // Upload file for plagiarism check (temporary, not saved)
 router.post('/check-file', userUploadController.uploadForCheck);
 

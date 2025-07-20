@@ -13,11 +13,23 @@ router.post('/plagiarism/upload', protect, plagiarismController.uploadFile);
 // Check plagiarism
 router.post('/check-plagiarism', protect, plagiarismController.checkPlagiarism);
 
+// Check document similarity (kiểm tra với documents đã upload)
+router.post('/check-document-similarity', protect, plagiarismController.checkDocumentSimilarity);
+
+// Test endpoint for debugging (no auth required)
+router.post('/test-plagiarism', plagiarismController.checkPlagiarism);
+
+// Test endpoint for document similarity (no auth required)
+router.post('/test-document-similarity', plagiarismController.checkDocumentSimilarity);
+
 // Get plagiarism history
 router.get('/plagiarism-history', protect, plagiarismController.getPlagiarismHistory);
 
 // Get user plagiarism statistics
 router.get('/plagiarism-stats', protect, plagiarismController.getUserStats);
+
+// Get document tree statistics
+router.get('/document-tree-stats', protect, plagiarismController.getDocumentTreeStats);
 
 // Get detailed comparison with most similar document
 router.get('/plagiarism/:checkId/detailed-comparison', protect, plagiarismController.getDetailedComparison);
