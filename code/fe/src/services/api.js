@@ -13,6 +13,8 @@ const getAuthHeaders = () => {
 // Helper function to handle API responses
 const handleResponse = async (response) => {
   const data = await response.json();
+
+  console.log('API Response:', data);
   
   if (!response.ok) {
     // If token is expired or invalid, clear local storage
