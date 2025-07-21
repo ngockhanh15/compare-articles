@@ -72,7 +72,9 @@ const performDocumentCheck = async (text, options = {}) => {
         documentId: match.documentId,
         fileType: match.fileType,
         createdAt: match.createdAt,
-        method: 'document-based'
+        method: 'document-based',
+        duplicateSentences: match.duplicateSentences || 0, // Số câu trùng lặp
+        duplicateSentencesDetails: match.duplicateSentencesDetails || [] // Chi tiết các câu trùng
       })),
       sources: result.sources || [],
       confidence: result.duplicatePercentage > 70 ? 'high' : 
@@ -86,11 +88,20 @@ const performDocumentCheck = async (text, options = {}) => {
       dab: result.dab || 0,
       mostSimilarDocument: result.mostSimilarDocument || null,
       // Thêm thông tin về documents
-      totalDocumentsInSystem: result.checkedDocuments || 0
+      totalDocumentsInSystem: result.checkedDocuments || 0,
+      // Thêm 2 thông số theo yêu cầu
+      totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
+      maxDuplicateSentences: result.maxDuplicateSentences || 0,
+      documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+      // Thông tin về cặp từ
+      totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
+      totalUniqueWords: result.totalUniqueWords || 0,
+      totalDuplicateSentences: result.totalDuplicateSentences || 0
     };
     
     console.log(`Document check completed: ${formattedResult.duplicatePercentage}% duplicate found in ${formattedResult.processingTime}ms`);
     console.log(`Checked against ${formattedResult.checkedDocuments} documents in system`);
+    console.log(`Found ${formattedResult.totalDuplicateSentences} duplicate sentences based on word pair analysis`);
     
     return formattedResult;
     
@@ -107,10 +118,14 @@ const performDocumentCheck = async (text, options = {}) => {
       fromCache: false,
       error: 'Error occurred during document check',
       errorDetails: error.message,
-      totalDocumentsInSystem: 0
+      totalDocumentsInSystem: 0,
+      totalSentencesWithInputWords: 0,
+      maxDuplicateSentences: 0,
+      totalDuplicateSentences: 0
     };
   }
 };
+
 
 // Real plagiarism checking using TreeAVL and database comparison
 const performPlagiarismCheck = async (text, options = {}) => {
@@ -335,7 +350,12 @@ exports.checkDocumentSimilarity = async (req, res) => {
         sources: result.sources,
         processingTime: result.processingTime,
         totalMatches: result.totalMatches,
-        checkedDocuments: result.checkedDocuments
+        checkedDocuments: result.checkedDocuments,
+        // Thêm thông số mới
+        totalSentencesWithInputWords: result.totalSentencesWithInputWords,
+        maxDuplicateSentences: result.maxDuplicateSentences,
+        documentWithMostDuplicates: result.documentWithMostDuplicates,
+        totalDuplicateSentences: result.totalDuplicateSentences
       });
     }
 
@@ -361,6 +381,11 @@ exports.checkDocumentSimilarity = async (req, res) => {
         language: options.language || 'vi',
         checkType: 'document-based' // Đánh dấu là document-based check
       },
+      // Thêm thông số mới
+      totalSentencesWithInputWords: result.totalSentencesWithInputWords,
+      maxDuplicateSentences: result.maxDuplicateSentences,
+      documentWithMostDuplicates: result.documentWithMostDuplicates,
+      totalDuplicateSentences: result.totalDuplicateSentences,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
     });
@@ -380,22 +405,22 @@ exports.checkDocumentSimilarity = async (req, res) => {
         processingTime: result.processingTime,
         totalMatches: result.totalMatches,
         checkedDocuments: result.checkedDocuments,
-        // Thêm các thông số mới
-        dtotal: result.dtotal || 0,
-        dab: result.dab || 0,
-        mostSimilarDocument: result.mostSimilarDocument || null,
-        totalDocumentsInSystem: result.totalDocumentsInSystem || 0
+        // Thêm thông số mới
+        totalSentencesWithInputWords: result.totalSentencesWithInputWords,
+        maxDuplicateSentences: result.maxDuplicateSentences,
+        documentWithMostDuplicates: result.documentWithMostDuplicates,
+        totalDuplicateSentences: result.totalDuplicateSentences
       }
     });
-    
   } catch (error) {
-    console.error('Document similarity check error:', error);
+    console.error('Error in document similarity check:', error);
     res.status(500).json({
       success: false,
-      message: 'Lỗi khi kiểm tra trùng lặp với documents'
+      message: error.message || 'Lỗi khi kiểm tra độ tương đồng'
     });
   }
 };
+
 
 // Check plagiarism
 exports.checkPlagiarism = async (req, res) => {

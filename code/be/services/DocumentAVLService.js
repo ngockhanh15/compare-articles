@@ -202,199 +202,246 @@ class DocumentAVLService {
   }
 
   // Check for duplicate content using AVL tree with hash-based plagiarism detection
-  async checkDuplicateContent(text, options = {}) {
-    if (!this.initialized) {
-      await this.initialize();
+  // Trong phương thức checkDuplicateContent của DocumentAVLService
+async checkDuplicateContent(text, options = {}) {
+  if (!this.initialized) {
+    await this.initialize();
+  }
+
+  // Ensure Vietnamese stopword service is initialized
+  if (!vietnameseStopwordService.initialized) {
+    await vietnameseStopwordService.initialize();
+  }
+
+  const { minSimilarity = 50, chunkSize = 2, maxResults = 10 } = options;
+
+  try {
+    console.log(`🔍 Starting plagiarism check using AVL tree...`);
+    console.log(`📝 Input text length: ${text.length} characters`);
+
+    // Bước 1: Mã hóa văn bản input thành word hashes
+    const inputHashes = TextHasher.createWordHashes(text, true);
+    console.log(`🔢 Generated ${inputHashes.length} word hashes from input text`);
+
+    // Tạo danh sách các từ có nghĩa (không lặp lại) từ văn bản đầu vào
+    const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(text);
+    const uniqueInputWords = new Set(meaningfulWords);
+    
+    // Tạo danh sách các cặp từ từ văn bản đầu vào
+    const wordPairs = [];
+    for (let i = 0; i < meaningfulWords.length - 1; i++) {
+      wordPairs.push(`${meaningfulWords[i]}_${meaningfulWords[i+1]}`);
+    }
+    const uniqueWordPairs = new Set(wordPairs);
+    
+    console.log(`📊 Input text has ${uniqueInputWords.size} unique words and ${uniqueWordPairs.size} unique word pairs`);
+
+    // Bước 2: Tách văn bản thành các câu
+    const inputSentences = TextHasher.extractSentences(text);
+    console.log(`📝 Input text has ${inputSentences.length} sentences`);
+
+    // Bước 3: Tìm kiếm các hash trong cây AVL
+    const documentMatches = new Map(); // documentId -> {matches, totalHashes}
+    let totalSearches = 0;
+
+    for (const wordHash of inputHashes) {
+      totalSearches++;
+      const foundNode = this.documentTree.search(wordHash.hash);
+
+      if (foundNode) {
+        const docData = foundNode.data;
+        const documentId = docData.documentId.toString(); // Ensure string for consistent key
+
+        if (!documentMatches.has(documentId)) {
+          documentMatches.set(documentId, {
+            documentData: docData,
+            matchedHashes: 0,
+            totalInputHashes: inputHashes.length,
+            matchedWords: [],
+            matchedWordSet: new Set(), // Track unique words to avoid duplicates
+            matchedSentences: [], // Lưu các câu trùng lặp
+          });
+        }
+
+        const matchData = documentMatches.get(documentId);
+
+        // Only count unique words to avoid inflating the match count
+        if (!matchData.matchedWordSet.has(wordHash.word)) {
+          matchData.matchedHashes++;
+          matchData.matchedWords.push(wordHash.word);
+          matchData.matchedWordSet.add(wordHash.word);
+        }
+      }
     }
 
-    // Ensure Vietnamese stopword service is initialized
-    if (!vietnameseStopwordService.initialized) {
-      await vietnameseStopwordService.initialize();
+    console.log(`🔍 Searched ${totalSearches} hashes, found matches in ${documentMatches.size} documents`);
+    console.log(`🌳 AVL Tree size: ${this.documentTree.getSize()} documents`);
+
+    // Bước 4: Phân tích từng câu trong mỗi tài liệu để tìm câu trùng lặp
+    let totalDuplicateSentences = 0;
+    let totalSentencesWithInputWords = 0;
+    
+    for (const [documentId, matchData] of documentMatches.entries()) {
+      const docData = matchData.documentData;
+      
+      // Tách tài liệu thành các câu
+      const docSentences = TextHasher.extractSentences(docData.fullText);
+      
+      // Phân tích từng câu
+      for (const sentence of docSentences) {
+        // Tách câu thành các từ có nghĩa
+        const sentenceWords = vietnameseStopwordService.extractMeaningfulWords(sentence);
+        const uniqueSentenceWords = new Set(sentenceWords);
+        
+        // Tạo các cặp từ trong câu
+        const sentenceWordPairs = [];
+        for (let i = 0; i < sentenceWords.length - 1; i++) {
+          sentenceWordPairs.push(`${sentenceWords[i]}_${sentenceWords[i+1]}`);
+        }
+        const uniqueSentenceWordPairs = new Set(sentenceWordPairs);
+        
+        // Đếm số từ trùng lặp (không lặp lại)
+        const matchedWords = [...uniqueSentenceWords].filter(word => uniqueInputWords.has(word));
+        
+        // Tính tỷ lệ trùng lặp theo công thức mới
+        let duplicateRatio = 0;
+        if (uniqueSentenceWordPairs.size > 0) {
+          duplicateRatio = (matchedWords.length / uniqueSentenceWordPairs.size) * 100;
+        }
+        
+        // Kiểm tra xem câu có trùng lặp không theo tiêu chí mới
+        const isDuplicate = duplicateRatio > 50;
+        
+        // Nếu câu trùng lặp, thêm vào danh sách
+        if (isDuplicate) {
+          matchData.matchedSentences.push({
+            sentence,
+            duplicateRatio,
+            matchedWords,
+            totalWordPairs: uniqueSentenceWordPairs.size
+          });
+          totalDuplicateSentences++;
+        }
+        
+        // Nếu câu có chứa từ từ văn bản đầu vào
+        if (matchedWords.length > 0) {
+          totalSentencesWithInputWords++;
+        }
+      }
     }
 
-    const { minSimilarity = 50, chunkSize = 2, maxResults = 10 } = options;
+    // Bước 5: Tính plagiarism ratio cho từng document
+    const matches = [];
+    const allMatches = []; // Lưu tất cả matches để tính Dtotal
+    const processedDocuments = new Set(); // Track processed document IDs
 
-    try {
-      console.log(`🔍 Starting plagiarism check using AVL tree...`);
-      console.log(`📝 Input text length: ${text.length} characters`);
+    for (const [documentId, matchData] of documentMatches.entries()) {
+      const { documentData, matchedHashes, totalInputHashes, matchedWords, matchedSentences } = matchData;
 
-      // Bước 1: Mã hóa văn bản input thành word hashes
-      const inputHashes = TextHasher.createWordHashes(text, true);
-      console.log(
-        `🔢 Generated ${inputHashes.length} word hashes from input text`
-      );
-
-      // Bước 2: Tìm kiếm các hash trong cây AVL
-      const documentMatches = new Map(); // documentId -> {matches, totalHashes}
-      let totalSearches = 0;
-
-      for (const wordHash of inputHashes) {
-        totalSearches++;
-        const foundNode = this.documentTree.search(wordHash.hash);
-
-        if (foundNode) {
-          const docData = foundNode.data;
-          const documentId = docData.documentId.toString(); // Ensure string for consistent key
-
-          console.log(
-            `✅ Word hash match found: "${wordHash.word}" in document: ${docData.title}`
-          );
-
-          if (!documentMatches.has(documentId)) {
-            documentMatches.set(documentId, {
-              documentData: docData,
-              matchedHashes: 0,
-              totalInputHashes: inputHashes.length,
-              matchedWords: [],
-              matchedWordSet: new Set(), // Track unique words to avoid duplicates
-            });
-          }
-
-          const matchData = documentMatches.get(documentId);
-
-          // Only count unique words to avoid inflating the match count
-          if (!matchData.matchedWordSet.has(wordHash.word)) {
-            matchData.matchedHashes++;
-            matchData.matchedWords.push(wordHash.word);
-            matchData.matchedWordSet.add(wordHash.word);
-          }
-        }
+      // Skip if document already processed (additional safety check)
+      if (processedDocuments.has(documentId)) {
+        console.log(`⚠️ Skipping duplicate document: ${documentData.title} (ID: ${documentId})`);
+        continue;
       }
 
-      console.log(
-        `🔍 Searched ${totalSearches} hashes, found matches in ${documentMatches.size} documents`
-      );
-      console.log(`🌳 AVL Tree size: ${this.documentTree.getSize()} documents`);
+      // Tính plagiarism ratio = (số hash trùng / tổng số hash input) * 100
+      const plagiarismRatio = Math.round((matchedHashes / totalInputHashes) * 100);
 
-      // Bước 3: Tính plagiarism ratio cho từng document (đảm bảo unique documents)
-      const matches = [];
-      const allMatches = []; // Lưu tất cả matches để tính Dtotal
-      const processedDocuments = new Set(); // Track processed document IDs
+      console.log(`📊 Document "${documentData.title}": ${matchedHashes}/${totalInputHashes} unique word hashes matched = ${plagiarismRatio}%`);
+      console.log(`🔤 Matched words: ${matchedWords.slice(0, 10).join(", ")}${matchedWords.length > 10 ? "..." : ""}`);
+      console.log(`📝 Duplicate sentences: ${matchedSentences.length}`);
 
-      for (const [documentId, matchData] of documentMatches) {
-        const { documentData, matchedHashes, totalInputHashes, matchedWords } =
-          matchData;
-
-        // Skip if document already processed (additional safety check)
-        if (processedDocuments.has(documentId)) {
-          console.log(
-            `⚠️ Skipping duplicate document: ${documentData.title} (ID: ${documentId})`
-          );
-          continue;
-        }
-
-        // Tính plagiarism ratio = (số hash trùng / tổng số hash input) * 100
-        const plagiarismRatio = Math.round(
-          (matchedHashes / totalInputHashes) * 100
-        );
-
-        console.log(
-          `📊 Document "${documentData.title}": ${matchedHashes}/${totalInputHashes} unique word hashes matched = ${plagiarismRatio}%`
-        );
-        console.log(
-          `🔤 Matched words: ${matchedWords.slice(0, 10).join(", ")}${
-            matchedWords.length > 10 ? "..." : ""
-          }`
-        );
-
-    // Tạo match object cho tất cả documents có matches (không phụ thuộc threshold)
-        const matchObject = {
-              documentId: documentData.documentId,
-          title: documentData.title,
-          fileType: documentData.fileType,
-          createdAt: documentData.createdAt,
-          similarity: plagiarismRatio,
-          matchedHashes: matchedHashes,
-          totalHashes: totalInputHashes,
-          matchedWords: matchedWords,
-          matchedText: documentData.fullText.substring(0, 500) + "...", // Preview
-          inputText: text.substring(0, 500) + "...", // Preview
-          method: "avl-word-hash-based",
-          source: "document-avl-tree",
-        };
-
-        // Thêm vào allMatches để tính Dtotal
-        allMatches.push(matchObject);
-
-        // Chỉ thêm vào matches chính nếu vượt threshold
-        if (plagiarismRatio >= minSimilarity) {
-          console.log(
-            `✅ Document "${documentData.title}" exceeds threshold (${plagiarismRatio}% >= ${minSimilarity}%)`
-          );
-          matches.push(matchObject);
-        }
-
-        processedDocuments.add(documentId);
-      }
-
-      // Sort by plagiarism ratio (similarity)
-      matches.sort((a, b) => b.similarity - a.similarity);
-
-      console.log(
-        `📋 Final results: ${matches.length} unique documents with similarity >= ${minSimilarity}%`
-      );
-
-      // Debug: Log final matches summary
-      if (matches.length > 0) {
-        console.log("📄 Final matches summary:");
-        matches.forEach((match, index) => {
-          console.log(
-            `   ${index + 1}. ${match.title} - ${match.similarity}% (${
-              match.matchedHashes
-            } words)`
-          );
-        });
-      }
-
-      // Calculate overall duplicate percentage
-      const duplicatePercentage = this.calculatePlagiarismRatio(
-        inputHashes.length,
-        matches
-      );
-
-      // Tính toán Dtotal và DA/B dựa trên hash matches
-      console.log(`🔢 Calculating Dtotal from ${allMatches.length} total matches (vs ${matches.length} threshold matches)`);
-      const { dtotal, dab, mostSimilarDocument } =
-        this.calculateDtotalAndDABFromHashes(inputHashes, allMatches);
-      console.log(`📊 Calculated Dtotal: ${dtotal}, DAB: ${dab}`);
-
-      const result = {
-        duplicatePercentage,
-        matches: matches,
-        totalMatches: matches.length,
-        checkedDocuments: this.documentTree.getSize(),
-        totalDocumentsInSystem: this.documentTree.getSize(),
-        sources: [...new Set(matches.map((m) => m.title))],
-        confidence:
-          duplicatePercentage > 70
-            ? "high"
-            : duplicatePercentage > 30
-            ? "medium"
-            : "low",
-        // Thêm các thông số mới
-        dtotal,
-        dab,
-        mostSimilarDocument,
-        // Thông tin về quá trình mã hóa
-        totalInputHashes: inputHashes.length,
-        searchMethod: "avl-tree-word-hash-based",
+      // Tạo match object cho tất cả documents có matches
+      const matchObject = {
+        documentId: documentData.documentId,
+        title: documentData.title,
+        fileType: documentData.fileType,
+        createdAt: documentData.createdAt,
+        similarity: plagiarismRatio,
+        matchedHashes: matchedHashes,
+        totalHashes: totalInputHashes,
+        matchedWords: matchedWords,
+        matchedText: documentData.fullText.substring(0, 500) + "...", // Preview
+        inputText: text.substring(0, 500) + "...", // Preview
+        method: "avl-word-hash-based",
+        source: "document-avl-tree",
+        duplicateSentences: matchedSentences.length, // Số câu trùng lặp
+        duplicateSentencesDetails: matchedSentences.slice(0, 5) // Chi tiết 5 câu trùng đầu tiên
       };
 
-      console.log(`📊 Final result summary:`, {
-        duplicatePercentage: result.duplicatePercentage,
-        totalMatches: result.totalMatches,
-        checkedDocuments: result.checkedDocuments,
-        totalDocumentsInSystem: result.totalDocumentsInSystem,
-        dtotal: result.dtotal,
-        dab: result.dab,
-      });
+      // Thêm vào allMatches để tính Dtotal
+      allMatches.push(matchObject);
 
-      return result;
-    } catch (error) {
-      console.error("Error checking duplicate content:", error);
-      throw error;
+      // Chỉ thêm vào matches chính nếu vượt threshold
+      if (plagiarismRatio >= minSimilarity) {
+        console.log(`✅ Document "${documentData.title}" exceeds threshold (${plagiarismRatio}% >= ${minSimilarity}%)`);
+        matches.push(matchObject);
+      }
+
+      processedDocuments.add(documentId);
     }
+
+    // Sort by plagiarism ratio (similarity)
+    matches.sort((a, b) => b.similarity - a.similarity);
+
+    // Tìm tài liệu có số lượng câu trùng lặp nhiều nhất
+    let maxDuplicateSentences = 0;
+    let documentWithMostDuplicates = null;
+
+    for (const match of allMatches) {
+      if (match.duplicateSentences > maxDuplicateSentences) {
+        maxDuplicateSentences = match.duplicateSentences;
+        documentWithMostDuplicates = match.documentId;
+      }
+    }
+
+    // Calculate overall duplicate percentage
+    const duplicatePercentage = this.calculatePlagiarismRatio(inputHashes.length, matches);
+
+    // Tính toán Dtotal và DA/B dựa trên hash matches
+    const { dtotal, dab, mostSimilarDocument } = this.calculateDtotalAndDABFromHashes(inputHashes, allMatches);
+
+    const result = {
+      duplicatePercentage,
+      matches: matches,
+      totalMatches: matches.length,
+      checkedDocuments: this.documentTree.getSize(),
+      totalDocumentsInSystem: this.documentTree.getSize(),
+      sources: [...new Set(matches.map((m) => m.title))],
+      confidence: duplicatePercentage > 70 ? "high" : duplicatePercentage > 30 ? "medium" : "low",
+      // Thêm các thông số mới
+      dtotal,
+      dab,
+      mostSimilarDocument,
+      // Thông tin về quá trình mã hóa
+      totalInputHashes: inputHashes.length,
+      searchMethod: "avl-tree-word-hash-based",
+      // Thêm 2 thông số theo yêu cầu
+      totalSentencesWithInputWords: totalSentencesWithInputWords,
+      maxDuplicateSentences: maxDuplicateSentences,
+      documentWithMostDuplicates: documentWithMostDuplicates,
+      // Thông tin về cặp từ
+      totalUniqueWordPairs: uniqueWordPairs.size,
+      totalUniqueWords: uniqueInputWords.size,
+      totalDuplicateSentences: totalDuplicateSentences
+    };
+
+    console.log(`📊 Final result summary:`, {
+      duplicatePercentage: result.duplicatePercentage,
+      totalMatches: result.totalMatches,
+      checkedDocuments: result.checkedDocuments,
+      totalSentencesWithInputWords: result.totalSentencesWithInputWords,
+      maxDuplicateSentences: result.maxDuplicateSentences,
+      totalDuplicateSentences: result.totalDuplicateSentences
+    });
+
+    return result;
+  } catch (error) {
+    console.error("Error checking duplicate content:", error);
+    throw error;
   }
+}
+
 
   // Calculate plagiarism ratio based on hash matches
   calculatePlagiarismRatio(totalInputHashes, matches) {
@@ -411,9 +458,12 @@ class DocumentAVLService {
   }
 
   // Calculate Dtotal and DA/B from hash matches
+  // Calculate Dtotal and DA/B from hash matches
   calculateDtotalAndDABFromHashes(inputHashes, matches) {
-    console.log(`🔍 calculateDtotalAndDABFromHashes called with ${matches.length} matches`);
-    
+    console.log(
+      `🔍 calculateDtotalAndDABFromHashes called with ${matches.length} matches`
+    );
+
     if (matches.length === 0) {
       console.log(`⚠️ No matches found, returning dtotal=0`);
       return {
@@ -423,24 +473,65 @@ class DocumentAVLService {
       };
     }
 
-    // Dtotal: tổng số hash unique trùng với toàn bộ documents (không trùng lặp)
-    const allUniqueMatchedWords = new Set();
+    // Lấy văn bản đầu vào từ match đầu tiên (tất cả matches đều có cùng inputText)
+    const inputText = matches[0].inputText.replace(/\.\.\.$/, ""); // Loại bỏ dấu "..." ở cuối
 
-    matches.forEach((match, index) => {
-      // Thêm tất cả matched words vào set để đảm bảo unique
-      if (match.matchedWords && Array.isArray(match.matchedWords)) {
-        console.log(`📄 Match ${index + 1}: "${match.title}" has ${match.matchedWords.length} matched words`);
-        match.matchedWords.forEach((word) => allUniqueMatchedWords.add(word));
-      } else {
-        console.log(`⚠️ Match ${index + 1}: "${match.title}" has no matchedWords array`);
+    // Chia văn bản thành các câu
+    const sentences = inputText
+      .split(/[.!?]+/)
+      .filter((sentence) => sentence.trim().length > 0);
+
+    console.log(`📝 Input text has ${sentences.length} sentences`);
+
+    // Tập hợp các câu trùng lặp (sử dụng Set để tránh trùng lặp)
+    const duplicateSentences = new Set();
+
+    // Tạo map từ hash đến từ để dễ dàng kiểm tra
+    const hashToWordMap = new Map();
+    inputHashes.forEach((hash) => {
+      hashToWordMap.set(hash.hash, hash.word);
+    });
+
+    // Kiểm tra mỗi câu với các từ đã tìm thấy trong cây AVL
+    sentences.forEach((sentence, sentenceIndex) => {
+      // Tạo danh sách các từ trong câu
+      const sentenceWords = TextHasher.createWordHashes(sentence, true);
+
+      // Đếm số từ trong câu này đã được tìm thấy trong cây AVL
+      let matchedWordsInSentence = 0;
+      let totalWordsInSentence = sentenceWords.length;
+
+      // Kiểm tra từng từ trong câu
+      sentenceWords.forEach((wordHash) => {
+        // Nếu từ này đã được tìm thấy trong bất kỳ document nào
+        if (
+          matches.some(
+            (match) =>
+              match.matchedWords && match.matchedWords.includes(wordHash.word)
+          )
+        ) {
+          matchedWordsInSentence++;
+        }
+      });
+
+      // Nếu tỷ lệ từ trùng lặp trong câu vượt ngưỡng (ví dụ: 50%)
+      if (
+        totalWordsInSentence > 0 &&
+        matchedWordsInSentence / totalWordsInSentence >= 0.5
+      ) {
+        duplicateSentences.add(sentenceIndex);
       }
     });
 
-    console.log(`🔤 Total unique matched words across all documents: ${allUniqueMatchedWords.size}`);
+    console.log(
+      `🔤 Total duplicate sentences: ${duplicateSentences.size} out of ${sentences.length}`
+    );
 
     // Sort matches by similarity để tìm document giống nhất
-    const sortedMatches = [...matches].sort((a, b) => b.similarity - a.similarity);
-    
+    const sortedMatches = [...matches].sort(
+      (a, b) => b.similarity - a.similarity
+    );
+
     // DA/B: số hash trùng với document giống nhất (document có similarity cao nhất)
     const mostSimilarMatch = sortedMatches[0];
     const dab = mostSimilarMatch ? mostSimilarMatch.matchedHashes : 0;
@@ -453,10 +544,12 @@ class DocumentAVLService {
         }
       : null;
 
-    console.log(`🎯 Most similar document: "${mostSimilarMatch?.title}" with ${dab} matched hashes`);
+    console.log(
+      `🎯 Most similar document: "${mostSimilarMatch?.title}" with ${dab} matched hashes`
+    );
 
     return {
-      dtotal: allUniqueMatchedWords.size, // Số từ unique trùng với tất cả documents
+      dtotal: duplicateSentences.size, // Số câu trùng với toàn bộ documents
       dab: dab, // Số từ trùng với document giống nhất
       mostSimilarDocument: mostSimilarDocument,
     };
@@ -612,24 +705,24 @@ class DocumentAVLService {
     const uniqueDocuments = new Set();
     const fileTypeStats = {};
     let totalSentences = 0;
-    
+
     // Đếm số câu duy nhất (không trùng lặp)
     const hashCounts = new Map();
-    
-    allNodes.forEach(node => {
+
+    allNodes.forEach((node) => {
       const documentId = node.data.documentId;
       const fileType = node.data.fileType;
       const hash = node.key; // Giả sử key là hash của câu
-      
+
       // Count unique documents
       uniqueDocuments.add(documentId.toString());
-      
+
       // Count file types (based on nodes, not documents)
       fileTypeStats[fileType] = (fileTypeStats[fileType] || 0) + 1;
-      
+
       // Count sentences/word hashes
       totalSentences++;
-      
+
       // Đếm số lần xuất hiện của mỗi hash
       hashCounts.set(hash, (hashCounts.get(hash) || 0) + 1);
     });
@@ -643,7 +736,8 @@ class DocumentAVLService {
     });
 
     // Tính phần trăm câu duy nhất
-    const uniquePercentage = totalSentences > 0 ? (uniqueSentences / totalSentences) * 100 : 0;
+    const uniquePercentage =
+      totalSentences > 0 ? (uniqueSentences / totalSentences) * 100 : 0;
     const duplicateSentences = totalSentences - uniqueSentences;
     const duplicatePercentage = 100 - uniquePercentage;
 
@@ -658,7 +752,7 @@ class DocumentAVLService {
       uniqueSentences: uniqueSentences, // Số câu duy nhất (không trùng lặp)
       uniquePercentage: uniquePercentage.toFixed(2), // Phần trăm câu duy nhất
       duplicateSentences: duplicateSentences, // Số câu trùng lặp
-      duplicatePercentage: duplicatePercentage.toFixed(2) // Phần trăm câu trùng lặp
+      duplicatePercentage: duplicatePercentage.toFixed(2), // Phần trăm câu trùng lặp
     };
   }
 

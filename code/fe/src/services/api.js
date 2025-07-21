@@ -1,12 +1,12 @@
 // API base URL
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = "http://localhost:3000/api";
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
   return {
-    'Content-Type': 'application/json',
-    ...(token && { Authorization: `Bearer ${token}` })
+    "Content-Type": "application/json",
+    ...(token && { Authorization: `Bearer ${token}` }),
   };
 };
 
@@ -14,17 +14,17 @@ const getAuthHeaders = () => {
 const handleResponse = async (response) => {
   const data = await response.json();
 
-  console.log('API Response:', data);
-  
+  console.log("API Response:", data);
+
   if (!response.ok) {
     // If token is expired or invalid, clear local storage
     if (response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
     }
-    throw new Error(data.error || 'Something went wrong');
+    throw new Error(data.error || "Something went wrong");
   }
-  
+
   return data;
 };
 
@@ -34,29 +34,29 @@ const handleResponse = async (response) => {
 export const register = async (userData) => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         name: userData.name,
         email: userData.email,
         password: userData.password,
-        confirmPassword: userData.confirmPassword
+        confirmPassword: userData.confirmPassword,
       }),
     });
-    
+
     const data = await handleResponse(response);
-    
+
     // Save token and user data to localStorage nếu đăng ký thành công
     if (data.success && data.data.token) {
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
     }
-    
+
     return data;
   } catch (error) {
-    console.error('Register error:', error);
+    console.error("Register error:", error);
     throw error;
   }
 };
@@ -65,24 +65,24 @@ export const register = async (userData) => {
 export const login = async (email, password) => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ email, password }),
     });
-    
+
     const data = await handleResponse(response);
-    
+
     // Save token and user data to localStorage
     if (data.success && data.data.token) {
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
     }
-    
+
     return data;
   } catch (error) {
-    console.error('Login error:', error);
+    console.error("Login error:", error);
     throw error;
   }
 };
@@ -91,22 +91,22 @@ export const login = async (email, password) => {
 export const logout = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/logout`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
     });
-    
+
     // Clear local storage regardless of response
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
     if (response.ok) {
       return await response.json();
     }
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error("Logout error:", error);
     // Still clear local storage even if API call fails
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
   }
 };
 
@@ -114,13 +114,13 @@ export const logout = async () => {
 export const getCurrentUser = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/me`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
-    
+
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get current user error:', error);
+    console.error("Get current user error:", error);
     throw error;
   }
 };
@@ -129,16 +129,16 @@ export const getCurrentUser = async () => {
 export const forgotPassword = async (email) => {
   try {
     const response = await fetch(`${API_BASE_URL}/auth/forgotpassword`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ email }),
     });
-    
+
     return await handleResponse(response);
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error("Forgot password error:", error);
     throw error;
   }
 };
@@ -146,29 +146,31 @@ export const forgotPassword = async (email) => {
 // Đặt lại mật khẩu
 export const resetPassword = async (resetToken, password) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/resetpassword/${resetToken}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ password }),
-    });
-    
+    const response = await fetch(
+      `${API_BASE_URL}/auth/resetpassword/${resetToken}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password }),
+      }
+    );
+
     const data = await handleResponse(response);
-    
+
     // Save token and user data to localStorage
     if (data.success && data.data.token) {
-      localStorage.setItem('token', data.data.token);
-      localStorage.setItem('user', JSON.stringify(data.data.user));
+      localStorage.setItem("token", data.data.token);
+      localStorage.setItem("user", JSON.stringify(data.data.user));
     }
-    
+
     return data;
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error("Reset password error:", error);
     throw error;
   }
 };
-
 
 // ==================== TEXT CHECKER API ====================
 
@@ -176,22 +178,22 @@ export const resetPassword = async (resetToken, password) => {
 export const uploadFile = async (file) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     const response = await fetch(`${API_BASE_URL}/plagiarism/upload`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         // Don't set Content-Type for FormData, let browser set it
-        ...(localStorage.getItem('token') && { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        })
+        ...(localStorage.getItem("token") && {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }),
       },
       body: formData,
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Upload file error:', error);
+    console.error("Upload file error:", error);
     throw error;
   }
 };
@@ -202,22 +204,22 @@ export const uploadFile = async (file) => {
 export const extractTextFromFile = async (file) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     const response = await fetch(`${API_BASE_URL}/user-upload/extract-text`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         // Don't set Content-Type for FormData, let browser set it
-        ...(localStorage.getItem('token') && { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        })
+        ...(localStorage.getItem("token") && {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }),
       },
       body: formData,
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Extract text from file error:', error);
+    console.error("Extract text from file error:", error);
     throw error;
   }
 };
@@ -226,26 +228,27 @@ export const extractTextFromFile = async (file) => {
 export const uploadFileForCheck = async (file, options = {}) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     // Add check options
-    if (options.sensitivity) formData.append('sensitivity', options.sensitivity);
-    if (options.language) formData.append('language', options.language);
+    if (options.sensitivity)
+      formData.append("sensitivity", options.sensitivity);
+    if (options.language) formData.append("language", options.language);
 
     const response = await fetch(`${API_BASE_URL}/user-upload/check-file`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         // Don't set Content-Type for FormData, let browser set it
-        ...(localStorage.getItem('token') && { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        })
+        ...(localStorage.getItem("token") && {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }),
       },
       body: formData,
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Upload file for check error:', error);
+    console.error("Upload file for check error:", error);
     throw error;
   }
 };
@@ -254,21 +257,21 @@ export const uploadFileForCheck = async (file, options = {}) => {
 export const checkTextContent = async (text, options = {}) => {
   try {
     const response = await fetch(`${API_BASE_URL}/user-upload/check-text`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         text: text,
         options: {
-          sensitivity: 'medium',
-          language: 'vi',
-          ...options
-        }
+          sensitivity: "medium",
+          language: "vi",
+          ...options,
+        },
       }),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Check text content error:', error);
+    console.error("Check text content error:", error);
     throw error;
   }
 };
@@ -277,22 +280,27 @@ export const checkTextContent = async (text, options = {}) => {
 export const getTreeStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/user-upload/tree-stats`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get tree stats error:', error);
+    console.error("Get tree stats error:", error);
     throw error;
   }
 };
 
 // Kiểm tra plagiarism
-export const checkPlagiarism = async (text, options = {}, fileName = null, fileType = null) => {
+export const checkPlagiarism = async (
+  text,
+  options = {},
+  fileName = null,
+  fileType = null
+) => {
   try {
     const response = await fetch(`${API_BASE_URL}/check-plagiarism`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         text: text,
@@ -301,55 +309,59 @@ export const checkPlagiarism = async (text, options = {}, fileName = null, fileT
         options: {
           checkInternet: true,
           checkDatabase: true,
-          sensitivity: 'medium',
-          ...options
-        }
+          sensitivity: "medium",
+          ...options,
+        },
       }),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Check plagiarism error:', error);
+    console.error("Check plagiarism error:", error);
     throw error;
   }
 };
 
 // Kiểm tra trùng lặp với documents đã upload (sử dụng DocumentAVLService)
-export const checkDocumentSimilarity = async (text, options = {}, fileName = null, fileType = null) => {
+// Trong file api.js hoặc tương tự
+export const checkDocumentSimilarity = async (
+  text,
+  options,
+  fileName,
+  fileType
+) => {
   try {
     const response = await fetch(`${API_BASE_URL}/check-document-similarity`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
-        text: text,
-        fileName: fileName,
-        fileType: fileType,
-        options: {
-          sensitivity: 'medium',
-          language: 'vi',
-          ...options
-        }
+        text,
+        options,
+        fileName,
+        fileType,
       }),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Check document similarity error:', error);
+    console.error("Error checking document similarity:", error);
     throw error;
   }
 };
 
-// Lấy thông tin so sánh chi tiết với document giống nhất
 export const getDetailedComparison = async (checkId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/detailed-comparison`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/plagiarism/${checkId}/detailed-comparison`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get detailed comparison error:', error);
+    console.error("Error getting detailed comparison:", error);
     throw error;
   }
 };
@@ -357,14 +369,17 @@ export const getDetailedComparison = async (checkId) => {
 // Lấy danh sách so sánh với tất cả documents
 export const getAllDocumentsComparison = async (checkId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/all-documents-comparison`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/plagiarism/${checkId}/all-documents-comparison`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get all documents comparison error:', error);
+    console.error("Get all documents comparison error:", error);
     throw error;
   }
 };
@@ -372,14 +387,17 @@ export const getAllDocumentsComparison = async (checkId) => {
 // Lấy so sánh chi tiết với tất cả documents (bao gồm highlighted text)
 export const getDetailedAllDocumentsComparison = async (checkId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/plagiarism/${checkId}/detailed-all-documents-comparison`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/plagiarism/${checkId}/detailed-all-documents-comparison`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get detailed all documents comparison error:', error);
+    console.error("Get detailed all documents comparison error:", error);
     throw error;
   }
 };
@@ -388,13 +406,13 @@ export const getDetailedAllDocumentsComparison = async (checkId) => {
 export const getSystemStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/system/stats`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get system stats error:', error);
+    console.error("Get system stats error:", error);
     throw error;
   }
 };
@@ -403,13 +421,13 @@ export const getSystemStats = async () => {
 export const initializeSystem = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/system/initialize`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Initialize system error:', error);
+    console.error("Initialize system error:", error);
     throw error;
   }
 };
@@ -418,13 +436,13 @@ export const initializeSystem = async () => {
 export const getCacheStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/stats`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get cache stats error:', error);
+    console.error("Get cache stats error:", error);
     throw error;
   }
 };
@@ -433,17 +451,17 @@ export const getCacheStats = async () => {
 export const findSimilarTexts = async (text, threshold = 0.8) => {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/find-similar`, {
-      method: 'POST',
+      method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({
         text: text,
-        threshold: threshold
+        threshold: threshold,
       }),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Find similar texts error:', error);
+    console.error("Find similar texts error:", error);
     throw error;
   }
 };
@@ -452,13 +470,13 @@ export const findSimilarTexts = async (text, threshold = 0.8) => {
 export const clearCache = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/cache/clear`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Clear cache error:', error);
+    console.error("Clear cache error:", error);
     throw error;
   }
 };
@@ -469,28 +487,30 @@ export const clearCache = async () => {
 export const uploadDocument = async (file, metadata = {}) => {
   try {
     const formData = new FormData();
-    formData.append('file', file);
-    
+    formData.append("file", file);
+
     // Add metadata
-    if (metadata.title) formData.append('title', metadata.title);
-    if (metadata.description) formData.append('description', metadata.description);
-    if (metadata.tags) formData.append('tags', metadata.tags);
-    if (metadata.isPublic !== undefined) formData.append('isPublic', metadata.isPublic);
+    if (metadata.title) formData.append("title", metadata.title);
+    if (metadata.description)
+      formData.append("description", metadata.description);
+    if (metadata.tags) formData.append("tags", metadata.tags);
+    if (metadata.isPublic !== undefined)
+      formData.append("isPublic", metadata.isPublic);
 
     const response = await fetch(`${API_BASE_URL}/documents/upload`, {
-      method: 'POST',
+      method: "POST",
       headers: {
         // Don't set Content-Type for FormData, let browser set it
-        ...(localStorage.getItem('token') && { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        })
+        ...(localStorage.getItem("token") && {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }),
       },
       body: formData,
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Upload document error:', error);
+    console.error("Upload document error:", error);
     throw error;
   }
 };
@@ -499,23 +519,26 @@ export const uploadDocument = async (file, metadata = {}) => {
 export const getUserDocuments = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    
-    if (params.page) queryParams.append('page', params.page);
-    if (params.limit) queryParams.append('limit', params.limit);
-    if (params.search) queryParams.append('search', params.search);
-    if (params.fileType) queryParams.append('fileType', params.fileType);
-    if (params.status) queryParams.append('status', params.status);
-    if (params.sortBy) queryParams.append('sortBy', params.sortBy);
-    if (params.sortOrder) queryParams.append('sortOrder', params.sortOrder);
 
-    const response = await fetch(`${API_BASE_URL}/documents?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.fileType) queryParams.append("fileType", params.fileType);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.sortBy) queryParams.append("sortBy", params.sortBy);
+    if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+    const response = await fetch(
+      `${API_BASE_URL}/documents?${queryParams.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get user documents error:', error);
+    console.error("Get user documents error:", error);
     throw error;
   }
 };
@@ -524,13 +547,13 @@ export const getUserDocuments = async (params = {}) => {
 export const getDocumentById = async (documentId) => {
   try {
     const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get document by ID error:', error);
+    console.error("Get document by ID error:", error);
     throw error;
   }
 };
@@ -538,14 +561,17 @@ export const getDocumentById = async (documentId) => {
 // Get extracted text from document for plagiarism check
 export const getDocumentText = async (documentId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/documents/${documentId}/text`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/documents/${documentId}/text`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get document text error:', error);
+    console.error("Get document text error:", error);
     throw error;
   }
 };
@@ -553,24 +579,27 @@ export const getDocumentText = async (documentId) => {
 // Download document
 export const downloadDocument = async (documentId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/documents/${documentId}/download`, {
-      method: 'GET',
-      headers: {
-        ...(localStorage.getItem('token') && { 
-          Authorization: `Bearer ${localStorage.getItem('token')}` 
-        })
-      },
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/documents/${documentId}/download`,
+      {
+        method: "GET",
+        headers: {
+          ...(localStorage.getItem("token") && {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          }),
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.message || 'Download failed');
+      throw new Error(errorData.message || "Download failed");
     }
 
     // Return the response for blob handling
     return response;
   } catch (error) {
-    console.error('Download document error:', error);
+    console.error("Download document error:", error);
     throw error;
   }
 };
@@ -579,14 +608,14 @@ export const downloadDocument = async (documentId) => {
 export const updateDocument = async (documentId, metadata) => {
   try {
     const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
-      method: 'PUT',
+      method: "PUT",
       headers: getAuthHeaders(),
       body: JSON.stringify(metadata),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Update document error:', error);
+    console.error("Update document error:", error);
     throw error;
   }
 };
@@ -595,13 +624,13 @@ export const updateDocument = async (documentId, metadata) => {
 export const deleteDocument = async (documentId) => {
   try {
     const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Delete document error:', error);
+    console.error("Delete document error:", error);
     throw error;
   }
 };
@@ -610,13 +639,13 @@ export const deleteDocument = async (documentId) => {
 export const getDocumentStats = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/documents/stats`, {
-      method: 'GET',
+      method: "GET",
       headers: getAuthHeaders(),
     });
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get document stats error:', error);
+    console.error("Get document stats error:", error);
     throw error;
   }
 };
@@ -625,21 +654,24 @@ export const getDocumentStats = async () => {
 export const getUploadedFiles = async (params = {}) => {
   try {
     const queryParams = new URLSearchParams();
-    
-    if (params.page) queryParams.append('page', params.page);
-    if (params.limit) queryParams.append('limit', params.limit);
-    if (params.search) queryParams.append('search', params.search);
-    if (params.fileType) queryParams.append('fileType', params.fileType);
-    if (params.status) queryParams.append('status', params.status);
 
-    const response = await fetch(`${API_BASE_URL}/files?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: getAuthHeaders(),
-    });
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.fileType) queryParams.append("fileType", params.fileType);
+    if (params.status) queryParams.append("status", params.status);
+
+    const response = await fetch(
+      `${API_BASE_URL}/files?${queryParams.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
-    console.error('Get uploaded files error:', error);
+    console.error("Get uploaded files error:", error);
     throw error;
   }
 };

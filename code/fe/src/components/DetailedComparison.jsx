@@ -255,10 +255,6 @@ const DetailedComparison = () => {
                 <div className="text-2xl font-bold text-blue-600">{data.detailedMatches?.length || 0}</div>
                 <div className="text-sm text-blue-700">Đoạn trùng lặp</div>
               </div>
-              <div className="p-4 text-center border border-orange-200 rounded-lg bg-orange-50">
-                <div className="text-2xl font-bold text-orange-600">{data.overallSimilarity || 0}%</div>
-                <div className="text-sm text-orange-700">Tỷ lệ giống nhau</div>
-              </div>
               <div className="p-4 text-center border border-green-200 rounded-lg bg-green-50">
                 <div className="text-2xl font-bold text-green-600">
                   {data.detailedMatches?.filter(m => m.similarity > 80).length || 0}

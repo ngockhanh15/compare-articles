@@ -31,6 +31,15 @@ const TextChecker = () => {
   });
   const [treeStats, setTreeStats] = useState(null);
   const [userStats, setUserStats] = useState(null);
+  // Thêm vào phần khai báo state
+  const [detailedStats, setDetailedStats] = useState({
+    totalSentencesWithInputWords: 0,
+    maxDuplicateSentences: 0,
+    documentWithMostDuplicates: null,
+    totalDuplicateSentences: 0,
+    totalUniqueWordPairs: 0,
+    totalUniqueWords: 0,
+  });
 
   useEffect(() => {
     loadUserDocuments();
@@ -204,25 +213,57 @@ const TextChecker = () => {
       }
 
       // Extract data from document similarity API response
-      const realData = await getDetailedComparison(similarityResult.checkId);
+      let realData = null;
+      try {
+        realData = await getDetailedComparison(similarityResult.checkId);
+      } catch (detailError) {
+        console.warn("Could not get detailed comparison:", detailError);
+        // Continue without detailed data
+        realData = { overallSimilarity: 0 };
+      }
 
       const result = similarityResult.result;
       const wordCount = result.wordCount || 0;
       const charCount = result.textLength || 0;
 
-      // Tính tổng số câu trong văn bản kiểm tra
-      const totalSentencesInText = textToCheck
-        .split(/[.!?]+/)
-        .filter((sentence) => sentence.trim().length > 0).length;
+      setDetailedStats({
+        totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
+        maxDuplicateSentences: result.maxDuplicateSentences || 0,
+        documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+        totalDuplicateSentences: result.totalDuplicateSentences || 0,
+        totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
+        totalUniqueWords: result.totalUniqueWords || 0,
+      });
 
-      // Lấy số câu trùng từ API response
-      const duplicateSentencesCount = result.dtotal || realData.dtotal || 0;
+      // Tính tổng số câu trong văn bản kiểm tra
+      const sentences = textToCheck
+        .split(/[.!?]+/)
+        .filter((sentence) => sentence.trim().length > 0);
+      const totalSentencesInText = sentences.length;
+
+      // Tính số câu trùng lặp thực tế từ matches
+      const matches = result.matches || [];
+      const duplicateSentencesFromText = new Set();
+
+      // Duyệt qua tất cả matches để tìm câu chứa nội dung trùng lặp
+      matches.forEach((match) => {
+        if (match.text) {
+          sentences.forEach((sentence, index) => {
+            if (
+              sentence.trim().includes(match.text.trim()) ||
+              match.text.trim().includes(sentence.trim())
+            ) {
+              duplicateSentencesFromText.add(index);
+            }
+          });
+        }
+      });
+
+      // Số câu trùng lặp thực tế
+      const duplicateSentencesCount = duplicateSentencesFromText.size;
 
       // Tính tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
-      const dtotalPercentage =
-        totalSentencesInText > 0
-          ? ((duplicateSentencesCount / totalSentencesInText) * 100).toFixed(2)
-          : 0;
+      const dtotalPercentage = duplicateSentencesCount;
 
       console.log("Detailed comparison data:", treeStats);
 
@@ -244,13 +285,19 @@ const TextChecker = () => {
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
         // Thông tin tỷ lệ trùng lặp mới
-        dtotal: parseFloat(dtotalPercentage), // Tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
+        dtotal: result.dtotal, // Tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
         dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế
         totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra
         dab: result.dab || 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: result.mostSimilarDocument || null, // Thông tin document giống nhất
         // Tree stats info
         treeStats: treeStats,
+        totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
+        maxDuplicateSentences: result.maxDuplicateSentences || 0,
+        documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+        totalDuplicateSentences: result.totalDuplicateSentences || 0,
+        totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
+        totalUniqueWords: result.totalUniqueWords || 0,
         // Thông tin về loại kiểm tra
         checkType: "document-based",
       });
@@ -457,50 +504,6 @@ const TextChecker = () => {
             ) : (
               <div className="space-y-6">
                 {/* Status */}
-                <div
-                  className={`p-4 rounded-xl ${
-                    results.duplicateRate > 50
-                      ? "bg-red-50 border border-red-200"
-                      : "bg-green-50 border border-green-200"
-                  }`}
-                >
-                  <div className="flex items-center">
-                    <span className="mr-3 text-2xl">
-                      {results.duplicateRate > 50 ? "🚨" : "✅"}
-                    </span>
-                    <div>
-                      <h3
-                        className={`font-semibold ${
-                          results.duplicateRate > 50
-                            ? "text-red-800"
-                            : "text-green-800"
-                        }`}
-                      >
-                        {results.duplicateRate > 50
-                          ? "PHÁT HIỆN TRÙNG LẶP"
-                          : "KHÔNG TRÙNG LẶP"}
-                      </h3>
-                      <p
-                        className={`text-sm ${
-                          results.duplicateRate > 50
-                            ? "text-red-600"
-                            : "text-green-600"
-                        }`}
-                      >
-                        Tỷ lệ trùng lặp:{" "}
-                        <span className="font-semibold">
-                          {results.duplicateRate}%
-                        </span>
-                        <span className="ml-2 text-xs opacity-75">
-                          (Ngưỡng: {">"} 50% = trùng lặp)
-                        </span>
-                        {results.matches &&
-                          results.matches.length > 0 &&
-                          ` • Tìm thấy ${results.matches.length} nguồn tương tự`}
-                      </p>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Document Information */}
                 <div className="p-4 border border-blue-200 rounded-xl bg-blue-50">
@@ -537,26 +540,123 @@ const TextChecker = () => {
                           : "Text input"}
                       </p>
                     </div>
-                    <div>
-                      <span className="text-sm font-medium text-blue-700">
-                        Đánh giá:
-                      </span>
-                      <p
-                        className={`text-sm font-semibold ${
-                          results.duplicateRate > 50
-                            ? "text-red-600"
-                            : "text-green-600"
-                        }`}
-                      >
-                        {results.duplicateRate > 50
-                          ? "Trùng lặp"
-                          : "Không trùng lặp"}
-                      </p>
-                      <p className="text-xs text-blue-500">
-                        ({results.duplicateRate}% - Ngưỡng: {">"} 50%)
-                      </p>
-                    </div>
                   </div>
+
+                  {/* Thêm vào phần hiển thị kết quả */}
+                  {results && (
+                    <div className="p-6 mt-6 mb-3 bg-white shadow-lg rounded-xl">
+                      <h3 className="mb-4 text-xl font-semibold text-neutral-800">
+                        Thống kê chi tiết
+                      </h3>
+
+                      {/* Thông tin về tài liệu trùng lặp nhiều nhất */}
+                      {results.documentWithMostDuplicates && (
+                        <div className="p-4 mt-4 rounded-lg bg-green-50">
+                          <h4 className="mb-2 font-medium text-green-800">
+                            Tài liệu trùng lặp nhiều nhất
+                          </h4>
+                          <p className="text-sm text-neutral-600">
+                            Tài liệu có ID:{" "}
+                            <span className="font-medium">
+                              {results.documentWithMostDuplicates}
+                            </span>{" "}
+                            có
+                            <span className="font-medium">
+                              {" "}
+                              {results.maxDuplicateSentences}
+                            </span>{" "}
+                            câu trùng lặp với văn bản của bạn.
+                          </p>
+                          <button
+                            className="px-3 py-1 mt-2 text-xs font-medium text-green-700 transition-colors bg-green-100 rounded hover:bg-green-200"
+                            onClick={() => {
+                              // Thêm logic để xem chi tiết tài liệu này nếu cần
+                              console.log(
+                                "Xem chi tiết tài liệu:",
+                                results.documentWithMostDuplicates
+                              );
+                            }}
+                          >
+                            Xem chi tiết
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Hiển thị chi tiết các câu trùng lặp */}
+                  {results && results.matches && results.matches.length > 0 && (
+                    <div className="p-6 mt-6 bg-white shadow-lg rounded-xl">
+                      <h3 className="mb-4 text-xl font-semibold text-neutral-800">
+                        Chi tiết câu trùng lặp
+                      </h3>
+
+                      <div className="space-y-4">
+                        {results.matches.map((match, index) => (
+                          <div
+                            key={index}
+                            className="overflow-hidden border rounded-lg border-neutral-200"
+                          >
+                            <div className="flex items-center justify-between p-3 bg-neutral-100">
+                              <div>
+                                <span className="font-medium text-neutral-700">
+                                  {match.source}
+                                </span>
+                                <span className="ml-2 text-sm text-neutral-500">
+                                  ({match.similarity}% trùng lặp)
+                                </span>
+                              </div>
+                              <div className="text-sm text-neutral-500">
+                                {match.duplicateSentences || 0} câu trùng lặp
+                              </div>
+                            </div>
+
+                            {/* Chi tiết các câu trùng lặp */}
+                            {match.duplicateSentencesDetails &&
+                              match.duplicateSentencesDetails.length > 0 && (
+                                <div className="p-3 space-y-3">
+                                  {match.duplicateSentencesDetails.map(
+                                    (sentenceDetail, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="py-1 pl-3 text-sm border-l-4 border-amber-400"
+                                      >
+                                        <div className="mb-1 font-medium text-neutral-700">
+                                          Câu trùng lặp (
+                                          {Math.round(
+                                            sentenceDetail.duplicateRatio
+                                          )}
+                                          %):
+                                        </div>
+                                        <div className="text-neutral-600">
+                                          {sentenceDetail.sentence}
+                                        </div>
+                                        <div className="mt-1 text-xs text-neutral-500">
+                                          {sentenceDetail.matchedWords.length}{" "}
+                                          từ trùng /{" "}
+                                          {sentenceDetail.totalWordPairs} cặp từ
+                                        </div>
+                                      </div>
+                                    )
+                                  )}
+
+                                  {match.duplicateSentences >
+                                    match.duplicateSentencesDetails.length && (
+                                    <div className="text-xs italic text-neutral-500">
+                                      ... và{" "}
+                                      {match.duplicateSentences -
+                                        match.duplicateSentencesDetails
+                                          .length}{" "}
+                                      câu trùng lặp khác
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Comparison Buttons */}
                   <div className="flex gap-3">
@@ -626,7 +726,7 @@ const TextChecker = () => {
                   {/* Thông tin tỷ lệ trùng lặp mới */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
                     <div className="text-2xl font-bold text-purple-600">
-                      {results.dtotal || 0}
+                      {results.totalDuplicateSentences || 0}
                     </div>
                     <div className="text-sm text-purple-600">Dtotal</div>
                     <div className="mt-1 text-xs text-purple-500">
@@ -636,7 +736,7 @@ const TextChecker = () => {
 
                   <div className="p-4 border border-orange-200 rounded-xl bg-orange-50">
                     <div className="text-2xl font-bold text-orange-600">
-                      {results.duplicateRate}%
+                      {results.maxDuplicateSentences}
                     </div>
                     <div className="text-sm text-orange-600">DA/B</div>
                     <div className="mt-1 text-xs text-orange-500">
@@ -659,22 +759,6 @@ const TextChecker = () => {
                         </span>
                         <p className="mt-1 text-orange-600">
                           {results.mostSimilarDocument.name || "Không xác định"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-orange-700">
-                          Tỷ lệ tương tự:
-                        </span>
-                        <p className="mt-1 font-semibold text-orange-600">
-                          {results.mostSimilarDocument.similarity || 0}%
-                        </p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-orange-700">
-                          Số câu trùng (DA/B):
-                        </span>
-                        <p className="mt-1 font-semibold text-orange-600">
-                          {results.dab || 0} câu
                         </p>
                       </div>
                       <div>
