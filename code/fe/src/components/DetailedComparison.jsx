@@ -10,7 +10,7 @@ const DetailedComparison = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [syncScroll, setSyncScroll] = useState(true);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,140 +41,9 @@ const DetailedComparison = () => {
     return new Date(date).toLocaleString('vi-VN');
   };
 
-  // Function to highlight matching text segments
-  const highlightMatches = (text, matches, isOriginal = true) => {
-    if (!matches || matches.length === 0 || !text) {
-      return <span>{text || 'Không có nội dung'}</span>;
-    }
 
-    // Create an array to track which characters should be highlighted
-    const highlights = new Array(text.length).fill(null);
-    
-    // Process each match and mark the positions
-    matches.forEach(match => {
-      const searchText = isOriginal ? match.originalText : match.matchedText;
-      if (!searchText) return;
-      
-      // Find all occurrences of the search text
-      let startIndex = 0;
-      while (startIndex < text.length) {
-        const foundIndex = text.indexOf(searchText, startIndex);
-        if (foundIndex === -1) break;
-        
-        // Check if this position is already highlighted
-        let canHighlight = true;
-        for (let i = foundIndex; i < foundIndex + searchText.length; i++) {
-          if (highlights[i] !== null) {
-            canHighlight = false;
-            break;
-          }
-        }
-        
-        // If we can highlight this occurrence, mark it
-        if (canHighlight) {
-          for (let i = foundIndex; i < foundIndex + searchText.length; i++) {
-            highlights[i] = {
-              matchId: match.id,
-              similarity: match.similarity,
-              isOriginal: isOriginal
-            };
-          }
-          break; // Only highlight the first occurrence of each match
-        }
-        
-        startIndex = foundIndex + 1;
-      }
-    });
 
-    // Build the result by grouping consecutive highlighted characters
-    const result = [];
-    let currentSegment = '';
-    let currentHighlight = null;
-    let segmentIndex = 0;
 
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      const highlight = highlights[i];
-      
-      // If highlight status changed, process the current segment
-      if ((highlight === null) !== (currentHighlight === null) || 
-          (highlight && currentHighlight && highlight.matchId !== currentHighlight.matchId)) {
-        
-        if (currentSegment) {
-          if (currentHighlight) {
-            // This is a highlighted segment
-            const highlightClass = currentHighlight.isOriginal ? 
-              'bg-blue-200 border-l-4 border-blue-500 px-1 py-0.5 rounded cursor-pointer hover:bg-blue-300 transition-colors' : 
-              'bg-orange-200 border-l-4 border-orange-500 px-1 py-0.5 rounded cursor-pointer hover:bg-orange-300 transition-colors';
-            
-            result.push(
-              <span
-                key={`match-${currentHighlight.matchId}-${segmentIndex}`}
-                id={`highlight-${currentHighlight.matchId}-${currentHighlight.isOriginal ? 'original' : 'matched'}`}
-                className={highlightClass}
-                title={`${currentHighlight.similarity}% tương tự - Click để xem chi tiết`}
-                onClick={() => scrollToMatch(currentHighlight.matchId)}
-              >
-                {currentSegment}
-              </span>
-            );
-          } else {
-            // This is a normal text segment
-            result.push(
-              <span key={`text-${segmentIndex}`}>
-                {currentSegment}
-              </span>
-            );
-          }
-          segmentIndex++;
-        }
-        
-        currentSegment = char;
-        currentHighlight = highlight;
-      } else {
-        currentSegment += char;
-      }
-    }
-    
-    // Process the last segment
-    if (currentSegment) {
-      if (currentHighlight) {
-        const highlightClass = currentHighlight.isOriginal ? 
-          'bg-blue-200 border-l-4 border-blue-500 px-1 py-0.5 rounded cursor-pointer hover:bg-blue-300 transition-colors' : 
-          'bg-orange-200 border-l-4 border-orange-500 px-1 py-0.5 rounded cursor-pointer hover:bg-orange-300 transition-colors';
-        
-        result.push(
-          <span
-            key={`match-${currentHighlight.matchId}-${segmentIndex}`}
-            id={`highlight-${currentHighlight.matchId}-${currentHighlight.isOriginal ? 'original' : 'matched'}`}
-            className={highlightClass}
-            title={`${currentHighlight.similarity}% tương tự - Click để xem chi tiết`}
-            onClick={() => scrollToMatch(currentHighlight.matchId)}
-          >
-            {currentSegment}
-          </span>
-        );
-      } else {
-        result.push(
-          <span key={`text-${segmentIndex}`}>
-            {currentSegment}
-          </span>
-        );
-      }
-    }
-
-    return <>{result}</>;
-  };
-
-  // Function to handle synchronized scrolling
-  const handleSyncScroll = (sourceElement, targetElement) => {
-    if (!syncScroll || !sourceElement || !targetElement) return;
-    
-    const scrollPercentage = sourceElement.scrollTop / (sourceElement.scrollHeight - sourceElement.clientHeight);
-    const targetScrollTop = scrollPercentage * (targetElement.scrollHeight - targetElement.clientHeight);
-    
-    targetElement.scrollTop = targetScrollTop;
-  };
 
   // Function to scroll to a specific match in the detailed matches section
   const scrollToMatch = (matchId) => {
@@ -190,6 +59,63 @@ const DetailedComparison = () => {
         element.classList.remove('ring-4', 'ring-blue-300');
       }, 2000);
     }
+  };
+
+  // Function to highlight matching text in content
+  const highlightMatches = (content, matches, isCurrentDocument = true) => {
+    if (!content || !matches || matches.length === 0) {
+      return content;
+    }
+
+    let highlightedContent = content;
+    
+    // Sort matches by position to avoid overlapping issues
+    const sortedMatches = [...matches]
+      .filter(match => {
+        const textToMatch = isCurrentDocument ? match.originalText : match.matchedText;
+        return textToMatch && textToMatch.trim().length > 0;
+      })
+      .sort((a, b) => {
+        const textA = isCurrentDocument ? a.originalText : a.matchedText;
+        const textB = isCurrentDocument ? b.originalText : b.matchedText;
+        return content.indexOf(textA) - content.indexOf(textB);
+      });
+
+    // Apply highlights from end to beginning to maintain positions
+    for (let i = sortedMatches.length - 1; i >= 0; i--) {
+      const match = sortedMatches[i];
+      const textToMatch = isCurrentDocument ? match.originalText : match.matchedText;
+      
+      if (textToMatch && textToMatch.trim().length > 0) {
+        // Get similarity color
+        const similarity = match.similarity || 0;
+        let colorClass = '';
+        let bgColor = '';
+        
+        if (similarity >= 90) {
+          colorClass = 'text-red-800';
+          bgColor = 'bg-red-200';
+        } else if (similarity >= 70) {
+          colorClass = 'text-orange-800';
+          bgColor = 'bg-orange-200';
+        } else if (similarity >= 50) {
+          colorClass = 'text-yellow-800';
+          bgColor = 'bg-yellow-200';
+        } else {
+          colorClass = 'text-blue-800';
+          bgColor = 'bg-blue-200';
+        }
+
+        // Create highlighted span
+        const highlightedSpan = `<span class="${bgColor} ${colorClass} px-1 py-0.5 rounded font-medium cursor-pointer hover:shadow-md transition-all" data-match-id="${match.id}" title="Tương tự: ${similarity}% - Click để xem chi tiết" onclick="document.getElementById('detailed-match-${match.id}')?.scrollIntoView({behavior: 'smooth', block: 'center'})">${textToMatch}</span>`;
+        
+        // Replace the text with highlighted version
+        const regex = new RegExp(textToMatch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        highlightedContent = highlightedContent.replace(regex, highlightedSpan);
+      }
+    }
+
+    return highlightedContent;
   };
 
   if (loading) {
@@ -260,9 +186,35 @@ const DetailedComparison = () => {
     detailedMatches: data.detailedMatches?.length,
     overallSimilarity: data.overallSimilarity
   });
+  
+  // Debug: Log chi tiết matches
+  if (data.detailedMatches && data.detailedMatches.length > 0) {
+    console.log('Detailed matches:', data.detailedMatches.map((match, index) => ({
+      index,
+      id: match.id,
+      originalText: match.originalText?.substring(0, 50) + '...',
+      matchedText: match.matchedText?.substring(0, 50) + '...',
+      similarity: match.similarity,
+      source: match.source
+    })));
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
+      {/* Custom styles for highlighting */}
+      <style jsx>{`
+        .highlighted-text span[data-match-id] {
+          border-radius: 4px;
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        .highlighted-text span[data-match-id]:hover {
+          transform: scale(1.02);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          z-index: 10;
+          position: relative;
+        }
+      `}</style>
       <div className="px-4 py-8 mx-auto max-w-7xl">
         {/* Header */}
         <div className="mb-8">
@@ -350,15 +302,6 @@ const DetailedComparison = () => {
                 <span className="text-neutral-600">{data.currentDocument?.wordCount || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">Tỷ lệ trùng lặp:</span>
-                <span className={`font-semibold ${
-                  (data.currentDocument?.duplicateRate || 0) >= 50 ? 'text-red-600' : 
-                  (data.currentDocument?.duplicateRate || 0) >= 25 ? 'text-yellow-600' : 'text-green-600'
-                }`}>
-                  {data.currentDocument?.duplicateRate || 0}%
-                </span>
-              </div>
-              <div className="flex justify-between">
                 <span className="font-medium text-neutral-700">Kiểm tra lúc:</span>
                 <span className="text-neutral-600">{data.currentDocument?.checkedAt ? formatDate(data.currentDocument.checkedAt) : 'N/A'}</span>
               </div>
@@ -407,11 +350,38 @@ const DetailedComparison = () => {
 
         {/* Side-by-side Comparison */}
         <div id="comparison-section" className="p-6 bg-white shadow-xl rounded-2xl">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="flex items-center text-xl font-semibold text-neutral-800">
-              <span className="mr-2">⚖️</span>
-              So sánh nội dung side-by-side
-            </h2>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="flex items-center text-xl font-semibold text-neutral-800">
+                <span className="mr-2">⚖️</span>
+                So sánh nội dung side-by-side
+              </h2>
+            </div>
+            {/* Color Legend */}
+            {data.detailedMatches && data.detailedMatches.length > 0 && (
+              <div className="p-3 mb-4 border rounded-lg bg-neutral-50 border-neutral-200">
+                <p className="mb-2 text-sm font-medium text-neutral-700">Chú thích màu sắc:</p>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <div className="flex items-center">
+                    <span className="px-2 py-1 mr-1 font-medium text-red-800 bg-red-200 rounded">Văn bản</span>
+                    <span className="text-neutral-600">≥90% giống nhau</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="px-2 py-1 mr-1 font-medium text-orange-800 bg-orange-200 rounded">Văn bản</span>
+                    <span className="text-neutral-600">70-89% giống nhau</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="px-2 py-1 mr-1 font-medium text-yellow-800 bg-yellow-200 rounded">Văn bản</span>
+                    <span className="text-neutral-600">50-69% giống nhau</span>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="px-2 py-1 mr-1 font-medium text-blue-800 bg-blue-200 rounded">Văn bản</span>
+                    <span className="text-neutral-600">&lt;50% giống nhau</span>
+                  </div>
+                </div>
+                <p className="mt-2 text-xs text-neutral-500">💡 Click vào phần được tô màu để xem chi tiết</p>
+              </div>
+            )}
           </div>
 
           {/* Check if we have content to display */}
@@ -435,31 +405,36 @@ const DetailedComparison = () => {
                 <div 
                   id="current-document-scroll"
                   className="flex-1 p-4 overflow-y-auto border border-blue-200 rounded-lg bg-blue-50 max-h-96 min-h-64"
-                  onScroll={(e) => {
-                    const targetElement = document.getElementById('similar-document-scroll');
-                    handleSyncScroll(e.target, targetElement);
-                  }}
                 >
                   <div className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">
                     {data.currentDocument?.content ? (
-                      (() => {
-                        try {
-                          return highlightMatches(data.currentDocument.content, data.detailedMatches, true);
-                        } catch (error) {
-                          console.error('Error in highlightMatches for current document:', error);
-                          return <span>{data.currentDocument.content}</span>;
-                        }
-                      })()
+                      data.currentDocument?.highlightedText && data.currentDocument.highlightedText.includes('<span') ? (
+                        // Hiển thị text với highlight từ API
+                        <div
+                          className="highlighted-text"
+                          dangerouslySetInnerHTML={{
+                            __html: data.currentDocument.highlightedText,
+                          }}
+                          style={{
+                            lineHeight: "1.8",
+                          }}
+                        />
+                      ) : (
+                        // Tự động tô màu dựa trên detailedMatches
+                        <div
+                          className="highlighted-text"
+                          dangerouslySetInnerHTML={{
+                            __html: highlightMatches(data.currentDocument.content, data.detailedMatches, true),
+                          }}
+                          style={{
+                            lineHeight: "1.8",
+                          }}
+                        />
+                      )
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <span className="text-neutral-500">
                           Không có nội dung để hiển thị
-                          {/* Debug info */}
-                          <br />
-                          <small className="text-xs">
-                            Debug: {data.currentDocument ? 'currentDocument exists' : 'currentDocument missing'}, 
-                            content: {data.currentDocument?.content ? `${data.currentDocument.content.length} chars` : 'empty'}
-                          </small>
                         </span>
                       </div>
                     )}
@@ -489,31 +464,36 @@ const DetailedComparison = () => {
                 <div 
                   id="similar-document-scroll"
                   className="flex-1 p-4 overflow-y-auto border border-orange-200 rounded-lg bg-orange-50 max-h-96 min-h-64"
-                  onScroll={(e) => {
-                    const targetElement = document.getElementById('current-document-scroll');
-                    handleSyncScroll(e.target, targetElement);
-                  }}
                 >
                   <div className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-700">
                     {data.mostSimilarDocument?.content ? (
-                      (() => {
-                        try {
-                          return highlightMatches(data.mostSimilarDocument.content, data.detailedMatches, false);
-                        } catch (error) {
-                          console.error('Error in highlightMatches for similar document:', error);
-                          return <span>{data.mostSimilarDocument.content}</span>;
-                        }
-                      })()
+                      data.mostSimilarDocument?.highlightedText && data.mostSimilarDocument.highlightedText.includes('<span') ? (
+                        // Hiển thị text với highlight từ API
+                        <div
+                          className="highlighted-text"
+                          dangerouslySetInnerHTML={{
+                            __html: data.mostSimilarDocument.highlightedText,
+                          }}
+                          style={{
+                            lineHeight: "1.8",
+                          }}
+                        />
+                      ) : (
+                        // Tự động tô màu dựa trên detailedMatches
+                        <div
+                          className="highlighted-text"
+                          dangerouslySetInnerHTML={{
+                            __html: highlightMatches(data.mostSimilarDocument.content, data.detailedMatches, false),
+                          }}
+                          style={{
+                            lineHeight: "1.8",
+                          }}
+                        />
+                      )
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <span className="text-neutral-500">
                           Không có nội dung để hiển thị
-                          {/* Debug info */}
-                          <br />
-                          <small className="text-xs">
-                            Debug: {data.mostSimilarDocument ? 'mostSimilarDocument exists' : 'mostSimilarDocument missing'}, 
-                            content: {data.mostSimilarDocument?.content ? `${data.mostSimilarDocument.content.length} chars` : 'empty'}
-                          </small>
                         </span>
                       </div>
                     )}
@@ -533,6 +513,65 @@ const DetailedComparison = () => {
             </div>
           )}
         </div>
+
+        {/* Detailed Matches Section */}
+        {data.detailedMatches && data.detailedMatches.length > 0 && (
+          <div id="detailed-matches-section" className="p-6 mt-8 bg-white shadow-xl rounded-2xl">
+            <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
+              <span className="mr-2">🔗</span>
+              Chi tiết các đoạn trùng lặp
+            </h2>
+            <div className="space-y-4">
+              {data.detailedMatches.map((match, index) => (
+                <div 
+                  key={match.id}
+                  id={`detailed-match-${match.id}`}
+                  className="p-4 border rounded-lg border-neutral-200 bg-neutral-50"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center">
+                      <span className="px-2 py-1 text-xs font-semibold text-white bg-blue-600 rounded">
+                        #{index + 1}
+                      </span>
+                      <span className="ml-2 text-sm font-medium text-neutral-700">
+                        Tương tự: {match.similarity}%
+                      </span>
+                      <span className="ml-2 text-xs text-neutral-500">
+                        Nguồn: {match.source}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    {/* Original Text */}
+                    <div>
+                      <h4 className="mb-2 text-sm font-semibold text-blue-600">
+                        Trong document của bạn:
+                      </h4>
+                      <div className="p-3 text-sm border border-blue-200 rounded bg-blue-50">
+                        <span className="text-neutral-700">
+                          {match.originalText || 'Không có nội dung'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Matched Text */}
+                    <div>
+                      <h4 className="mb-2 text-sm font-semibold text-orange-600">
+                        Trong document giống nhất:
+                      </h4>
+                      <div className="p-3 text-sm border border-orange-200 rounded bg-orange-50">
+                        <span className="text-neutral-700">
+                          {match.matchedText || 'Không có nội dung'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Quick Navigation */}
         {data.detailedMatches && data.detailedMatches.length > 0 && (

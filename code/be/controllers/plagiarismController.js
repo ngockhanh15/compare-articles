@@ -959,6 +959,56 @@ exports.getDetailedComparison = async (req, res) => {
       overallSimilarity: overallSimilarity
     });
     
+    // Tạo highlighted text cho current document
+    let currentHighlightedText = plagiarismCheck.originalText || '';
+    if (detailedMatches && detailedMatches.length > 0) {
+      // Sắp xếp matches theo vị trí để tránh overlap
+      const sortedMatches = [...detailedMatches].sort((a, b) => a.startPosition - b.startPosition);
+      
+      let highlightedText = '';
+      let lastIndex = 0;
+      
+      sortedMatches.forEach((match, index) => {
+        const color = `hsl(${(index * 137.5) % 360}, 70%, 50%)`; // Generate different colors
+        
+        // Add text before this match
+        if (match.startPosition > lastIndex) {
+          highlightedText += plagiarismCheck.originalText.substring(lastIndex, match.startPosition);
+        }
+        
+        // Add highlighted match
+        highlightedText += `<span style="background-color: ${color}20; border-left: 3px solid ${color}; padding: 2px 4px; margin: 1px; border-radius: 3px;" data-match-id="${match.id}" data-similarity="${match.similarity}" title="${match.source} (${match.similarity}%)">${match.originalText}</span>`;
+        
+        lastIndex = match.endPosition;
+      });
+      
+      // Add remaining text
+      if (lastIndex < plagiarismCheck.originalText.length) {
+        highlightedText += plagiarismCheck.originalText.substring(lastIndex);
+      }
+      
+      currentHighlightedText = highlightedText;
+    }
+    
+    // Tạo highlighted text cho most similar document
+    let similarHighlightedText = mostSimilarContent || '';
+    if (detailedMatches && detailedMatches.length > 0 && mostSimilarContent) {
+      let highlightedText = mostSimilarContent;
+      
+      detailedMatches.forEach((match, index) => {
+        const color = `hsl(${(index * 137.5) % 360}, 70%, 50%)`; // Same colors as current document
+        const searchText = match.matchedText;
+        
+        if (searchText && searchText.length > 0) {
+          // Simple replacement for matched text
+          const regex = new RegExp(searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          highlightedText = highlightedText.replace(regex, `<span style="background-color: ${color}20; border-left: 3px solid ${color}; padding: 2px 4px; margin: 1px; border-radius: 3px;" data-match-id="${match.id}" data-similarity="${match.similarity}" title="${match.source} (${match.similarity}%)">${searchText}</span>`);
+        }
+      });
+      
+      similarHighlightedText = highlightedText;
+    }
+
     const response = {
       success: true,
       currentDocument: {
@@ -968,11 +1018,13 @@ exports.getDetailedComparison = async (req, res) => {
         wordCount: plagiarismCheck.wordCount || plagiarismCheck.originalText?.split(/\s+/).filter(w => w.length > 0).length || 0,
         duplicateRate: plagiarismCheck.duplicatePercentage || 0,
         checkedAt: plagiarismCheck.createdAt,
-        content: plagiarismCheck.originalText || ''
+        content: plagiarismCheck.originalText || '',
+        highlightedText: currentHighlightedText
       },
       mostSimilarDocument: mostSimilarDocument ? {
         ...mostSimilarDocument,
-        content: mostSimilarContent || ''
+        content: mostSimilarContent || '',
+        highlightedText: similarHighlightedText
       } : {
         fileName: 'Không tìm thấy document tương tự',
         fileSize: 0,
@@ -980,7 +1032,8 @@ exports.getDetailedComparison = async (req, res) => {
         author: 'Hệ thống',
         uploadedAt: new Date(),
         wordCount: 0,
-        content: 'Không có document tương tự trong hệ thống để so sánh.'
+        content: 'Không có document tương tự trong hệ thống để so sánh.',
+        highlightedText: 'Không có document tương tự trong hệ thống để so sánh.'
       },
       overallSimilarity: overallSimilarity || 0,
       detailedMatches: detailedMatches || []

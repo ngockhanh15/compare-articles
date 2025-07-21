@@ -273,39 +273,6 @@ const DocumentManagement = () => {
         </div>
       )}
 
-      {/* AVL Tree Statistics */}
-      {treeStats && (
-        <div className="p-4 border border-green-200 bg-green-50 rounded-xl">
-          <h4 className="flex items-center mb-3 font-semibold text-green-800">
-            <span className="mr-2">🌳</span>
-            Thống kê AVL Tree (Hệ thống kiểm tra trùng lặp)
-          </h4>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="p-3 bg-white border border-green-200 rounded-lg">
-              <div className="text-xl font-bold text-green-600">
-                {treeStats.totalDocuments || 0}
-              </div>
-              <div className="text-sm text-green-700">Tài liệu trong cây</div>
-            </div>
-            <div className="p-3 bg-white border border-green-200 rounded-lg">
-              <div className="text-xl font-bold text-green-600">
-                {treeStats.initialized ? 'Có' : 'Không'}
-              </div>
-              <div className="text-sm text-green-700">Trạng thái khởi tạo</div>
-            </div>
-            <div className="p-3 bg-white border border-green-200 rounded-lg">
-              <div className="text-xl font-bold text-green-600">
-                AVL
-              </div>
-              <div className="text-sm text-green-700">Cấu trúc dữ liệu</div>
-            </div>
-          </div>
-          <div className="mt-3 text-xs text-green-600">
-            💡 Tài liệu được upload sẽ tự động thêm vào cây AVL để tối ưu hóa việc kiểm tra trùng lặp
-          </div>
-        </div>
-      )}
-
       {/* Error Message */}
       {error && (
         <div className="p-4 border border-red-200 bg-red-50 rounded-xl">

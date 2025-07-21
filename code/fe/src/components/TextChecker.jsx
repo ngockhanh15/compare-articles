@@ -9,6 +9,7 @@ import {
   getDocumentText,
   getTreeStats,
   getDetailedComparison,
+  getDocumentStats,
 } from "../services/api";
 import { Link } from "react-router-dom";
 
@@ -29,10 +30,12 @@ const TextChecker = () => {
     language: "vi",
   });
   const [treeStats, setTreeStats] = useState(null);
+  const [userStats, setUserStats] = useState(null);
 
   useEffect(() => {
     loadUserDocuments();
     loadTreeStats();
+    loadUserStats();
   }, []);
 
   const loadTreeStats = async () => {
@@ -43,6 +46,17 @@ const TextChecker = () => {
       }
     } catch (error) {
       console.error("Error loading tree stats:", error);
+    }
+  };
+
+  const loadUserStats = async () => {
+    try {
+      const response = await getDocumentStats();
+      if (response.success) {
+        setUserStats(response.stats);
+      }
+    } catch (error) {
+      console.error("Error loading user stats:", error);
     }
   };
 
@@ -191,11 +205,26 @@ const TextChecker = () => {
 
       // Extract data from document similarity API response
       const realData = await getDetailedComparison(similarityResult.checkId);
-      console.log("Detailed comparison data:", realData);
 
       const result = similarityResult.result;
       const wordCount = result.wordCount || 0;
       const charCount = result.textLength || 0;
+
+      // Tính tổng số câu trong văn bản kiểm tra
+      const totalSentencesInText = textToCheck
+        .split(/[.!?]+/)
+        .filter((sentence) => sentence.trim().length > 0).length;
+
+      // Lấy số câu trùng từ API response
+      const duplicateSentencesCount = result.dtotal || realData.dtotal || 0;
+
+      // Tính tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
+      const dtotalPercentage =
+        totalSentencesInText > 0
+          ? ((duplicateSentencesCount / totalSentencesInText) * 100).toFixed(2)
+          : 0;
+
+      console.log("Detailed comparison data:", treeStats);
 
       setResults({
         checkId: similarityResult.checkId,
@@ -215,7 +244,9 @@ const TextChecker = () => {
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
         // Thông tin tỷ lệ trùng lặp mới
-        dtotal: result.dtotal || 0, // Tổng số câu trùng không lặp lại với tất cả câu/csdl mẫu
+        dtotal: parseFloat(dtotalPercentage), // Tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
+        dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế
+        totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra
         dab: result.dab || 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: result.mostSimilarDocument || null, // Thông tin document giống nhất
         // Tree stats info
@@ -568,7 +599,7 @@ const TextChecker = () => {
                 </div>
 
                 {/* Statistics */}
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
                     <div className="text-2xl font-bold text-primary-600">
                       {results.wordCount}
@@ -583,44 +614,12 @@ const TextChecker = () => {
                     <div className="text-sm text-neutral-600">Ký tự</div>
                   </div>
 
-                  <div
-                    className={`p-4 border rounded-xl ${
-                      results.duplicateRate > 50
-                        ? "border-red-200 bg-red-50"
-                        : "border-green-200 bg-green-50"
-                    }`}
-                  >
-                    <div
-                      className={`text-2xl font-bold ${
-                        results.duplicateRate > 50
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      {results.duplicateRate}%
-                    </div>
-                    <div
-                      className={`text-sm ${
-                        results.duplicateRate > 50
-                          ? "text-red-600"
-                          : "text-green-600"
-                      }`}
-                    >
-                      Tỷ lệ trùng lặp
-                    </div>
-                    <div className="mt-1 text-xs text-neutral-500">
-                      {results.duplicateRate > 50
-                        ? "Trùng lặp"
-                        : "Không trùng lặp"}
-                    </div>
-                  </div>
-
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
                     <div className="text-2xl font-bold text-blue-600">
-                      {results.sources ? results.sources.length : 0}
+                      {treeStats.totalDocuments ? treeStats.totalDocuments : 0}
                     </div>
                     <div className="text-sm text-neutral-600">
-                      Nguồn tìm thấy
+                      Số document tìm kiếm
                     </div>
                   </div>
 
@@ -637,7 +636,7 @@ const TextChecker = () => {
 
                   <div className="p-4 border border-orange-200 rounded-xl bg-orange-50">
                     <div className="text-2xl font-bold text-orange-600">
-                      {results.dab || 0}
+                      {results.duplicateRate}%
                     </div>
                     <div className="text-sm text-orange-600">DA/B</div>
                     <div className="mt-1 text-xs text-orange-500">
@@ -763,7 +762,8 @@ const TextChecker = () => {
                 {results.matches && results.matches.length > 0 && (
                   <div>
                     <h4 className="mb-3 font-semibold text-neutral-800">
-                      Documents tương tự được tìm thấy:
+                      Documents tương tự được tìm thấy ({results.matches.length}{" "}
+                      files):
                     </h4>
                     <div className="space-y-3">
                       {results.matches.map((match, index) => (
