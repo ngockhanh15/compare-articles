@@ -919,54 +919,91 @@ exports.getDetailedComparison = async (req, res) => {
     }
     
     // Phương pháp 2: Tạo matches từ document tương tự (nếu có)
-    if (mostSimilarContent && mostSimilarContent.length > 100) {
+    if (mostSimilarContent && mostSimilarContent.trim().length > 10) {
       console.log('Creating matches from similar document...');
       const originalText = plagiarismCheck.originalText;
       
-      // Chia thành các đoạn nhỏ để so sánh
-      const originalChunks = originalText.match(/.{1,100}/g) || [];
-      const similarChunks = mostSimilarContent.match(/.{1,100}/g) || [];
+      // Chia thành câu để so sánh (thay vì chunks cố định)
+      const originalSentences = originalText.split(/[.!?]+/).filter(s => s.trim().length > 5);
+      const similarSentences = mostSimilarContent.split(/[.!?]+/).filter(s => s.trim().length > 5);
+      
+      console.log(`Original sentences: ${originalSentences.length}, Similar sentences: ${similarSentences.length}`);
       
       let matchCount = 0;
-      for (let i = 0; i < Math.min(originalChunks.length, 10); i++) {
-        const origChunk = originalChunks[i].trim();
-        if (origChunk.length < 30) continue;
+      for (let i = 0; i < originalSentences.length && matchCount < 10; i++) {
+        const origSentence = originalSentences[i].trim();
+        if (origSentence.length < 10) continue;
         
-        const origWords = origChunk.toLowerCase().split(/\s+/);
+        const origWords = origSentence.toLowerCase().split(/\s+/).filter(w => w.length > 2);
         let bestMatch = null;
         let bestSimilarity = 0;
         
-        for (let j = 0; j < similarChunks.length; j++) {
-          const simChunk = similarChunks[j].trim();
-          if (simChunk.length < 30) continue;
+        for (let j = 0; j < similarSentences.length; j++) {
+          const simSentence = similarSentences[j].trim();
+          if (simSentence.length < 10) continue;
           
-          const simWords = simChunk.toLowerCase().split(/\s+/);
+          const simWords = simSentence.toLowerCase().split(/\s+/).filter(w => w.length > 2);
           
-          // Tính similarity
+          // Tính similarity dựa trên từ chung
           const origWordSet = new Set(origWords);
           const simWordSet = new Set(simWords);
           const intersection = new Set([...origWordSet].filter(x => simWordSet.has(x)));
-          const similarity = (intersection.size / Math.max(origWords.length, simWords.length)) * 100;
           
-          if (similarity > bestSimilarity && similarity > 15) {
+          // Tính cả Jaccard và word overlap
+          const jaccardSim = intersection.size / new Set([...origWords, ...simWords]).size * 100;
+          const overlapSim = intersection.size / Math.min(origWords.length, simWords.length) * 100;
+          const similarity = Math.max(jaccardSim, overlapSim);
+          
+          console.log(`Comparing "${origSentence.substring(0, 30)}..." vs "${simSentence.substring(0, 30)}..." = ${similarity.toFixed(1)}%`);
+          
+          // Chỉ coi là trùng lặp nếu similarity >= 50% (threshold cao hơn)
+          if (similarity > bestSimilarity && similarity >= 50) {
             bestSimilarity = similarity;
-            bestMatch = simChunk;
+            bestMatch = simSentence;
           }
         }
         
-        if (bestMatch && matchCount < 8) {
-          const startPosition = originalText.indexOf(origChunk);
+        // Chỉ thêm match nếu thực sự có độ tương tự cao (>= 50%)
+        if (bestMatch && bestSimilarity >= 50) {
+          const startPosition = originalText.indexOf(origSentence);
           detailedMatches.push({
-            id: `chunk-match-${matchCount + 1}`,
-            originalText: origChunk,
+            id: `sentence-match-${matchCount + 1}`,
+            originalText: origSentence,
             matchedText: bestMatch,
             similarity: Math.round(bestSimilarity),
             source: mostSimilarDocument?.fileName || 'similar-document',
             url: `internal://document/${mostSimilarDocument?.fileName}`,
             startPosition: startPosition >= 0 ? startPosition : 0,
-            endPosition: startPosition >= 0 ? startPosition + origChunk.length : origChunk.length
+            endPosition: startPosition >= 0 ? startPosition + origSentence.length : origSentence.length
           });
           matchCount++;
+          console.log(`✓ Added match ${matchCount}: ${bestSimilarity.toFixed(1)}% similarity`);
+        }
+      }
+      
+      // Nếu không tìm thấy matches từ câu, thử so sánh toàn bộ text
+      if (detailedMatches.length === 0 && overallSimilarity >= 50) {
+        console.log('No sentence matches found, creating overall match...');
+        const origWords = originalText.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const simWords = mostSimilarContent.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const origWordSet = new Set(origWords);
+        const simWordSet = new Set(simWords);
+        const intersection = new Set([...origWordSet].filter(x => simWordSet.has(x)));
+        const overlapSimilarity = intersection.size / Math.min(origWords.length, simWords.length) * 100;
+        
+        // Chỉ tạo overall match nếu thực sự có độ tương tự cao (>= 50%)
+        if (overlapSimilarity >= 50) {
+          detailedMatches.push({
+            id: 'overall-match-1',
+            originalText: originalText.trim(),
+            matchedText: mostSimilarContent.trim(),
+            similarity: Math.round(overlapSimilarity),
+            source: mostSimilarDocument?.fileName || 'similar-document',
+            url: `internal://document/${mostSimilarDocument?.fileName}`,
+            startPosition: 0,
+            endPosition: originalText.length
+          });
+          console.log(`✓ Added overall match: ${overlapSimilarity.toFixed(1)}% similarity`);
         }
       }
     }

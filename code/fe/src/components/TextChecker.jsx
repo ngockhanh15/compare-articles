@@ -535,7 +535,7 @@ const TextChecker = () => {
                         Loại file:
                       </span>
                       <p className="text-sm text-blue-600">
-                        {results.source === "file"
+                        {results.source === "fiDle"
                           ? "File upload"
                           : "Text input"}
                       </p>
@@ -583,119 +583,6 @@ const TextChecker = () => {
                       )}
                     </div>
                   )}
-
-                  {/* Hiển thị chi tiết các câu trùng lặp */}
-                  {results && results.matches && results.matches.length > 0 && (
-                    <div className="p-6 mt-6 bg-white shadow-lg rounded-xl">
-                      <h3 className="mb-4 text-xl font-semibold text-neutral-800">
-                        Chi tiết câu trùng lặp
-                      </h3>
-
-                      <div className="space-y-4">
-                        {results.matches.map((match, index) => (
-                          <div
-                            key={index}
-                            className="overflow-hidden border rounded-lg border-neutral-200"
-                          >
-                            <div className="flex items-center justify-between p-3 bg-neutral-100">
-                              <div>
-                                <span className="font-medium text-neutral-700">
-                                  {match.source}
-                                </span>
-                                <span className="ml-2 text-sm text-neutral-500">
-                                  ({match.similarity}% trùng lặp)
-                                </span>
-                              </div>
-                              <div className="text-sm text-neutral-500">
-                                {match.duplicateSentences || 0} câu trùng lặp
-                              </div>
-                            </div>
-
-                            {/* Chi tiết các câu trùng lặp */}
-                            {match.duplicateSentencesDetails &&
-                              match.duplicateSentencesDetails.length > 0 && (
-                                <div className="p-3 space-y-3">
-                                  {match.duplicateSentencesDetails.map(
-                                    (sentenceDetail, idx) => (
-                                      <div
-                                        key={idx}
-                                        className="py-1 pl-3 text-sm border-l-4 border-amber-400"
-                                      >
-                                        <div className="mb-1 font-medium text-neutral-700">
-                                          Câu trùng lặp (
-                                          {Math.round(
-                                            sentenceDetail.duplicateRatio
-                                          )}
-                                          %):
-                                        </div>
-                                        <div className="text-neutral-600">
-                                          {sentenceDetail.sentence}
-                                        </div>
-                                        <div className="mt-1 text-xs text-neutral-500">
-                                          {sentenceDetail.matchedWords.length}{" "}
-                                          từ trùng /{" "}
-                                          {sentenceDetail.totalWordPairs} cặp từ
-                                        </div>
-                                      </div>
-                                    )
-                                  )}
-
-                                  {match.duplicateSentences >
-                                    match.duplicateSentencesDetails.length && (
-                                    <div className="text-xs italic text-neutral-500">
-                                      ... và{" "}
-                                      {match.duplicateSentences -
-                                        match.duplicateSentencesDetails
-                                          .length}{" "}
-                                      câu trùng lặp khác
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Comparison Buttons */}
-                  <div className="flex gap-3">
-                    {results?.checkId ? (
-                      <Link
-                        to={`/detailed-comparison/${results.checkId}`}
-                        className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <span className="mr-2">🔍</span>
-                        So sánh với document giống nhất
-                      </Link>
-                    ) : (
-                      <button
-                        disabled
-                        className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gray-400 rounded-lg opacity-50 cursor-not-allowed"
-                      >
-                        <span className="mr-2">🔍</span>
-                        So sánh với document giống nhất
-                      </button>
-                    )}
-
-                    {results?.checkId ? (
-                      <Link
-                        to={`/all-documents-comparison/${results.checkId}`}
-                        className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <span className="mr-2">📊</span>
-                        So sánh với toàn bộ documents
-                      </Link>
-                    ) : (
-                      <button
-                        disabled
-                        className="flex items-center px-4 py-2 text-sm font-medium text-gray-400 transition-all duration-200 bg-white border border-gray-300 rounded-lg opacity-50 cursor-not-allowed"
-                      >
-                        <span className="mr-2">📊</span>
-                        So sánh với toàn bộ documents
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 {/* Statistics */}
@@ -745,232 +632,44 @@ const TextChecker = () => {
                   </div>
                 </div>
 
-                {/* Thông tin Document giống nhất */}
-                {results.mostSimilarDocument && (
-                  <div className="p-4 border border-orange-200 rounded-xl bg-orange-50">
-                    <h4 className="flex items-center mb-3 font-semibold text-orange-800">
-                      <span className="mr-2">🎯</span>
-                      Document giống nhất (DA/B)
-                    </h4>
-                    <div className="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
-                      <div>
-                        <span className="font-medium text-orange-700">
-                          Tên document:
-                        </span>
-                        <p className="mt-1 text-orange-600">
-                          {results.mostSimilarDocument.name || "Không xác định"}
-                        </p>
-                      </div>
-                      <div>
-                        <span className="font-medium text-orange-700">
-                          ID Document:
-                        </span>
-                        <p className="mt-1 text-xs text-orange-600">
-                          {results.mostSimilarDocument.id || "N/A"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Phrase Analysis (New) */}
-                {results.matches &&
-                  results.matches.some(
-                    (match) => match.method === "phrase-based"
-                  ) && (
-                    <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-                      <h4 className="flex items-center mb-3 font-semibold text-purple-800">
-                        <span className="mr-2">🧩</span>
-                        Phân tích cụm từ (Phrase-based Detection)
-                      </h4>
-                      <div className="space-y-3">
-                        {results.matches
-                          .filter((match) => match.method === "phrase-based")
-                          .slice(0, 2)
-                          .map((match, index) => (
-                            <div
-                              key={index}
-                              className="p-3 bg-white border border-purple-200 rounded-lg"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-purple-700">
-                                  Document {index + 1}
-                                </span>
-                                <span className="px-2 py-1 text-xs font-semibold text-purple-800 bg-purple-200 rounded-full">
-                                  {match.similarity}% cụm từ trùng
-                                </span>
-                              </div>
-
-                              {match.matchedPhrases &&
-                                match.matchedPhrases.length > 0 && (
-                                  <div className="mb-2">
-                                    <span className="text-xs font-medium text-purple-700">
-                                      Cụm từ trùng lặp:
-                                    </span>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      {match.matchedPhrases
-                                        .slice(0, 8)
-                                        .map((phrase, phraseIndex) => (
-                                          <span
-                                            key={phraseIndex}
-                                            className="px-2 py-1 text-xs text-purple-700 bg-purple-100 border border-purple-300 rounded-md"
-                                          >
-                                            {phrase}
-                                          </span>
-                                        ))}
-                                      {match.matchedPhrases.length > 8 && (
-                                        <span className="px-2 py-1 text-xs text-purple-600">
-                                          +{match.matchedPhrases.length - 8} cụm
-                                          từ khác
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                              <div className="text-xs text-purple-600">
-                                {match.details ||
-                                  `${match.totalPhrases} cụm từ được phân tích`}
-                              </div>
-
-                              <p className="mt-2 text-sm text-purple-600 line-clamp-2">
-                                {match.text}
-                              </p>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
+                {/* Comparison Buttons */}
+                <div className="flex gap-3">
+                  {results?.checkId ? (
+                    <Link
+                      to={`/detailed-comparison/${results.checkId}`}
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <span className="mr-2">🔍</span>
+                      So sánh với document giống nhất
+                    </Link>
+                  ) : (
+                    <button
+                      disabled
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gray-400 rounded-lg opacity-50 cursor-not-allowed"
+                    >
+                      <span className="mr-2">🔍</span>
+                      So sánh với document giống nhất
+                    </button>
                   )}
 
-                {/* Plagiarism Matches */}
-                {results.matches && results.matches.length > 0 && (
-                  <div>
-                    <h4 className="mb-3 font-semibold text-neutral-800">
-                      Documents tương tự được tìm thấy ({results.matches.length}{" "}
-                      files):
-                    </h4>
-                    <div className="space-y-3">
-                      {results.matches.map((match, index) => (
-                        <div
-                          key={index}
-                          className="p-4 border border-orange-200 rounded-lg bg-orange-50"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="mr-2 text-orange-600">🔗</span>
-                              <span className="font-medium text-orange-800">
-                                {match.source}
-                              </span>
-                              {match.fileType && (
-                                <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-200 rounded-full">
-                                  {match.fileType.toUpperCase()}
-                                </span>
-                              )}
-                              {match.fromCache && (
-                                <span className="px-2 py-1 text-xs font-medium text-green-700 bg-green-200 rounded-full">
-                                  Cache
-                                </span>
-                              )}
-                              {match.method && (
-                                <span
-                                  className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                    match.method === "phrase-based"
-                                      ? "text-purple-700 bg-purple-200"
-                                      : match.method === "sentence-based"
-                                      ? "text-blue-700 bg-blue-200"
-                                      : "text-gray-700 bg-gray-200"
-                                  }`}
-                                >
-                                  {match.method === "phrase-based"
-                                    ? "🧩 Cụm từ"
-                                    : match.method === "sentence-based"
-                                    ? "📝 Câu"
-                                    : match.method === "word-based"
-                                    ? "🔤 Từ"
-                                    : match.method}
-                                </span>
-                              )}
-                            </div>
-                            <span className="px-2 py-1 text-xs font-medium text-orange-700 bg-orange-200 rounded-full">
-                              {match.similarity}% tương tự
-                            </span>
-                          </div>
-
-                          {/* Thông tin thêm về match */}
-                          {match.createdAt && (
-                            <div className="mb-2 text-xs text-neutral-500">
-                              📅 Ngày tạo:{" "}
-                              {new Date(match.createdAt).toLocaleDateString(
-                                "vi-VN"
-                              )}
-                            </div>
-                          )}
-
-                          <p className="mb-2 text-sm text-neutral-700">
-                            "{match.text}"
-                          </p>
-
-                          {/* Hiển thị matched phrases nếu có */}
-                          {match.matchedPhrases &&
-                            match.matchedPhrases.length > 0 && (
-                              <div className="mb-2">
-                                <span className="text-xs font-medium text-orange-700">
-                                  Cụm từ trùng lặp:
-                                </span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {match.matchedPhrases
-                                    .slice(0, 6)
-                                    .map((phrase, phraseIndex) => (
-                                      <span
-                                        key={phraseIndex}
-                                        className="px-2 py-1 text-xs text-orange-700 bg-orange-100 border border-orange-300 rounded-md"
-                                      >
-                                        {phrase}
-                                      </span>
-                                    ))}
-                                  {match.matchedPhrases.length > 6 && (
-                                    <span className="px-2 py-1 text-xs text-orange-600">
-                                      +{match.matchedPhrases.length - 6} cụm từ
-                                      khác
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-
-                          {/* Thông tin chi tiết về match */}
-                          <div className="flex items-center justify-between pt-2 mt-2 text-xs border-t border-orange-300 text-neutral-600">
-                            <div className="flex items-center gap-4">
-                              <span>
-                                📏 Độ dài: {match.text ? match.text.length : 0}{" "}
-                                ký tự
-                              </span>
-                              {match.matchedWords && (
-                                <span>📝 Từ khớp: {match.matchedWords} từ</span>
-                              )}
-                              {match.totalPhrases && (
-                                <span>
-                                  🧩 Cụm từ: {match.matchedPhrases?.length || 0}
-                                  /{match.totalPhrases}
-                                </span>
-                              )}
-                            </div>
-                            {match.url && (
-                              <a
-                                href={match.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:text-blue-800 hover:underline"
-                              >
-                                Xem nguồn gốc →
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  {results?.checkId ? (
+                    <Link
+                      to={`/all-documents-comparison/${results.checkId}`}
+                      className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <span className="mr-2">📊</span>
+                      So sánh với toàn bộ documents
+                    </Link>
+                  ) : (
+                    <button
+                      disabled
+                      className="flex items-center px-4 py-2 text-sm font-medium text-gray-400 transition-all duration-200 bg-white border border-gray-300 rounded-lg opacity-50 cursor-not-allowed"
+                    >
+                      <span className="mr-2">📊</span>
+                      So sánh với toàn bộ documents
+                    </button>
+                  )}
+                </div>
 
                 {/* Timestamp */}
                 <div className="pt-4 text-xs text-center border-t border-neutral-200 text-neutral-500">
