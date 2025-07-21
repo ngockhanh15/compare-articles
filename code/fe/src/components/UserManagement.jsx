@@ -9,55 +9,53 @@ const UserManagement = () => {
   const [filterRole, setFilterRole] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [usersPerPage] = useState(10);
+  const [pagination, setPagination] = useState({
+    totalUsers: 0,
+    totalPages: 0,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [currentPage, searchTerm, filterRole]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      // Giả sử có API để lấy danh sách users
-      // const response = await api.getAllUsers();
-      // setUsers(response.data.users);
+      setError("");
       
-      // Mock data cho demo
-      const mockUsers = [
-        {
-          _id: "1",
-          name: "Nguyễn Văn A",
-          email: "user1@example.com",
-          role: "user",
-          isActive: true,
-          emailVerified: true,
-          createdAt: "2024-01-15T10:30:00Z",
-          lastLogin: "2024-01-20T14:20:00Z"
-        },
-        {
-          _id: "2",
-          name: "Trần Thị B",
-          email: "user2@example.com",
-          role: "user",
-          isActive: false,
-          emailVerified: true,
-          createdAt: "2024-01-16T09:15:00Z",
-          lastLogin: "2024-01-19T16:45:00Z"
-        },
-        {
-          _id: "3",
-          name: "Admin User",
-          email: "admin@filterword.com",
-          role: "admin",
-          isActive: true,
-          emailVerified: true,
-          createdAt: "2024-01-01T00:00:00Z",
-          lastLogin: "2024-01-21T08:30:00Z"
+      const params = {
+        page: currentPage,
+        limit: usersPerPage,
+        search: searchTerm,
+        role: filterRole === "all" ? undefined : filterRole,
+        sortBy: "createdAt",
+        sortOrder: "desc"
+      };
+
+      const response = await api.getAllUsers(params);
+      
+      if (response.success) {
+        setUsers(response.data.users);
+        
+        // Cập nhật pagination
+        if (response.data.pagination) {
+          setPagination(response.data.pagination);
+          
+          // Nếu current page lớn hơn total pages, reset về page 1
+          if (currentPage > response.data.pagination.totalPages && response.data.pagination.totalPages > 0) {
+            setCurrentPage(1);
+            return; // fetchUsers sẽ được gọi lại do useEffect
+          }
         }
-      ];
-      setUsers(mockUsers);
+      } else {
+        throw new Error(response.error || "Không thể tải danh sách người dùng");
+      }
     } catch (error) {
-      setError("Không thể tải danh sách người dùng");
+      setError(error.message || "Không thể tải danh sách người dùng");
       console.error("Error fetching users:", error);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -65,16 +63,23 @@ const UserManagement = () => {
 
   const handleToggleUserStatus = async (userId, currentStatus) => {
     try {
-      // const response = await api.toggleUserStatus(userId, !currentStatus);
-      // if (response.success) {
+      const response = await api.toggleUserStatus(userId);
+      
+      if (response.success) {
+        // Cập nhật state local
         setUsers(users.map(user => 
           user._id === userId 
             ? { ...user, isActive: !currentStatus }
             : user
         ));
-      // }
+        
+        // Hiển thị thông báo thành công (có thể thêm toast notification)
+        console.log(response.message);
+      } else {
+        throw new Error(response.error || "Không thể cập nhật trạng thái người dùng");
+      }
     } catch (error) {
-      setError("Không thể cập nhật trạng thái người dùng");
+      setError(error.message || "Không thể cập nhật trạng thái người dùng");
       console.error("Error toggling user status:", error);
     }
   };
@@ -85,29 +90,33 @@ const UserManagement = () => {
     }
 
     try {
-      // const response = await api.deleteUser(userId);
-      // if (response.success) {
+      const response = await api.deleteUser(userId);
+      
+      if (response.success) {
+        // Cập nhật state local
         setUsers(users.filter(user => user._id !== userId));
-      // }
+        
+        // Hiển thị thông báo thành công
+        console.log(response.message);
+      } else {
+        throw new Error(response.error || "Không thể xóa người dùng");
+      }
     } catch (error) {
-      setError("Không thể xóa người dùng");
+      setError(error.message || "Không thể xóa người dùng");
       console.error("Error deleting user:", error);
     }
   };
 
-  // Filter users based on search term and role
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === "all" || user.role === filterRole;
-    return matchesSearch && matchesRole;
-  });
+  // Reset về trang 1 khi search hoặc filter thay đổi
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
 
-  // Pagination
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const handleRoleFilterChange = (e) => {
+    setFilterRole(e.target.value);
+    setCurrentPage(1);
+  };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString("vi-VN", {
@@ -139,7 +148,7 @@ const UserManagement = () => {
             Quản lý người dùng
           </h3>
           <p className="mt-1 text-sm text-neutral-600">
-            Tổng cộng {filteredUsers.length} người dùng
+            Tổng cộng {pagination.totalUsers} người dùng
           </p>
         </div>
       </div>
@@ -161,13 +170,13 @@ const UserManagement = () => {
             type="text"
             placeholder="Tìm kiếm theo tên hoặc email..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full px-4 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
         <select
           value={filterRole}
-          onChange={(e) => setFilterRole(e.target.value)}
+          onChange={handleRoleFilterChange}
           className="px-4 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
         >
           <option value="all">Tất cả vai trò</option>
@@ -203,7 +212,7 @@ const UserManagement = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-neutral-200">
-              {currentUsers.map((user) => (
+              {users.map((user) => (
                 <tr key={user._id} className="hover:bg-neutral-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
@@ -281,25 +290,25 @@ const UserManagement = () => {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
           <div className="text-sm text-neutral-700">
-            Hiển thị {indexOfFirstUser + 1} đến {Math.min(indexOfLastUser, filteredUsers.length)} trong tổng số {filteredUsers.length} người dùng
+            Hiển thị {((currentPage - 1) * usersPerPage) + 1} đến {Math.min(currentPage * usersPerPage, pagination.totalUsers)} trong tổng số {pagination.totalUsers} người dùng
           </div>
           <div className="flex space-x-2">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
+              disabled={!pagination.hasPrevPage}
               className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Trước
             </button>
             <span className="px-3 py-2 text-sm font-medium border rounded-lg text-neutral-700 bg-neutral-100 border-neutral-300">
-              {currentPage} / {totalPages}
+              {currentPage} / {pagination.totalPages}
             </span>
             <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.totalPages))}
+              disabled={!pagination.hasNextPage}
               className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Sau

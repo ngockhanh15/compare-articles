@@ -424,20 +424,6 @@ const AllDocumentsComparison = () => {
               </div>
               <div className="text-sm text-neutral-600">Kích thước</div>
             </div>
-            <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-              <div
-                className={`text-2xl font-bold ${
-                  getCurrentDocumentDuplicateRate() >= 50
-                    ? "text-red-600"
-                    : getCurrentDocumentDuplicateRate() >= 25
-                    ? "text-yellow-600"
-                    : "text-green-600"
-                }`}
-              >
-                {getCurrentDocumentDuplicateRate()}%
-              </div>
-              <div className="text-sm text-neutral-600">Tỷ lệ trùng lặp</div>
-            </div>
           </div>
         </div>
 

@@ -465,7 +465,7 @@ const DetailedComparison = () => {
                       <div className="flex items-center mb-3">
                         <span className="mr-2 text-lg">📋</span>
                         <h4 className="text-sm font-bold tracking-wide text-orange-700 uppercase">
-                          Câu trùng lặp trong cơ sở dữ liệu
+                          Câu trùng lặp trong document giống nhất
                         </h4>
                       </div>
                       <div className="p-4 border-2 border-orange-300 rounded-lg shadow-sm bg-gradient-to-br from-orange-50 to-orange-100">

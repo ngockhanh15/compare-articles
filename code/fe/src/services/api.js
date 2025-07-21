@@ -676,4 +676,125 @@ export const getUploadedFiles = async (params = {}) => {
   }
 };
 
+// ==================== USER MANAGEMENT API ====================
+
+// Lấy danh sách tất cả người dùng (Admin only)
+export const getAllUsers = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.role) queryParams.append("role", params.role);
+    if (params.sortBy) queryParams.append("sortBy", params.sortBy);
+    if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+    const response = await fetch(
+      `${API_BASE_URL}/users?${queryParams.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get all users error:", error);
+    throw error;
+  }
+};
+
+// Lấy thông tin người dùng theo ID
+export const getUserById = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get user by ID error:", error);
+    throw error;
+  }
+};
+
+// Kích hoạt/vô hiệu hóa người dùng
+export const toggleUserStatus = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/toggle-status`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Toggle user status error:", error);
+    throw error;
+  }
+};
+
+// Cập nhật vai trò người dùng
+export const updateUserRole = async (userId, role) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/role`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ role }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Update user role error:", error);
+    throw error;
+  }
+};
+
+// Xóa người dùng
+export const deleteUser = async (userId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Delete user error:", error);
+    throw error;
+  }
+};
+
+// Lấy thống kê người dùng
+export const getUserStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/stats`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get user stats error:", error);
+    throw error;
+  }
+};
+
+// Reset mật khẩu người dùng
+export const resetUserPassword = async (userId, newPassword) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/reset-password`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newPassword }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Reset user password error:", error);
+    throw error;
+  }
+};
+
 // ==================== OTHER API ====================

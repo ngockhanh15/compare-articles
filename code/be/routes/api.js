@@ -3,6 +3,7 @@ const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const plagiarismController = require('../controllers/plagiarismController');
 const userUploadRoutes = require('./userUpload');
 const stopwordsRoutes = require('./stopwords');
+const userRoutes = require('./users');
 const router = express.Router();
 
 // ===== PLAGIARISM CHECKING ROUTES =====
@@ -69,5 +70,8 @@ router.use('/user-upload', userUploadRoutes);
 
 // ===== VIETNAMESE STOPWORDS ROUTES =====
 router.use('/stopwords', stopwordsRoutes);
+
+// ===== USER MANAGEMENT ROUTES =====
+router.use('/users', userRoutes);
 
 module.exports = router;
