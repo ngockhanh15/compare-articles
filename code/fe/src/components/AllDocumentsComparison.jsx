@@ -67,33 +67,6 @@ const AllDocumentsComparison = () => {
   const formatDate = (date) => {
     return new Date(date).toLocaleString("vi-VN");
   };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "high":
-        return "text-red-600 bg-red-100 border-red-200";
-      case "medium":
-        return "text-yellow-600 bg-yellow-100 border-yellow-200";
-      case "low":
-        return "text-green-600 bg-green-100 border-green-200";
-      default:
-        return "text-neutral-600 bg-neutral-100 border-neutral-200";
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case "high":
-        return "Cao";
-      case "medium":
-        return "Trung bình";
-      case "low":
-        return "Thấp";
-      default:
-        return "Không xác định";
-    }
-  };
-
   // Helper function để lấy tỷ lệ trùng lặp chính xác
   const getCurrentDocumentDuplicateRate = () => {
     // Ưu tiên kết quả mới nhất từ cây
@@ -241,62 +214,7 @@ const AllDocumentsComparison = () => {
             }
           })
       : [];
-
-  // Debug logging
-  console.log("Full API response data:", data);
-  console.log("Current document:", data?.currentDocument);
-  console.log("Current document duplicate fields:", {
-    duplicateRate: data?.currentDocument?.duplicateRate,
-    duplicatePercentage: data?.currentDocument?.duplicatePercentage,
-  });
-  console.log("Latest comparison result:", latestComparisonResult);
-  console.log(
-    "Latest duplicate percentage:",
-    latestComparisonResult?.result?.duplicatePercentage
-  );
-  console.log("Final duplicate rate used:", getCurrentDocumentDuplicateRate());
-  console.log(
-    "Original text length:",
-    data?.currentDocument?.originalText?.length
-  );
-  console.log(
-    "Highlighted text length:",
-    data?.currentDocument?.highlightedText?.length
-  );
-  console.log(
-    "Latest highlighted text length:",
-    latestComparisonResult?.result?.highlightedText?.length
-  );
-  console.log("Has highlighted text:", hasHighlightedText());
-  console.log(
-    "Current highlighted text preview:",
-    getCurrentHighlightedText()?.substring(0, 200) + "..."
-  );
-  console.log("Highlighted segments:", data?.highlightedSegments);
-  console.log("Raw matching documents:", data?.matchingDocuments);
-  console.log(
-    "Latest sources from tree:",
-    latestComparisonResult?.result?.sources
-  );
-  console.log(
-    "Using latest documents:",
-    latestComparisonResult?.result?.sources?.length > 0
-  );
-  console.log("Matching documents used:", getMatchingDocuments());
-  console.log(
-    "First matching document duplicate fields:",
-    data?.matchingDocuments?.[0]
-      ? {
-          duplicateRate: data.matchingDocuments[0].duplicateRate,
-          duplicatePercentage: data.matchingDocuments[0].duplicatePercentage,
-        }
-      : "No matching documents"
-  );
-  console.log("Filter status:", filterStatus);
-  console.log("Sort by:", sortBy);
-  console.log("Sort order:", sortOrder);
-  console.log("Sorted and filtered documents:", sortedAndFilteredDocuments);
-
+      
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
@@ -429,6 +347,7 @@ const AllDocumentsComparison = () => {
 
         {/* Statistics */}
         <div className="grid gap-6 mb-8 md:grid-cols-3">
+          ``
           <div className="p-6 bg-white shadow-xl rounded-2xl">
             <div className="flex items-center">
               <div className="p-3 mr-4 bg-blue-100 rounded-full">
