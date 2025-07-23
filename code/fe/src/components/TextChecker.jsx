@@ -153,9 +153,24 @@ const TextChecker = () => {
   };
 
   const handleInputChange = (e) => {
-    setInputText(e.target.value);
+    const newText = e.target.value;
+    setInputText(newText);
+    
     // Clear error when user starts typing
     if (error) setError("");
+    
+    // Clear results when text changes significantly
+    if (results && newText.trim() !== inputText.trim()) {
+      setResults(null);
+    }
+    
+    // Clear selected file when user starts typing
+    if (selectedFile && newText.trim().length > 0) {
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const handleCheck = async () => {
@@ -165,6 +180,12 @@ const TextChecker = () => {
     // Validate input
     if (!selectedFile && !inputText.trim()) {
       setError("Vui lòng nhập văn bản hoặc chọn file cần kiểm tra");
+      return;
+    }
+
+    // Validate text length for manual input
+    if (!selectedFile && inputText.trim().length < 10) {
+      setError("Văn bản cần ít nhất 10 ký tự để có thể kiểm tra");
       return;
     }
 
@@ -204,6 +225,13 @@ const TextChecker = () => {
         );
       } else {
         textToCheck = inputText.trim();
+
+        // Additional validation for manual text input
+        if (textToCheck.length === 0) {
+          setError("Văn bản không được để trống");
+          setIsChecking(false);
+          return;
+        }
 
         // Check document similarity with input text
         similarityResult = await checkDocumentSimilarity(
@@ -317,9 +345,23 @@ const TextChecker = () => {
       });
     } catch (error) {
       console.error("Document similarity check error:", error);
-      setError(
-        error.message || "Đã xảy ra lỗi khi kiểm tra trùng lặp với documents"
-      );
+      
+      // Provide more specific error messages
+      let errorMessage = "Đã xảy ra lỗi khi kiểm tra trùng lặp với documents";
+      
+      if (error.message) {
+        if (error.message.includes("network") || error.message.includes("fetch")) {
+          errorMessage = "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet và thử lại.";
+        } else if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+        } else if (error.message.includes("500")) {
+          errorMessage = "Lỗi máy chủ. Vui lòng thử lại sau ít phút.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setError(errorMessage);
       setIsUploading(false);
     }
 
@@ -430,7 +472,7 @@ const TextChecker = () => {
                 <textarea
                   value={inputText}
                   onChange={handleInputChange}
-                  placeholder="Nhập hoặc dán văn bản của bạn vào đây..."
+                  placeholder="Nhập hoặc dán văn bản của bạn vào đây... (tối thiểu 10 ký tự)"
                   className="w-full h-64 p-4 transition-all duration-200 border resize-none bg-neutral-50 border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white"
                 />
 
@@ -442,6 +484,11 @@ const TextChecker = () => {
                         ? inputText.trim().split(/\s+/).length
                         : 0}{" "}
                       từ
+                      {inputText.trim() && (
+                        <span className="ml-2">
+                          • {inputText.trim().split(/[.!?]+/).filter(s => s.trim().length > 0).length} câu
+                        </span>
+                      )}
                     </div>
                     {userDocuments.length > 0 && (
                       <button
@@ -549,7 +596,7 @@ const TextChecker = () => {
                         Loại file:
                       </span>
                       <p className="text-sm text-blue-600">
-                        {results.source === "fiDle"
+                        {results.source === "file"
                           ? "File upload"
                           : "Text input"}
                       </p>
