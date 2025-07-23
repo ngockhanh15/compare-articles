@@ -68,6 +68,13 @@ const performDocumentCheck = async (text, options = {}) => {
       maxResults: 20,
     });
 
+    console.log("DocumentAVLService result:", JSON.stringify(result, null, 2));
+    console.log("Most similar document info:", {
+      mostSimilarDocument: result.mostSimilarDocument,
+      documentWithMostDuplicates: result.documentWithMostDuplicates,
+      maxDuplicateSentences: result.maxDuplicateSentences
+    });
+
     // Chuyển đổi format để tương thích với frontend
     const formattedResult = {
       duplicatePercentage: result.duplicatePercentage || 0,
@@ -102,6 +109,14 @@ const performDocumentCheck = async (text, options = {}) => {
       dtotal: result.dtotal || 0,
       dab: result.dab || 0,
       mostSimilarDocument: result.mostSimilarDocument || null,
+      // Tên document trùng nhất - ưu tiên document có nhiều câu trùng nhất
+      mostSimilarDocumentName: result.documentWithMostDuplicates?.name ||
+                              result.documentWithMostDuplicates?.title ||
+                              result.mostSimilarDocument?.name || 
+                              result.mostSimilarDocument?.title || 
+                              result.mostSimilarDocument?.fileName ||
+                              result.documentWithMostDuplicates?.fileName ||
+                              "",
       // Thêm thông tin về documents
       totalDocumentsInSystem: result.checkedDocuments || 0,
       // Thêm 2 thông số theo yêu cầu
@@ -394,6 +409,7 @@ exports.checkDocumentSimilarity = async (req, res) => {
         totalMatches: result.totalMatches,
         checkedDocuments: result.checkedDocuments,
         // Thêm thông số mới
+         mostSimilarDocumentName: result.mostSimilarDocumentName,
         totalSentencesWithInputWords: result.totalSentencesWithInputWords,
         maxDuplicateSentences: result.maxDuplicateSentences,
         documentWithMostDuplicates: result.documentWithMostDuplicates,
@@ -442,6 +458,8 @@ exports.checkDocumentSimilarity = async (req, res) => {
         matches: result.matches,
         sources: result.sources,
         confidence: result.confidence,
+        mostSimilarDocumentName: result.mostSimilarDocumentName,
+
         textLength: text.length,
         wordCount: text.split(/\s+/).filter((word) => word.length > 0).length,
         processingTime: result.processingTime,
@@ -858,13 +876,18 @@ exports.getDetailedComparison = async (req, res) => {
     );
 
     // Sử dụng DocumentAVLService để kiểm tra giống như checkDocumentSimilarity
-    const result = await documentAVLService.checkDuplicateContent(plagiarismCheck.originalText, {
-      minSimilarity: 30, // Sử dụng threshold thấp để có nhiều kết quả hơn
-      chunkSize: 50,
-      maxResults: 20,
-    });
+    const result = await documentAVLService.checkDuplicateContent(
+      plagiarismCheck.originalText,
+      {
+        minSimilarity: 30, // Sử dụng threshold thấp để có nhiều kết quả hơn
+        chunkSize: 50,
+        maxResults: 20,
+      }
+    );
 
-    console.log(`DocumentAVLService found ${result.matches.length} matches with ${result.duplicatePercentage}% duplicate`);
+    console.log(
+      `DocumentAVLService found ${result.matches.length} matches with ${result.duplicatePercentage}% duplicate`
+    );
 
     // Khởi tạo biến
     let mostSimilarDocument = null;
@@ -874,20 +897,29 @@ exports.getDetailedComparison = async (req, res) => {
 
     // Tìm document có similarity cao nhất
     if (result.matches && result.matches.length > 0) {
-      const bestMatch = result.matches.reduce((prev, current) => 
-        (prev.similarity > current.similarity) ? prev : current
+      const bestMatch = result.matches.reduce((prev, current) =>
+        prev.similarity > current.similarity ? prev : current
       );
 
       if (bestMatch) {
-        console.log(`Best match found: ${bestMatch.title || 'Unknown'} with ${bestMatch.similarity}% similarity`);
-        
+        console.log(
+          `Best match found: ${bestMatch.title || "Unknown"} with ${
+            bestMatch.similarity
+          }% similarity`
+        );
+
         mostSimilarDocument = {
-          fileName: bestMatch.title || `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
+          fileName:
+            bestMatch.title ||
+            `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
           fileSize: bestMatch.textLength || 0,
           fileType: bestMatch.fileType || "text/plain",
           author: bestMatch.uploadedBy?.name || "Unknown",
           uploadedAt: bestMatch.createdAt || new Date(),
-          wordCount: bestMatch.matchedText ? bestMatch.matchedText.split(/\s+/).filter(w => w.length > 0).length : 0,
+          wordCount: bestMatch.matchedText
+            ? bestMatch.matchedText.split(/\s+/).filter((w) => w.length > 0)
+                .length
+            : 0,
         };
         mostSimilarContent = bestMatch.matchedText || "";
       }
@@ -895,23 +927,30 @@ exports.getDetailedComparison = async (req, res) => {
 
     // Tạo detailed matches từ kết quả DocumentAVLService
     console.log("Creating detailed matches from DocumentAVLService results...");
-    
+
     result.matches.forEach((match, index) => {
       const originalText = plagiarismCheck.originalText;
-      const matchText = match.matchedText ? match.matchedText.substring(0, 200) + "..." : "Document content";
-      
+      const matchText = match.matchedText
+        ? match.matchedText.substring(0, 200) + "..."
+        : "Document content";
+
       // Tìm vị trí của match trong text gốc (đơn giản hóa)
-      const startIndex = originalText.toLowerCase().indexOf(matchText.toLowerCase().substring(0, 50));
-      
+      const startIndex = originalText
+        .toLowerCase()
+        .indexOf(matchText.toLowerCase().substring(0, 50));
+
       detailedMatches.push({
         id: `avl-match-${index + 1}`,
         originalText: matchText,
         matchedText: matchText,
         similarity: match.similarity,
-        source: match.title || `Document-${match.documentId.toString().substring(0, 8)}`,
+        source:
+          match.title ||
+          `Document-${match.documentId.toString().substring(0, 8)}`,
         url: `internal://document/${match.documentId}`,
         startPosition: startIndex >= 0 ? startIndex : 0,
-        endPosition: startIndex >= 0 ? startIndex + matchText.length : matchText.length,
+        endPosition:
+          startIndex >= 0 ? startIndex + matchText.length : matchText.length,
         documentId: match.documentId,
         fileType: match.fileType,
         createdAt: match.createdAt,
@@ -921,7 +960,9 @@ exports.getDetailedComparison = async (req, res) => {
       });
     });
 
-    console.log(`Created ${detailedMatches.length} detailed matches from DocumentAVLService`);
+    console.log(
+      `Created ${detailedMatches.length} detailed matches from DocumentAVLService`
+    );
 
     // Sắp xếp matches theo similarity (cao nhất trước)
     detailedMatches.sort((a, b) => b.similarity - a.similarity);
@@ -1035,6 +1076,10 @@ exports.getDetailedComparison = async (req, res) => {
               "Không có document tương tự trong hệ thống để so sánh.",
           },
       overallSimilarity: overallSimilarity || 0,
+      mostSimilarDocument: result.mostSimilarDocument || null,
+      mostSimilarDocumentName: result.mostSimilarDocument
+        ? result.mostSimilarDocument.name
+        : "",
       detailedMatches: detailedMatches || [],
       // Thêm các thông số mới từ DocumentAVLService giống checkDocumentSimilarity
       totalMatches: result.totalMatches || 0,
@@ -1366,16 +1411,19 @@ function createHighlightedText(originalText, documents) {
     // Tạo tập hợp cặp từ từ văn bản gốc (đồng nhất với checkDuplicateContent trong DocumentAVLService)
     // Điều này đảm bảo kết quả nhất quán giữa hai chức năng
     const vietnameseStopwordService = require("../services/VietnameseStopwordService");
-    const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(originalText);
-    
+    const meaningfulWords =
+      vietnameseStopwordService.extractMeaningfulWords(originalText);
+
     // Tạo danh sách các cặp từ từ văn bản đầu vào (giống như trong checkDuplicateContent)
     const wordPairs = [];
     for (let i = 0; i < meaningfulWords.length - 1; i++) {
       wordPairs.push(`${meaningfulWords[i]}_${meaningfulWords[i + 1]}`);
     }
     const uniqueInputWordPairs = new Set(wordPairs);
-    
-    console.log(`📊 Created ${uniqueInputWordPairs.size} unique word pairs from input text for sentence comparison`);
+
+    console.log(
+      `📊 Created ${uniqueInputWordPairs.size} unique word pairs from input text for sentence comparison`
+    );
 
     // Tách văn bản gốc thành các câu
     const originalSentences = originalText
@@ -1495,7 +1543,11 @@ function generateHighlightedText(originalText, segments, colors) {
 
 // Hàm helper để tính toán độ trùng lặp của một câu với một tài liệu
 // Sử dụng cùng phương pháp với checkDuplicateContent trong DocumentAVLService
-function calculateSentenceDuplicateRatio(sentence, documentContent, inputWordPairs = null) {
+function calculateSentenceDuplicateRatio(
+  sentence,
+  documentContent,
+  inputWordPairs = null
+) {
   try {
     // Sử dụng Vietnamese stopword service để lấy các từ có nghĩa
     const vietnameseStopwordService = require("../services/VietnameseStopwordService");
@@ -1506,8 +1558,9 @@ function calculateSentenceDuplicateRatio(sentence, documentContent, inputWordPai
       uniqueInputWordPairs = inputWordPairs;
     } else {
       // Tách tài liệu thành các từ có nghĩa
-      const docWords = vietnameseStopwordService.extractMeaningfulWords(documentContent);
-      
+      const docWords =
+        vietnameseStopwordService.extractMeaningfulWords(documentContent);
+
       // Tạo danh sách các cặp từ từ tài liệu (giống như trong checkDuplicateContent)
       const wordPairs = [];
       for (let i = 0; i < docWords.length - 1; i++) {
@@ -1517,8 +1570,9 @@ function calculateSentenceDuplicateRatio(sentence, documentContent, inputWordPai
     }
 
     // Tách câu thành các từ có nghĩa
-    const sentenceWords = vietnameseStopwordService.extractMeaningfulWords(sentence);
-    
+    const sentenceWords =
+      vietnameseStopwordService.extractMeaningfulWords(sentence);
+
     // Tạo các cặp từ trong câu
     const sentenceWordPairs = [];
     for (let i = 0; i < sentenceWords.length - 1; i++) {
@@ -1535,7 +1589,8 @@ function calculateSentenceDuplicateRatio(sentence, documentContent, inputWordPai
     // (đồng nhất với checkDuplicateContent)
     let duplicateRatio = 0;
     if (uniqueSentenceWordPairs.size > 0) {
-      duplicateRatio = (matchedWordPairs.length / uniqueSentenceWordPairs.size) * 100;
+      duplicateRatio =
+        (matchedWordPairs.length / uniqueSentenceWordPairs.size) * 100;
     }
 
     return duplicateRatio;

@@ -406,7 +406,13 @@ async checkDuplicateContent(text, options = {}) {
     for (const match of allMatches) {
       if (match.duplicateSentences > maxDuplicateSentences) {
         maxDuplicateSentences = match.duplicateSentences;
-        documentWithMostDuplicates = match.documentId;
+        documentWithMostDuplicates = {
+          id: match.documentId,
+          name: match.title,
+          title: match.title,
+          fileName: match.title, // Fallback
+          duplicateSentences: match.duplicateSentences
+        };
       }
     }
 

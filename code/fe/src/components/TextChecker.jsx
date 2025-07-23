@@ -226,10 +226,28 @@ const TextChecker = () => {
       const wordCount = result.wordCount || 0;
       const charCount = result.textLength || 0;
 
+      console.log("Document similarity result:", result);
+      console.log("Full similarity result object:", similarityResult);
+
+      // Lấy tên document trùng nhất từ nhiều nguồn có thể
+      const documentName = result.mostSimilarDocumentName || 
+                          result.nameDocumentWithMostDuplicates || 
+                          result.documentWithMostDuplicates?.name ||
+                          result.documentWithMostDuplicates?.title ||
+                          result.documentWithMostDuplicates?.fileName ||
+                          (result.mostSimilarDocument && result.mostSimilarDocument.name) ||
+                          (result.mostSimilarDocument && result.mostSimilarDocument.title) ||
+                          (result.mostSimilarDocument && result.mostSimilarDocument.fileName) ||
+                          "";
+
+      console.log("Document name found:", documentName);
+      console.log("Available fields in result:", Object.keys(result));
+
       setDetailedStats({
         totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
         maxDuplicateSentences: result.maxDuplicateSentences || 0,
         documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+        nameDocumentWithMostDuplicates: documentName,
         totalDuplicateSentences: result.totalDuplicateSentences || 0,
         totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
         totalUniqueWords: result.totalUniqueWords || 0,
@@ -293,6 +311,7 @@ const TextChecker = () => {
         totalDuplicateSentences: result.totalDuplicateSentences || 0,
         totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
         totalUniqueWords: result.totalUniqueWords || 0,
+        nameDocumentWithMostDuplicates: documentName,
         // Thông tin về loại kiểm tra
         checkType: "document-based",
       });
@@ -545,35 +564,39 @@ const TextChecker = () => {
                       </h3>
 
                       {/* Thông tin về tài liệu trùng lặp nhiều nhất */}
-                      {results.documentWithMostDuplicates && (
+                      {(results.nameDocumentWithMostDuplicates || results.maxDuplicateSentences > 0) && (
                         <div className="p-4 mt-4 rounded-lg bg-green-50">
                           <h4 className="mb-2 font-medium text-green-800">
                             Tài liệu trùng lặp nhiều nhất
                           </h4>
                           <p className="text-sm text-neutral-600">
-                            Tài liệu có ID:{" "}
-                            <span className="font-medium">
-                              {results.documentWithMostDuplicates}
-                            </span>{" "}
-                            có
-                            <span className="font-medium">
-                              {" "}
-                              {results.maxDuplicateSentences}
-                            </span>{" "}
-                            câu trùng lặp với văn bản của bạn.
+                            {results.nameDocumentWithMostDuplicates ? (
+                              <>
+                                Tài liệu "{" "}
+                                <span className="font-medium text-green-700">
+                                  {results.nameDocumentWithMostDuplicates}
+                                </span>
+                                " có{" "}
+                                <span className="font-medium text-green-700">
+                                  {results.maxDuplicateSentences}
+                                </span>{" "}
+                                câu trùng lặp với văn bản của bạn.
+                              </>
+                            ) : (
+                              <>
+                                Có{" "}
+                                <span className="font-medium text-green-700">
+                                  {results.maxDuplicateSentences}
+                                </span>{" "}
+                                câu trùng lặp được tìm thấy với một tài liệu trong hệ thống.
+                              </>
+                            )}
                           </p>
-                          <button
-                            className="px-3 py-1 mt-2 text-xs font-medium text-green-700 transition-colors bg-green-100 rounded hover:bg-green-200"
-                            onClick={() => {
-                              // Thêm logic để xem chi tiết tài liệu này nếu cần
-                              console.log(
-                                "Xem chi tiết tài liệu:",
-                                results.documentWithMostDuplicates
-                              );
-                            }}
-                          >
-                            Xem chi tiết
-                          </button>
+                          {!results.nameDocumentWithMostDuplicates && (
+                            <p className="mt-2 text-xs text-orange-600">
+                              * Tên tài liệu không được trả về từ API
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
