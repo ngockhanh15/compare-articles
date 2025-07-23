@@ -219,38 +219,34 @@ const DetailedComparison = () => {
   // Debug: Log dữ liệu để kiểm tra
   console.log("DetailedComparison data:", {
     currentDocument: data.currentDocument,
-    currentDocumentContent: data.currentDocument?.content?.substring(0, 100),
     mostSimilarDocument: data.mostSimilarDocument,
-    mostSimilarDocumentContent: data.mostSimilarDocument?.content?.substring(
-      0,
-      100
-    ),
     detailedMatches: data.detailedMatches?.length,
     filteredMatches: filteredMatches.length,
     overallSimilarity: data.overallSimilarity,
+    totalMatches: data.totalMatches,
+    checkedDocuments: data.checkedDocuments,
+    totalDuplicateSentences: data.totalDuplicateSentences,
   });
 
-  // Debug: Log chi tiết matches
-  if (filteredMatches && filteredMatches.length > 0) {
-    console.log("=== FILTERED MATCHES DEBUG ===");
-    console.log("Total matches:", data.detailedMatches?.length || 0);
-    console.log("Filtered matches (>50%):", filteredMatches.length);
-    
-    filteredMatches.forEach((match, index) => {
+  // Debug: Log chi tiết để kiểm tra nội dung
+  if (data.detailedMatches && data.detailedMatches.length > 0) {
+    console.log("=== CONTENT COMPARISON DEBUG ===");
+    data.detailedMatches.forEach((match, index) => {
+      const extractedContent = match.startPosition !== undefined && match.endPosition !== undefined && data.currentDocument?.content
+        ? data.currentDocument.content.substring(match.startPosition, match.endPosition)
+        : null;
+      
       console.log(`Match ${index + 1}:`, {
-        id: match.id,
-        originalText: match.originalText ? match.originalText.substring(0, 100) + "..." : "NULL/UNDEFINED",
-        matchedText: match.matchedText ? match.matchedText.substring(0, 100) + "..." : "NULL/UNDEFINED", 
-        text: match.text ? match.text.substring(0, 100) + "..." : "NULL/UNDEFINED",
-        similarity: match.similarity,
-        source: match.source,
-        allKeys: Object.keys(match)
+        originalText: match.originalText,
+        matchedText: match.matchedText,
+        extractedFromUserDoc: extractedContent,
+        startPosition: match.startPosition,
+        endPosition: match.endPosition,
+        areTheSame: match.originalText === match.matchedText,
+        userDocContent: data.currentDocument?.content?.substring(0, 200) + "..."
       });
     });
-    
     console.log("=== END DEBUG ===");
-  } else {
-    console.log("❌ NO FILTERED MATCHES FOUND (>50%)");
   }
 
   return (
@@ -286,22 +282,20 @@ const DetailedComparison = () => {
         </div>
 
         {/* Statistics Overview */}
-        {filteredMatches && filteredMatches.length > 0 && (
-          <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
-            <h2 className="flex items-center mb-4 text-lg font-semibold text-neutral-800">
-              <span className="mr-2">📊</span>
-              Thống kê so sánh (chỉ tính câu trùng &gt;50%)
-            </h2>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="p-4 text-center border border-blue-200 rounded-lg bg-blue-50">
-                <div className="text-2xl font-bold text-blue-600">
-                  {filteredMatches?.length || 0}
-                </div>
-                <div className="text-sm text-blue-700">Câu trùng lặp</div>
+        <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
+          <h2 className="flex items-center mb-4 text-lg font-semibold text-neutral-800">
+            <span className="mr-2">📊</span>
+            Thống kê so sánh
+          </h2>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="p-4 text-center border border-green-200 rounded-lg bg-green-50">
+              <div className="text-2xl font-bold text-green-600">
+                {data.totalDuplicateSentences || 0}
               </div>
+              <div className="text-sm text-green-700">Câu trùng lặp</div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Document Info Cards */}
         <div className="grid gap-6 mb-8 lg:grid-cols-2">
@@ -361,41 +355,21 @@ const DetailedComparison = () => {
             </h2>
             <div className="space-y-3">
               <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">Tên file:</span>
+                <span className="font-medium text-neutral-700">Tên document:</span>
                 <span className="text-neutral-600">
-                  {data.mostSimilarDocument?.fileName || "N/A"}
+                  {data.mostSimilarDocument?.name || data.mostSimilarDocumentName || "N/A"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">
-                  Kích thước:
-                </span>
-                <span className="text-neutral-600">
-                  {data.mostSimilarDocument?.fileSize
-                    ? formatFileSize(data.mostSimilarDocument.fileSize)
-                    : "N/A"}
+                <span className="font-medium text-neutral-700">ID:</span>
+                <span className="font-mono text-xs text-neutral-600">
+                  {data.mostSimilarDocument?.id || "N/A"}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">Loại file:</span>
+                <span className="font-medium text-neutral-700">Câu trùng lặp:</span>
                 <span className="text-neutral-600">
-                  {formatFileType(data.mostSimilarDocument?.fileType)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">Tác giả:</span>
-                <span className="text-neutral-600">
-                  {data.mostSimilarDocument?.author || "N/A"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium text-neutral-700">
-                  Upload lúc:
-                </span>
-                <span className="text-neutral-600">
-                  {data.mostSimilarDocument?.uploadedAt
-                    ? formatDate(data.mostSimilarDocument.uploadedAt)
-                    : "N/A"}
+                  {data.documentWithMostDuplicates?.duplicateSentences || 0} câu
                 </span>
               </div>
             </div>
@@ -431,11 +405,18 @@ const DetailedComparison = () => {
                         </span>
                       </div>
                     </div>
-                    {match.source && (
-                      <span className="px-2 py-1 text-xs rounded bg-neutral-200 text-neutral-600">
-                        Nguồn: {match.source}
-                      </span>
-                    )}
+                    <div className="flex gap-2">
+                      {match.source && (
+                        <span className="px-2 py-1 text-xs rounded bg-neutral-200 text-neutral-600">
+                          Nguồn: {match.source}
+                        </span>
+                      )}
+                      {match.fileType && (
+                        <span className="px-2 py-1 text-xs text-green-600 bg-green-200 rounded">
+                          {formatFileType(match.fileType)}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* So sánh 2 câu cạnh nhau */}
@@ -450,13 +431,24 @@ const DetailedComparison = () => {
                       </div>
                       <div className="p-4 border-2 border-blue-300 rounded-lg shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
                         <p className="text-sm leading-relaxed text-neutral-800">
-                          {match.originalText || match.text || "Không có nội dung gốc"}
+                          {(() => {
+                            // Lấy nội dung thực từ document của người dùng
+                            if (match.startPosition !== undefined && match.endPosition !== undefined && data.currentDocument?.content) {
+                              const originalContent = data.currentDocument.content.substring(match.startPosition, match.endPosition);
+                              return originalContent || "Không thể lấy nội dung gốc";
+                            }
+                            // Fallback (có thể không chính xác)
+                            return match.originalText || "Không có nội dung gốc";
+                          })()}
                         </p>
-                        {(!match.originalText && !match.text) && (
-                          <div className="p-2 mt-2 text-xs text-yellow-700 bg-yellow-100 border border-yellow-300 rounded">
-                            ⚠️ Dữ liệu câu gốc không có từ backend
-                          </div>
-                        )}
+                        <div className="mt-2 text-xs text-blue-600">
+                          <strong>Nguồn:</strong> Document của bạn
+                          {match.startPosition !== undefined && match.endPosition !== undefined && (
+                            <span className="ml-2">
+                              (Vị trí: {match.startPosition}-{match.endPosition})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -465,21 +457,83 @@ const DetailedComparison = () => {
                       <div className="flex items-center mb-3">
                         <span className="mr-2 text-lg">📋</span>
                         <h4 className="text-sm font-bold tracking-wide text-orange-700 uppercase">
-                          Câu trùng lặp trong document giống nhất
+                          Câu trùng lặp từ {match.source}
                         </h4>
                       </div>
                       <div className="p-4 border-2 border-orange-300 rounded-lg shadow-sm bg-gradient-to-br from-orange-50 to-orange-100">
                         <p className="text-sm leading-relaxed text-neutral-800">
-                          {match.matchedText || match.text || "Không có nội dung trùng lặp"}
+                          {match.matchedText || "Không có nội dung trùng lặp"}
                         </p>
-                        {(!match.matchedText && !match.text) && (
-                          <div className="p-2 mt-2 text-xs text-yellow-700 bg-yellow-100 border border-yellow-300 rounded">
-                            ⚠️ Dữ liệu câu trùng lặp không có từ backend
-                          </div>
-                        )}
+                        <div className="mt-2 text-xs text-orange-600">
+                          <strong>Nguồn:</strong> {match.source}
+                          {match.documentId && (
+                            <span className="ml-2">
+                              (ID: <span className="font-mono">{match.documentId}</span>)
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Thông tin chi tiết về từ trùng lặp */}
+                  {match.duplicateSentencesDetails && match.duplicateSentencesDetails.length > 0 && (
+                    <div className="pt-4 mt-4 border-t border-neutral-300">
+                      <h5 className="mb-3 text-sm font-semibold text-neutral-700">
+                        📊 Chi tiết phân tích trùng lặp:
+                      </h5>
+                      {match.duplicateSentencesDetails.map((detail, detailIndex) => (
+                        <div key={detailIndex} className="p-3 mb-3 border rounded-lg bg-neutral-50 border-neutral-200">
+                          <div className="grid gap-2 text-xs">
+                            <div className="flex justify-between">
+                              <span className="font-medium text-neutral-600">Tỷ lệ trùng lặp:</span>
+                              <span className="font-bold text-neutral-800">{detail.duplicateRatio?.toFixed(2)}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="font-medium text-neutral-600">Từ trùng lặp:</span>
+                              <span className="text-neutral-800">{detail.matchedWords?.length || 0}/{detail.totalWordPairs || 0}</span>
+                            </div>
+                            {match.startPosition !== undefined && match.endPosition !== undefined && (
+                              <div className="flex justify-between">
+                                <span className="font-medium text-neutral-600">Vị trí:</span>
+                                <span className="text-neutral-800">{match.startPosition} - {match.endPosition}</span>
+                              </div>
+                            )}
+                            {match.createdAt && (
+                              <div className="flex justify-between">
+                                <span className="font-medium text-neutral-600">Tạo lúc:</span>
+                                <span className="text-neutral-800">{formatDate(match.createdAt)}</span>
+                              </div>
+                            )}
+                            {detail.matchedWords && detail.matchedWords.length > 0 && (
+                              <div>
+                                <span className="font-medium text-neutral-600">Các từ trùng: </span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {detail.matchedWords.map((word, wordIndex) => (
+                                    <span key={wordIndex} className="px-2 py-1 text-xs text-blue-700 bg-blue-100 rounded">
+                                      {word}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {detail.matchedWordPairs && detail.matchedWordPairs.length > 0 && (
+                              <div>
+                                <span className="font-medium text-neutral-600">Cặp từ trùng: </span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {detail.matchedWordPairs.map((pair, pairIndex) => (
+                                    <span key={pairIndex} className="px-2 py-1 text-xs text-green-700 bg-green-100 rounded">
+                                      {pair.replace('_', ' → ')}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Thanh chỉ báo mức độ trùng lặp */}
                   <div className="pt-3 mt-4 border-t border-neutral-300">
@@ -538,13 +592,13 @@ const DetailedComparison = () => {
                 </div>
               )}
               
-              {data.mostSimilarDocument && data.mostSimilarDocument.fileName !== 'Không tìm thấy document tương tự' && (
+              {data.mostSimilarDocument && data.mostSimilarDocument.name && (
                 <div className="max-w-lg p-4 mx-auto mb-4 border border-green-200 rounded-lg bg-green-50">
                   <h4 className="mb-2 font-semibold text-green-800">📋 Document tương tự nhất:</h4>
                   <p className="text-sm text-green-700">
-                    <strong>{data.mostSimilarDocument.fileName}</strong><br/>
-                    Tác giả: {data.mostSimilarDocument.author}<br/>
-                    Tỷ lệ tương tự: {data.overallSimilarity}%
+                    <strong>{data.mostSimilarDocument.name}</strong><br/>
+                    ID: {data.mostSimilarDocument.id}<br/>
+                    Tỷ lệ tương tự: {data.mostSimilarDocument.similarity || data.overallSimilarity}%
                   </p>
                 </div>
               )}
@@ -552,9 +606,10 @@ const DetailedComparison = () => {
               <div className="max-w-md p-4 mx-auto border rounded-lg border-neutral-200 bg-neutral-50">
                 <p className="text-xs text-neutral-600">
                   <strong>Thông tin kỹ thuật:</strong><br/>
-                  - Matches tìm thấy: {data.detailedMatches ? data.detailedMatches.length : 0}<br/>
+                  - Matches tìm thấy: {data.totalMatches || 0}<br/>
                   - Matches hiển thị (&gt;50%): {filteredMatches ? filteredMatches.length : 0}<br/>
-                  - Tỷ lệ tương tự tổng thể: {data.overallSimilarity || 0}%<br/>
+                  - Documents đã kiểm tra: {data.checkedDocuments || 0}<br/>
+                  - Tổng câu trùng lặp: {data.totalDuplicateSentences || 0}<br/>
                   - Ngưỡng hiển thị: &gt;50%
                 </p>
               </div>
