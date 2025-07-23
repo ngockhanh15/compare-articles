@@ -155,15 +155,15 @@ const TextChecker = () => {
   const handleInputChange = (e) => {
     const newText = e.target.value;
     setInputText(newText);
-    
+
     // Clear error when user starts typing
     if (error) setError("");
-    
+
     // Clear results when text changes significantly
     if (results && newText.trim() !== inputText.trim()) {
       setResults(null);
     }
-    
+
     // Clear selected file when user starts typing
     if (selectedFile && newText.trim().length > 0) {
       setSelectedFile(null);
@@ -258,15 +258,16 @@ const TextChecker = () => {
       console.log("Full similarity result object:", similarityResult);
 
       // Lấy tên document trùng nhất từ nhiều nguồn có thể
-      const documentName = result.mostSimilarDocumentName || 
-                          result.nameDocumentWithMostDuplicates || 
-                          result.documentWithMostDuplicates?.name ||
-                          result.documentWithMostDuplicates?.title ||
-                          result.documentWithMostDuplicates?.fileName ||
-                          (result.mostSimilarDocument && result.mostSimilarDocument.name) ||
-                          (result.mostSimilarDocument && result.mostSimilarDocument.title) ||
-                          (result.mostSimilarDocument && result.mostSimilarDocument.fileName) ||
-                          "";
+      const documentName =
+        result.mostSimilarDocumentName ||
+        result.nameDocumentWithMostDuplicates ||
+        result.documentWithMostDuplicates?.name ||
+        result.documentWithMostDuplicates?.title ||
+        result.documentWithMostDuplicates?.fileName ||
+        (result.mostSimilarDocument && result.mostSimilarDocument.name) ||
+        (result.mostSimilarDocument && result.mostSimilarDocument.title) ||
+        (result.mostSimilarDocument && result.mostSimilarDocument.fileName) ||
+        "";
 
       console.log("Document name found:", documentName);
       console.log("Available fields in result:", Object.keys(result));
@@ -345,14 +346,21 @@ const TextChecker = () => {
       });
     } catch (error) {
       console.error("Document similarity check error:", error);
-      
+
       // Provide more specific error messages
       let errorMessage = "Đã xảy ra lỗi khi kiểm tra trùng lặp với documents";
-      
+
       if (error.message) {
-        if (error.message.includes("network") || error.message.includes("fetch")) {
-          errorMessage = "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet và thử lại.";
-        } else if (error.message.includes("401") || error.message.includes("unauthorized")) {
+        if (
+          error.message.includes("network") ||
+          error.message.includes("fetch")
+        ) {
+          errorMessage =
+            "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối internet và thử lại.";
+        } else if (
+          error.message.includes("401") ||
+          error.message.includes("unauthorized")
+        ) {
           errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
         } else if (error.message.includes("500")) {
           errorMessage = "Lỗi máy chủ. Vui lòng thử lại sau ít phút.";
@@ -360,7 +368,7 @@ const TextChecker = () => {
           errorMessage = error.message;
         }
       }
-      
+
       setError(errorMessage);
       setIsUploading(false);
     }
@@ -486,7 +494,14 @@ const TextChecker = () => {
                       từ
                       {inputText.trim() && (
                         <span className="ml-2">
-                          • {inputText.trim().split(/[.!?]+/).filter(s => s.trim().length > 0).length} câu
+                          •{" "}
+                          {
+                            inputText
+                              .trim()
+                              .split(/[.!?]+/)
+                              .filter((s) => s.trim().length > 0).length
+                          }{" "}
+                          câu
                         </span>
                       )}
                     </div>
@@ -604,14 +619,16 @@ const TextChecker = () => {
                   </div>
 
                   {/* Thêm vào phần hiển thị kết quả */}
-                  {results && (
+                  {results.nameDocumentWithMostDuplicates ||
+                        results.maxDuplicateSentences > 0 && (
                     <div className="p-6 mt-6 mb-3 bg-white shadow-lg rounded-xl">
                       <h3 className="mb-4 text-xl font-semibold text-neutral-800">
                         Thống kê chi tiết
                       </h3>
 
                       {/* Thông tin về tài liệu trùng lặp nhiều nhất */}
-                      {(results.nameDocumentWithMostDuplicates || results.maxDuplicateSentences > 0) && (
+                      {(results.nameDocumentWithMostDuplicates ||
+                        results.maxDuplicateSentences > 0) && (
                         <div className="p-4 mt-4 rounded-lg bg-green-50">
                           <h4 className="mb-2 font-medium text-green-800">
                             Tài liệu trùng lặp nhiều nhất
@@ -635,7 +652,8 @@ const TextChecker = () => {
                                 <span className="font-medium text-green-700">
                                   {results.maxDuplicateSentences}
                                 </span>{" "}
-                                câu trùng lặp được tìm thấy với một tài liệu trong hệ thống.
+                                câu trùng lặp được tìm thấy với một tài liệu
+                                trong hệ thống.
                               </>
                             )}
                           </p>
@@ -699,7 +717,7 @@ const TextChecker = () => {
 
                 {/* Comparison Buttons */}
                 <div className="flex gap-3">
-                  {results?.checkId ? (
+                  {results?.checkId && results.maxDuplicateSentences > 0 && (
                     <Link
                       to={`/detailed-comparison/${results.checkId}`}
                       className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -707,17 +725,9 @@ const TextChecker = () => {
                       <span className="mr-2">🔍</span>
                       So sánh với document giống nhất
                     </Link>
-                  ) : (
-                    <button
-                      disabled
-                      className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-gray-400 rounded-lg opacity-50 cursor-not-allowed"
-                    >
-                      <span className="mr-2">🔍</span>
-                      So sánh với document giống nhất
-                    </button>
                   )}
 
-                  {results?.checkId ? (
+                  {results?.checkId && results.totalDuplicateSentences > 0 && (
                     <Link
                       to={`/all-documents-comparison/${results.checkId}`}
                       className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -725,14 +735,6 @@ const TextChecker = () => {
                       <span className="mr-2">📊</span>
                       So sánh với toàn bộ documents
                     </Link>
-                  ) : (
-                    <button
-                      disabled
-                      className="flex items-center px-4 py-2 text-sm font-medium text-gray-400 transition-all duration-200 bg-white border border-gray-300 rounded-lg opacity-50 cursor-not-allowed"
-                    >
-                      <span className="mr-2">📊</span>
-                      So sánh với toàn bộ documents
-                    </button>
                   )}
                 </div>
 
