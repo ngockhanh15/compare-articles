@@ -262,11 +262,6 @@ const TextChecker = () => {
       // Số câu trùng lặp thực tế
       const duplicateSentencesCount = duplicateSentencesFromText.size;
 
-      // Tính tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
-      const dtotalPercentage = duplicateSentencesCount;
-
-      console.log("Detailed comparison data:", treeStats);
-
       setResults({
         checkId: similarityResult.checkId,
         duplicateRate: realData.overallSimilarity || 0,

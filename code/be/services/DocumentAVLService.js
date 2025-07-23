@@ -221,7 +221,6 @@ async checkDuplicateContent(text, options = {}) {
 
     // Bước 1: Mã hóa văn bản input thành word hashes
     const inputHashes = TextHasher.createWordHashes(text, true);
-    console.log(`🔢 Generated ${inputHashes.length} word hashes from input text`);
 
     // Tạo danh sách các từ có nghĩa (không lặp lại) từ văn bản đầu vào
     const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(text);
@@ -300,25 +299,32 @@ async checkDuplicateContent(text, options = {}) {
         }
         const uniqueSentenceWordPairs = new Set(sentenceWordPairs);
         
-        // Đếm số từ trùng lặp (không lặp lại)
-        const matchedWords = [...uniqueSentenceWords].filter(word => uniqueInputWords.has(word));
+        // Tìm các cặp từ trùng lặp (đồng nhất với plagiarismController.js)
+        const matchedWordPairs = [...uniqueSentenceWordPairs].filter((pair) =>
+          uniqueWordPairs.has(pair)
+        );
         
-        // Tính tỷ lệ trùng lặp theo công thức mới
+        // Tính tỷ lệ trùng lặp theo công thức: (số cặp từ trùng / số cặp từ trong câu) * 100 (đồng nhất với plagiarismController.js)
         let duplicateRatio = 0;
         if (uniqueSentenceWordPairs.size > 0) {
-          duplicateRatio = (matchedWords.length / uniqueSentenceWordPairs.size) * 100;
+          duplicateRatio = (matchedWordPairs.length / uniqueSentenceWordPairs.size) * 100;
         }
         
         // Kiểm tra xem câu có trùng lặp không theo tiêu chí mới
         const isDuplicate = duplicateRatio > 50;
+        
+        // Đếm số từ trùng lặp (để tương thích với logic cũ)
+        const matchedWords = [...uniqueSentenceWords].filter(word => uniqueInputWords.has(word));
         
         // Nếu câu trùng lặp, thêm vào danh sách
         if (isDuplicate) {
           matchData.matchedSentences.push({
             sentence,
             duplicateRatio,
-            matchedWords,
-            totalWordPairs: uniqueSentenceWordPairs.size
+            matchedWordPairs, // Sử dụng matchedWordPairs thay vì matchedWords
+            matchedWords, // Giữ lại để tương thích
+            totalWordPairs: uniqueSentenceWordPairs.size,
+            matchedWordPairsCount: matchedWordPairs.length
           });
           totalDuplicateSentences++;
         }
@@ -344,10 +350,14 @@ async checkDuplicateContent(text, options = {}) {
         continue;
       }
 
-      // Tính plagiarism ratio = (số hash trùng / tổng số hash input) * 100
-      const plagiarismRatio = Math.round((matchedHashes / totalInputHashes) * 100);
+      // Tính sentence-level similarity = trung bình similarity của các câu trùng lặp
+      let plagiarismRatio = 0;
+      if (matchedSentences.length > 0) {
+        const totalSimilarity = matchedSentences.reduce((sum, sentence) => sum + sentence.duplicateRatio, 0);
+        plagiarismRatio = Math.round(totalSimilarity / matchedSentences.length);
+      }
 
-      console.log(`📊 Document "${documentData.title}": ${matchedHashes}/${totalInputHashes} unique word hashes matched = ${plagiarismRatio}%`);
+      console.log(`📊 Document "${documentData.title}": ${matchedSentences.length} duplicate sentences with average similarity = ${plagiarismRatio}%`);
       console.log(`🔤 Matched words: ${matchedWords.slice(0, 10).join(", ")}${matchedWords.length > 10 ? "..." : ""}`);
       console.log(`📝 Duplicate sentences: ${matchedSentences.length}`);
 
@@ -363,19 +373,24 @@ async checkDuplicateContent(text, options = {}) {
         matchedWords: matchedWords,
         matchedText: documentData.fullText.substring(0, 500) + "...", // Preview
         inputText: text.substring(0, 500) + "...", // Preview
-        method: "avl-word-hash-based",
+        method: "sentence-level-similarity",
         source: "document-avl-tree",
         duplicateSentences: matchedSentences.length, // Số câu trùng lặp
         duplicateSentencesDetails: matchedSentences.slice(0, 5) // Chi tiết 5 câu trùng đầu tiên
       };
 
-      // Thêm vào allMatches để tính Dtotal
-      allMatches.push(matchObject);
+      // Chỉ xử lý documents có câu trùng lặp (sentence-level similarity > 0)
+      if (matchedSentences.length > 0) {
+        // Thêm vào allMatches để tính Dtotal
+        allMatches.push(matchObject);
 
-      // Chỉ thêm vào matches chính nếu vượt threshold
-      if (plagiarismRatio >= minSimilarity) {
-        console.log(`✅ Document "${documentData.title}" exceeds threshold (${plagiarismRatio}% >= ${minSimilarity}%)`);
-        matches.push(matchObject);
+        // Chỉ thêm vào matches chính nếu vượt threshold
+        if (plagiarismRatio >= minSimilarity) {
+          console.log(`✅ Document "${documentData.title}" exceeds threshold (${plagiarismRatio}% >= ${minSimilarity}%)`);
+          matches.push(matchObject);
+        }
+      } else {
+        console.log(`⚠️ Document "${documentData.title}" has no duplicate sentences, skipping...`);
       }
 
       processedDocuments.add(documentId);
@@ -555,7 +570,7 @@ async checkDuplicateContent(text, options = {}) {
     };
   }
 
-  // Calculate text similarity using simple word matching
+  // Calculate text similarity using Plagiarism Ratio formula
   calculateTextSimilarity(text1, text2) {
     const words1 = text1
       .toLowerCase()
@@ -564,17 +579,18 @@ async checkDuplicateContent(text, options = {}) {
     const words2 = text2
       .toLowerCase()
       .split(/\s+/)
-      .filter((w) => w.length > 2);
+    // Sử dụng công thức Plagiarism Ratio: (intersection.length / set1.size) * 100%  .filter((w) => w.length > 2);
 
     if (words1.length === 0 || words2.length === 0) return 0;
 
     const set1 = new Set(words1);
-    const set2 = new Set(words2);
+
+    t(words2);
 
     const intersection = new Set([...set1].filter((x) => set2.has(x)));
-    const union = new Set([...set1, ...set2]);
 
-    return Math.round((intersection.size / union.size) * 100);
+    // Sử dụng công thức Plagiarism Ratio: (intersection.length / set1.size) * 100%
+    return Math.round((intersection.size / set1.size) * 100);
   }
 
   // Calculate overall duplicate percentage

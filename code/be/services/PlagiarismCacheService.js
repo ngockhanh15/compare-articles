@@ -102,8 +102,10 @@ class PlagiarismCacheService {
         }
       });
       
-      // Tính similarity cho mỗi document
+      // Tính similarity cho mỗi document sử dụng công thức Plagiarism Ratio sử dụng công thức Plagiarism Ratio
       documentMatches.forEach((docMatch, docHash) => {
+        // Sử dụng công thức Plagiarism Ratio: (intersection.size / set1.size) * 100
+        // Sử dụng công thức Plagiarism Ratio: (intersection.size / set1.size) * 100
         const similarity = (docMatch.matchedWords.length / words.length) * 100;
         
         if (similarity >= threshold * 100) {

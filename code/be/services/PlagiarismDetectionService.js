@@ -425,8 +425,9 @@ class PlagiarismDetectionService {
       }
     });
 
-    // Tính toán similarity cho mỗi document và tạo matches
+    // Tính toán similarity cho mỗi document sử dụng công thức Plagiarism Ratio
     wordMatchCounts.forEach((matchInfo, sourceKey) => {
+      // Sử dụng công thức Plagiarism Ratio: (intersection.size / set1.size) * 100
       const similarity = (matchInfo.count / words.length) * 100;
       
       if (similarity > threshold * 100) {

@@ -758,7 +758,6 @@ const AllDocumentsComparison = () => {
                                 Kích thước: {formatFileSize(doc.fileSize)}
                               </div>
                               <div>Loại: {doc.fileType}</div>
-                              <div>Tác giả: {doc.author}</div>
                               <div>Ngày: {formatDate(doc.uploadedAt)}</div>
                             </div>
                           </div>

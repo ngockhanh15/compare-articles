@@ -71,7 +71,7 @@ class VietnameseStopwordService {
 
     // Tách từ và loại bỏ dấu câu
     const words = text.toLowerCase()
-      .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, ' ')
+      .replace(/[.!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, ' ')
       .split(/\s+/)
       .filter(word => word.trim().length > 0);
 
