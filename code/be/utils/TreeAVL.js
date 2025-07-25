@@ -258,7 +258,7 @@ class TextHasher {
     const intersection = [...set1].filter((x) => set2.has(x));
 
     // Plagiarism Ratio: số cụm từ trùng lặp / tổng số cụm từ trong văn bản kiểm tra * 100%
-    const plagiarismRatio = (intersection.length / set1.size) * 100;
+    const plagiarismRatio = (intersection.length / set2.size) * 100;
 
     return plagiarismRatio;
   }
@@ -274,7 +274,7 @@ class TextHasher {
     const intersection = [...set1].filter((x) => set2.has(x));
 
     // Plagiarism Ratio = số từ trùng lặp / tổng số từ trong văn bản kiểm tra * 100%
-    return (intersection.length / set1.size) * 100;
+    return (intersection.length / set2.size) * 100;
   }
 
   // Tách văn bản thành các câu hoàn chỉnh
@@ -385,7 +385,7 @@ class TextHasher {
     const intersection = [...set1].filter((x) => set2.has(x));
 
     // Plagiarism Ratio = số cụm từ trùng lặp / tổng số cụm từ trong văn bản kiểm tra * 100%
-    const ratio = (intersection.length / set1.size) * 100;
+    const ratio = (intersection.length / set2.size) * 100;
 
     return {
       ratio: ratio,

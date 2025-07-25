@@ -72,7 +72,7 @@ const performDocumentCheck = async (text, options = {}) => {
     console.log("Most similar document info:", {
       mostSimilarDocument: result.mostSimilarDocument,
       documentWithMostDuplicates: result.documentWithMostDuplicates,
-      maxDuplicateSentences: result.maxDuplicateSentences
+      maxDuplicateSentences: result.maxDuplicateSentences,
     });
 
     // Chuyển đổi format để tương thích với frontend
@@ -110,13 +110,14 @@ const performDocumentCheck = async (text, options = {}) => {
       dab: result.dab || 0,
       mostSimilarDocument: result.mostSimilarDocument || null,
       // Tên document trùng nhất - ưu tiên document có nhiều câu trùng nhất
-      mostSimilarDocumentName: result.documentWithMostDuplicates?.name ||
-                              result.documentWithMostDuplicates?.title ||
-                              result.mostSimilarDocument?.name || 
-                              result.mostSimilarDocument?.title || 
-                              result.mostSimilarDocument?.fileName ||
-                              result.documentWithMostDuplicates?.fileName ||
-                              "",
+      mostSimilarDocumentName:
+        result.documentWithMostDuplicates?.name ||
+        result.documentWithMostDuplicates?.title ||
+        result.mostSimilarDocument?.name ||
+        result.mostSimilarDocument?.title ||
+        result.mostSimilarDocument?.fileName ||
+        result.documentWithMostDuplicates?.fileName ||
+        "",
       // Thêm thông tin về documents
       totalDocumentsInSystem: result.checkedDocuments || 0,
       // Thêm 2 thông số theo yêu cầu
@@ -239,8 +240,8 @@ const performPlagiarismCheck = async (text, options = {}) => {
       }
     }
 
-    // 4. Cập nhật confidence dựa trên threshold đơn giản: > 50% = high, <= 50% = low
-    if (result.duplicatePercentage > 50) {
+    // 4. Cập nhật confidence dựa trên threshold đơn giản: >= 50% = high, < 50% = low
+    if (result.duplicatePercentage >= 50) {
       result.confidence = "high";
     } else {
       result.confidence = "low";
@@ -254,10 +255,6 @@ const performPlagiarismCheck = async (text, options = {}) => {
     result.fromCache = false;
     result.cacheOptimized = similarWords.length > 0;
     result.similarWordsFound = similarWords.length;
-
-    console.log(
-      `Plagiarism check completed: ${result.duplicatePercentage}% duplicate found in ${result.processingTime}ms`
-    );
 
     return result;
   } catch (error) {
@@ -409,7 +406,7 @@ exports.checkDocumentSimilarity = async (req, res) => {
         totalMatches: result.totalMatches,
         checkedDocuments: result.checkedDocuments,
         // Thêm thông số mới
-         mostSimilarDocumentName: result.mostSimilarDocumentName,
+        mostSimilarDocumentName: result.mostSimilarDocumentName,
         totalSentencesWithInputWords: result.totalSentencesWithInputWords,
         maxDuplicateSentences: result.maxDuplicateSentences,
         documentWithMostDuplicates: result.documentWithMostDuplicates,
@@ -496,9 +493,9 @@ exports.checkPlagiarism = async (req, res) => {
     // Perform plagiarism check
     const result = await performPlagiarismCheck(text, options);
 
-    // Determine status based on simple threshold: > 50% = high, <= 50% = low
+    // Determine status based on simple threshold: >= 50% = high, < 50% = low
     const getStatus = (percentage) => {
-      if (percentage > 50) return "high";
+      if (percentage >= 50) return "high";
       return "low";
     };
 
@@ -1026,7 +1023,7 @@ exports.getDetailedComparison = async (req, res) => {
         if (searchText && searchText.length > 0) {
           // Simple replacement for matched text
           const regex = new RegExp(
-            searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+            searchText.replace(/[.,*+?^${}()|[\]\\]/g, "\\$&"),
             "gi"
           );
           highlightedText = highlightedText.replace(
@@ -1447,8 +1444,8 @@ function createHighlightedText(originalText, documents) {
           uniqueInputWordPairs // Truyền tập hợp cặp từ đã tạo sẵn
         );
 
-        // Chỉ đánh dấu các câu có độ trùng lặp > 50%
-        if (sentenceDuplicateRatio > 50) {
+        // Chỉ đánh dấu các câu có độ trùng lặp >= 50%
+        if (sentenceDuplicateRatio >= 50) {
           const startPosition = originalText.indexOf(origSentenceTrimmed);
           if (startPosition >= 0) {
             highlightedSegments.push({
@@ -1590,7 +1587,7 @@ function calculateSentenceDuplicateRatio(
     let duplicateRatio = 0;
     if (uniqueSentenceWordPairs.size > 0) {
       duplicateRatio =
-        (matchedWordPairs.length / uniqueSentenceWordPairs.size) * 100;
+        (matchedWordPairs.length / uniqueInputWordPairs.size) * 100;
     }
 
     return duplicateRatio;

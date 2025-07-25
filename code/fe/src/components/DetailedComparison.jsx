@@ -476,65 +476,6 @@ const DetailedComparison = () => {
                     </div>
                   </div>
 
-                  {/* Thông tin chi tiết về từ trùng lặp */}
-                  {match.duplicateSentencesDetails && match.duplicateSentencesDetails.length > 0 && (
-                    <div className="pt-4 mt-4 border-t border-neutral-300">
-                      <h5 className="mb-3 text-sm font-semibold text-neutral-700">
-                        📊 Chi tiết phân tích trùng lặp:
-                      </h5>
-                      {match.duplicateSentencesDetails.map((detail, detailIndex) => (
-                        <div key={detailIndex} className="p-3 mb-3 border rounded-lg bg-neutral-50 border-neutral-200">
-                          <div className="grid gap-2 text-xs">
-                            <div className="flex justify-between">
-                              <span className="font-medium text-neutral-600">Tỷ lệ trùng lặp:</span>
-                              <span className="font-bold text-neutral-800">{detail.duplicateRatio?.toFixed(2)}%</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="font-medium text-neutral-600">Từ trùng lặp:</span>
-                              <span className="text-neutral-800">{detail.matchedWords?.length || 0}/{detail.totalWordPairs || 0}</span>
-                            </div>
-                            {match.startPosition !== undefined && match.endPosition !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-neutral-600">Vị trí:</span>
-                                <span className="text-neutral-800">{match.startPosition} - {match.endPosition}</span>
-                              </div>
-                            )}
-                            {match.createdAt && (
-                              <div className="flex justify-between">
-                                <span className="font-medium text-neutral-600">Tạo lúc:</span>
-                                <span className="text-neutral-800">{formatDate(match.createdAt)}</span>
-                              </div>
-                            )}
-                            {detail.matchedWords && detail.matchedWords.length > 0 && (
-                              <div>
-                                <span className="font-medium text-neutral-600">Các từ trùng: </span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {detail.matchedWords.map((word, wordIndex) => (
-                                    <span key={wordIndex} className="px-2 py-1 text-xs text-blue-700 bg-blue-100 rounded">
-                                      {word}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {detail.matchedWordPairs && detail.matchedWordPairs.length > 0 && (
-                              <div>
-                                <span className="font-medium text-neutral-600">Cặp từ trùng: </span>
-                                <div className="flex flex-wrap gap-1 mt-1">
-                                  {detail.matchedWordPairs.map((pair, pairIndex) => (
-                                    <span key={pairIndex} className="px-2 py-1 text-xs text-green-700 bg-green-100 rounded">
-                                      {pair.replace('_', ' → ')}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
                   {/* Thanh chỉ báo mức độ trùng lặp */}
                   <div className="pt-3 mt-4 border-t border-neutral-300">
                     <div className="flex items-center justify-between mb-2">

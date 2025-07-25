@@ -619,8 +619,7 @@ const TextChecker = () => {
                   </div>
 
                   {/* Thêm vào phần hiển thị kết quả */}
-                  {results.nameDocumentWithMostDuplicates ||
-                        results.maxDuplicateSentences > 0 && (
+                  {results.nameDocumentWithMostDuplicates && (
                     <div className="p-6 mt-6 mb-3 bg-white shadow-lg rounded-xl">
                       <h3 className="mb-4 text-xl font-semibold text-neutral-800">
                         Thống kê chi tiết
@@ -657,11 +656,6 @@ const TextChecker = () => {
                               </>
                             )}
                           </p>
-                          {!results.nameDocumentWithMostDuplicates && (
-                            <p className="mt-2 text-xs text-orange-600">
-                              * Tên tài liệu không được trả về từ API
-                            </p>
-                          )}
                         </div>
                       )}
                     </div>
