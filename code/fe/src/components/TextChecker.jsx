@@ -641,7 +641,7 @@ const TextChecker = () => {
                                 </span>
                                 " có{" "}
                                 <span className="font-medium text-green-700">
-                                  {results.maxDuplicateSentences}
+                                  {results.totalDuplicateSentences}
                                 </span>{" "}
                                 câu trùng lặp với văn bản của bạn.
                               </>
@@ -700,7 +700,7 @@ const TextChecker = () => {
 
                   <div className="p-4 border border-orange-200 rounded-xl bg-orange-50">
                     <div className="text-2xl font-bold text-orange-600">
-                      {results.maxDuplicateSentences}
+                      {results.totalDuplicateSentences}
                     </div>
                     <div className="text-sm text-orange-600">DA/B</div>
                     <div className="mt-1 text-xs text-orange-500">
@@ -711,7 +711,7 @@ const TextChecker = () => {
 
                 {/* Comparison Buttons */}
                 <div className="flex gap-3">
-                  {results?.checkId && results.maxDuplicateSentences > 0 && (
+                  {results?.checkId && results.totalDuplicateSentences > 0 && (
                     <Link
                       to={`/detailed-comparison/${results.checkId}`}
                       className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
