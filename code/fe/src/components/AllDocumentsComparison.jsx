@@ -81,22 +81,6 @@ const AllDocumentsComparison = () => {
     );
   };
 
-  // Helper function để lấy highlighted text chính xác
-  const getCurrentHighlightedText = () => {
-    // Ưu tiên kết quả mới nhất từ cây
-    if (latestComparisonResult?.result?.highlightedText) {
-      return latestComparisonResult.result.highlightedText;
-    }
-    // Fallback về dữ liệu ban đầu
-    return data?.currentDocument?.highlightedText;
-  };
-
-  // Helper function để kiểm tra có highlighted text không
-  const hasHighlightedText = () => {
-    const highlightedText = getCurrentHighlightedText();
-    return highlightedText && highlightedText.includes("<span");
-  };
-
   // Lấy danh sách documents từ kết quả mới nhất hoặc dữ liệu ban đầu
   const getMatchingDocuments = () => {
     const originalDocuments = data?.matchingDocuments || [];
@@ -214,7 +198,7 @@ const AllDocumentsComparison = () => {
             }
           })
       : [];
-      
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
@@ -278,20 +262,263 @@ const AllDocumentsComparison = () => {
     );
   }
 
+  function getCurrentHighlightedText() {
+    const originalText = data?.currentDocument?.originalText || "";
+    const sources = latestComparisonResult?.result?.matches || [];
+
+    if (!originalText || sources.length === 0) return originalText;
+
+    const highlightColors = [
+      { bg: "bg-red-200", text: "text-red-900", border: "border-red-400" },
+      {
+        bg: "bg-orange-200",
+        text: "text-orange-900",
+        border: "border-orange-400",
+      },
+      {
+        bg: "bg-yellow-200",
+        text: "text-yellow-900",
+        border: "border-yellow-400",
+      },
+      {
+        bg: "bg-green-200",
+        text: "text-green-900",
+        border: "border-green-400",
+      },
+      { bg: "bg-blue-200", text: "text-blue-900", border: "border-blue-400" },
+      {
+        bg: "bg-indigo-200",
+        text: "text-indigo-900",
+        border: "border-indigo-400",
+      },
+      {
+        bg: "bg-purple-200",
+        text: "text-purple-900",
+        border: "border-purple-400",
+      },
+      { bg: "bg-pink-200", text: "text-pink-900", border: "border-pink-400" },
+      { bg: "bg-cyan-200", text: "text-cyan-900", border: "border-cyan-400" },
+      { bg: "bg-teal-200", text: "text-teal-900", border: "border-teal-400" },
+    ];
+
+    // Gom các match theo câu
+    const sentenceMap = new Map();
+
+    sources.forEach((source, index) => {
+      console.log("Checking source:", source);
+      const color = highlightColors[index % highlightColors.length];
+
+      source.duplicateSentencesDetails?.forEach((detail) => {
+        const sentence = detail.inputSentence;
+
+        if (!sentenceMap.has(sentence)) {
+          sentenceMap.set(sentence, {
+            color,
+            sources: [],
+          });
+        }
+
+        sentenceMap.get(sentence).sources.push({
+          source: source.source,
+          similarity: detail.similarity,
+          url: source.url,
+        });
+      });
+    });
+
+    // Tạo danh sách các matches với vị trí cụ thể trong originalText
+    const matches = [];
+
+    for (const [sentence, { color, sources }] of sentenceMap.entries()) {
+      const start = originalText.indexOf(sentence);
+      if (start !== -1) {
+        const end = start + sentence.length;
+        const tooltip = sources
+          .map((s) => `• ${s.source} (${s.similarity}%)`)
+          .join("\n\n");
+        matches.push({ start, end, sentence, color, tooltip });
+      }
+    }
+
+    // Sắp xếp theo vị trí để giữ thứ tự đúng
+    matches.sort((a, b) => a.start - b.start);
+
+    const result = [];
+    let lastIndex = 0;
+
+    matches.forEach((match) => {
+      const { start, end, sentence, color, tooltip } = match;
+
+      if (start < lastIndex) return; // tránh highlight chồng lặp
+
+      result.push(originalText.slice(lastIndex, start));
+
+      result.push(
+        `<span 
+        class="group px-1 border ${color.bg} ${color.text} ${
+          color.border
+        } rounded cursor-help"
+        title="${tooltip.replace(/"/g, "&quot;")}"
+      >${sentence}</span>`
+      );
+
+      lastIndex = end;
+    });
+
+    result.push(originalText.slice(lastIndex));
+
+    return result.join("");
+  }
+
+  function hasHighlightedText() {
+    const sources = latestComparisonResult?.result?.sources || [];
+    const matches = latestComparisonResult?.result?.matches || [];
+
+    if (sources.length === 0 && matches.length === 0) {
+      // Fallback: Nếu có tỷ lệ trùng lặp > 10% thì cũng coi như có highlight
+      return getCurrentDocumentDuplicateRate() > 10;
+    }
+
+    // Kiểm tra nhiều cách khác nhau để tìm dữ liệu highlight
+    const sourcesToCheck = [...sources, ...matches];
+    const hasDetailedHighlight = sourcesToCheck.some((source) => {
+      return (
+        // Cách 1: duplicateSentencesDetails
+        (source.duplicateSentencesDetails &&
+          source.duplicateSentencesDetails.length > 0) ||
+        // Cách 2: duplicateSentences
+        (source.duplicateSentences && source.duplicateSentences.length > 0) ||
+        // Cách 3: matches
+        (source.matches && source.matches.length > 0) ||
+        // Cách 4: duplicateText hoặc matchedText
+        source.duplicateText ||
+        source.matchedText ||
+        // Cách 5: content hoặc text
+        source.content ||
+        source.text ||
+        // Cách 6: Kiểm tra có bất kỳ string property nào có thể là text
+        Object.values(source).some(
+          (value) =>
+            typeof value === "string" &&
+            value.length > 10 &&
+            value.length < 1000
+        )
+      );
+    });
+
+    // Trả về true nếu có dữ liệu chi tiết hoặc tỷ lệ trùng lặp cao
+    return hasDetailedHighlight || getCurrentDocumentDuplicateRate() > 10;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
       {/* Custom styles for highlighting */}
       <style jsx>{`
-        .highlighted-text span[data-document-id] {
+        .highlighted-text span[data-highlight-index] {
           border-radius: 4px;
-          transition: all 0.2s ease;
+          transition: all 0.3s ease;
           cursor: pointer;
-        }
-        .highlighted-text span[data-document-id]:hover {
-          transform: scale(1.02);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          z-index: 10;
+          display: inline-block;
           position: relative;
+        }
+
+        .highlighted-text span[data-highlight-index]:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          z-index: 20;
+          position: relative;
+        }
+
+        /* Tooltip styles */
+        .highlighted-text span[data-highlight-index]:hover::after {
+          content: attr(title);
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(0, 0, 0, 0.9);
+          color: white;
+          padding: 8px 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          white-space: pre-line;
+          z-index: 30;
+          max-width: 300px;
+          text-align: center;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          animation: tooltipFadeIn 0.2s ease-in-out;
+        }
+
+        .highlighted-text span[data-highlight-index]:hover::before {
+          content: "";
+          position: absolute;
+          bottom: 100%;
+          left: 50%;
+          transform: translateX(-50%) translateY(2px);
+          border: 6px solid transparent;
+          border-top-color: rgba(0, 0, 0, 0.9);
+          z-index: 30;
+        }
+
+        @keyframes tooltipFadeIn {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(5px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+          }
+        }
+
+        /* Pulse animation for newly highlighted text */
+        .highlighted-text span[data-highlight-index] {
+          animation: highlightPulse 2s ease-in-out;
+        }
+
+        @keyframes highlightPulse {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.8;
+          }
+        }
+
+        /* Styles for multiple sources */
+        .highlighted-text span[data-source-count="2"] {
+          border-style: dashed;
+          border-width: 3px;
+        }
+
+        .highlighted-text span[data-source-count="3"] {
+          border-style: dotted;
+          border-width: 3px;
+        }
+
+        .highlighted-text span[data-source-count]:not([data-source-count="1"]) {
+          box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+        }
+
+        /* Badge styles for source count */
+        .highlighted-text span sup {
+          font-size: 10px;
+          font-weight: bold;
+          line-height: 1;
+          min-width: 16px;
+          height: 16px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid rgba(0, 0, 0, 0.1);
+        }
+
+        /* Enhanced hover effect for multiple sources */
+        .highlighted-text
+          span[data-source-count]:not([data-source-count="1"]):hover {
+          transform: scale(1.08);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
         }
       `}</style>
       <div className="px-4 py-8 mx-auto max-w-7xl">
@@ -329,7 +556,7 @@ const AllDocumentsComparison = () => {
             <span className="mr-2">📄</span>
             Document của bạn
           </h2>
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
               <div className="text-2xl font-bold text-primary-600">
                 {data.currentDocument.fileName}
@@ -341,6 +568,29 @@ const AllDocumentsComparison = () => {
                 {formatFileSize(data.currentDocument.fileSize)}
               </div>
               <div className="text-sm text-neutral-600">Kích thước</div>
+            </div>
+            <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
+              <div
+                className={`text-2xl font-bold ${
+                  getCurrentDocumentDuplicateRate() >= 50
+                    ? "text-red-600"
+                    : getCurrentDocumentDuplicateRate() >= 25
+                    ? "text-orange-600"
+                    : "text-green-600"
+                }`}
+              >
+                {getCurrentDocumentDuplicateRate().toFixed(1)}%
+              </div>
+              <div className="text-sm text-neutral-600">Tỷ lệ trùng lặp</div>
+            </div>
+            <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
+              <div className="text-2xl font-bold text-primary-600">
+                {formatDate(
+                  data.currentDocument.uploadedAt ||
+                    data.currentDocument.createdAt
+                )}
+              </div>
+              <div className="text-sm text-neutral-600">Ngày tải lên</div>
             </div>
           </div>
         </div>
@@ -412,273 +662,173 @@ const AllDocumentsComparison = () => {
                 Nội dung văn bản cần kiểm tra
               </h2>
 
-              {data?.currentDocument?.originalText ? (
+              {/* Legend cho các màu highlight */}
+              {hasHighlightedText() &&
+                ((latestComparisonResult?.result?.sources &&
+                  latestComparisonResult.result.sources.length > 0) ||
+                  (latestComparisonResult?.result?.matches &&
+                    latestComparisonResult.result.matches.length > 0)) && (
+                  <div className="p-4 mb-4 border rounded-lg border-neutral-200 bg-neutral-50">
+                    <h3 className="mb-3 text-sm font-semibold text-neutral-700">
+                      🎨 Chú thích màu sắc:
+                    </h3>
+                    <div className="grid gap-2 sm:grid-cols-1 lg:grid-cols-2">
+                      {(() => {
+                        // Tạo legend dựa trên các câu trùng lặp thực tế
+                        const highlightColors = [
+                          {
+                            bg: "bg-red-200",
+                            text: "text-red-900",
+                            border: "border-red-400",
+                          },
+                          {
+                            bg: "bg-orange-200",
+                            text: "text-orange-900",
+                            border: "border-orange-400",
+                          },
+                          {
+                            bg: "bg-yellow-200",
+                            text: "text-yellow-900",
+                            border: "border-yellow-400",
+                          },
+                          {
+                            bg: "bg-green-200",
+                            text: "text-green-900",
+                            border: "border-green-400",
+                          },
+                          {
+                            bg: "bg-blue-200",
+                            text: "text-blue-900",
+                            border: "border-blue-400",
+                          },
+                          {
+                            bg: "bg-indigo-200",
+                            text: "text-indigo-900",
+                            border: "border-indigo-400",
+                          },
+                          {
+                            bg: "bg-purple-200",
+                            text: "text-purple-900",
+                            border: "border-purple-400",
+                          },
+                          {
+                            bg: "bg-pink-200",
+                            text: "text-pink-900",
+                            border: "border-pink-400",
+                          },
+                          {
+                            bg: "bg-cyan-200",
+                            text: "text-cyan-900",
+                            border: "border-cyan-400",
+                          },
+                          {
+                            bg: "bg-teal-200",
+                            text: "text-teal-900",
+                            border: "border-teal-400",
+                          },
+                        ];
+
+                        const legendItems = [];
+                        const sourcesToProcess =
+                          latestComparisonResult.result.sources ||
+                          latestComparisonResult.result.matches ||
+                          [];
+
+                        // Tạo legend theo nguồn thay vì theo câu
+                        sourcesToProcess.forEach((source, sourceIndex) => {
+                          if (sourceIndex < 10) {
+                            // Giới hạn hiển thị 10 nguồn đầu tiên
+                            const colors =
+                              highlightColors[
+                                sourceIndex % highlightColors.length
+                              ];
+                            const fileName =
+                              source.fileName ||
+                              source.documentName ||
+                              source.source ||
+                              `Document ${sourceIndex + 1}`;
+                            const duplicateRate =
+                              source.duplicatePercentage ||
+                              source.duplicateRate ||
+                              source.similarity ||
+                              0;
+
+                            // Đếm số câu trùng lặp từ nguồn này
+                            let sentenceCount = 0;
+                            if (source.duplicateSentencesDetails) {
+                              sentenceCount =
+                                source.duplicateSentencesDetails.length;
+                            } else if (source.duplicateSentences) {
+                              sentenceCount = source.duplicateSentences.length;
+                            } else if (source.matches) {
+                              sentenceCount = source.matches.length;
+                            } else {
+                              sentenceCount = 1; // Có ít nhất 1 đoạn text trùng lặp
+                            }
+
+                            legendItems.push(
+                              <div
+                                key={sourceIndex}
+                                className="flex items-start p-2 text-xs border rounded border-neutral-200"
+                              >
+                                <span
+                                  className={`inline-block w-4 h-4 mr-2 mt-0.5 border-2 rounded flex-shrink-0 ${colors.bg} ${colors.border}`}
+                                ></span>
+                                <div className="flex-1 min-w-0">
+                                  <div
+                                    className="mb-1 font-medium text-neutral-800"
+                                    title={fileName}
+                                  >
+                                    {fileName.length > 25
+                                      ? fileName.substring(0, 25) + "..."
+                                      : fileName}
+                                  </div>
+                                  <div className="text-neutral-600">
+                                    {sentenceCount} câu trùng lặp
+                                  </div>
+                                  <div className="font-semibold text-neutral-700">
+                                    Tỷ lệ: {duplicateRate.toFixed(1)}%
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          }
+                        });
+
+                        return legendItems;
+                      })()}
+                    </div>
+                    {(() => {
+                      const sourcesToProcess =
+                        latestComparisonResult.result.sources ||
+                        latestComparisonResult.result.matches ||
+                        [];
+                      const totalSources = sourcesToProcess.length;
+
+                      return (
+                        totalSources > 10 && (
+                          <div className="mt-2 text-xs text-neutral-500">
+                            ... và {totalSources - 10} nguồn trùng lặp khác
+                          </div>
+                        )
+                      );
+                    })()}
+                    <div className="mt-3 text-xs text-neutral-600">
+                      💡 <strong>Mẹo:</strong> Di chuột qua các đoạn text được
+                      tô màu để xem chi tiết tỷ lệ trùng lặp
+                    </div>
+                  </div>
+                )}
+
+              {data?.currentDocument?.originalText && (
                 <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
-                  {hasHighlightedText() ? (
-                    // Hiển thị text với highlight
-                    <div
+                  <div
                       className="text-sm leading-relaxed whitespace-pre-wrap highlighted-text text-neutral-800"
                       dangerouslySetInnerHTML={{
                         __html: getCurrentHighlightedText(),
                       }}
-                      style={{
-                        lineHeight: "1.8",
-                      }}
+                      style={{ lineHeight: "1.8" }}
                     />
-                  ) : (
-                    // Hiển thị text gốc với thông báo
-                    <div>
-                      <div className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800">
-                        {data.currentDocument.originalText}
-                      </div>
-                      {(data?.matchingDocuments?.length > 0 ||
-                        getCurrentDocumentDuplicateRate() > 0) && (
-                        <div className="p-3 mt-4 border border-yellow-200 rounded-lg bg-yellow-50">
-                          <div className="flex items-center">
-                            <span className="mr-2 text-yellow-600">⚠️</span>
-                            <div>
-                              <h4 className="text-sm font-semibold text-yellow-800">
-                                {latestComparisonResult
-                                  ? "Đang xử lý highlight..."
-                                  : "Chưa thể tô màu nội dung trùng lặp"}
-                              </h4>
-                              <p className="text-sm text-yellow-700">
-                                {latestComparisonResult
-                                  ? "Đã lấy được kết quả so sánh mới nhất từ cây, đang cập nhật highlight..."
-                                  : `Tìm thấy ${
-                                      data?.matchingDocuments?.length || 0
-                                    } documents trùng lặp nhưng chưa thể highlight các đoạn text cụ thể.`}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Thông tin về highlighting */}
-                  {hasHighlightedText() && (
-                    <div className="p-3 mt-4 border border-blue-200 rounded-lg bg-blue-50">
-                      <div className="flex items-center">
-                        <span className="mr-2 text-blue-600">ℹ️</span>
-                        <div>
-                          <h4 className="text-sm font-semibold text-blue-800">
-                            Thông tin highlighting
-                          </h4>
-                          <p className="text-sm text-blue-700">
-                            {latestComparisonResult?.result?.matches?.length >
-                            0 ? (
-                              <>
-                                Đã tô màu{" "}
-                                <strong>
-                                  {latestComparisonResult.result.matches.length}
-                                </strong>{" "}
-                                đoạn văn bản trùng lặp từ{" "}
-                                <strong>
-                                  {latestComparisonResult.result.totalMatches ||
-                                    data?.matchingDocuments?.length ||
-                                    0}
-                                </strong>{" "}
-                                documents.
-                                <br />
-                                <span className="text-xs">
-                                  Kết quả được cập nhật từ cây so sánh mới nhất.
-                                  Di chuột lên đoạn được tô màu để xem thông tin
-                                  chi tiết.
-                                </span>
-                              </>
-                            ) : data?.highlightedSegments?.length > 0 ? (
-                              <>
-                                Đã tô màu{" "}
-                                <strong>
-                                  {data.highlightedSegments.length}
-                                </strong>{" "}
-                                đoạn văn bản trùng lặp từ{" "}
-                                <strong>{data.matchingDocuments.length}</strong>{" "}
-                                documents.
-                                <br />
-                                <span className="text-xs">
-                                  Các đoạn được tô màu có độ tương tự từ 5% trở
-                                  lên. Di chuột lên đoạn được tô màu để xem
-                                  thông tin chi tiết.
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                Đã tô màu các từ khóa chung từ{" "}
-                                <strong>
-                                  {data?.matchingDocuments?.length || 0}
-                                </strong>{" "}
-                                documents trùng lặp.
-                                <br />
-                                <span className="text-xs">
-                                  Các từ được tô màu là những từ khóa xuất hiện
-                                  trong cả văn bản gốc và documents trùng lặp.
-                                </span>
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="py-12 text-center">
-                  <div className="mb-4 text-4xl">📄</div>
-                  <p className="text-neutral-600">
-                    Không có nội dung để hiển thị
-                  </p>
-                  <div className="p-4 mt-4 text-left bg-gray-100 rounded-lg">
-                    <h4 className="mb-2 font-semibold text-gray-800">
-                      Debug Information:
-                    </h4>
-                    <div className="space-y-1 text-xs text-gray-600">
-                      <div>Data exists: {data ? "Yes" : "No"}</div>
-                      <div>
-                        Current document exists:{" "}
-                        {data?.currentDocument ? "Yes" : "No"}
-                      </div>
-                      <div>
-                        Original text exists:{" "}
-                        {data?.currentDocument?.originalText ? "Yes" : "No"}
-                      </div>
-                      <div>
-                        Original text length:{" "}
-                        {data?.currentDocument?.originalText?.length || 0}
-                      </div>
-                      <div>
-                        Highlighted text exists:{" "}
-                        {data?.currentDocument?.highlightedText ? "Yes" : "No"}
-                      </div>
-                      <div>
-                        Highlighted text length:{" "}
-                        {data?.currentDocument?.highlightedText?.length || 0}
-                      </div>
-                      <div>
-                        Matching documents count:{" "}
-                        {data?.matchingDocuments?.length || 0}
-                      </div>
-                      <div>
-                        Highlighted segments count:{" "}
-                        {data?.highlightedSegments?.length || 0}
-                      </div>
-                    </div>
-                    <details className="mt-3">
-                      <summary className="font-medium text-gray-700 cursor-pointer">
-                        Raw Data
-                      </summary>
-                      <pre className="p-2 mt-2 overflow-auto text-xs bg-white border rounded max-h-40">
-                        {JSON.stringify(data?.currentDocument || {}, null, 2)}
-                      </pre>
-                    </details>
-                  </div>
-                </div>
-              )}
-
-              {/* Legend for colors */}
-              {data?.currentDocument?.highlightedText?.includes("<span") && (
-                <div className="mt-6">
-                  <h3 className="mb-3 text-sm font-semibold text-neutral-700">
-                    Chú thích màu sắc:
-                  </h3>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {data?.highlightedSegments &&
-                    data.highlightedSegments.length > 0
-                      ? // Hiển thị legend cho segments thực tế
-                        Array.from(
-                          new Set(
-                            data.highlightedSegments.map(
-                              (segment) => segment.documentId
-                            )
-                          )
-                        )
-                          .slice(0, 10)
-                          .map((docId, index) => {
-                            const segment = data.highlightedSegments.find(
-                              (s) => s.documentId === docId
-                            );
-                            const colors = [
-                              "#ef4444",
-                              "#f97316",
-                              "#eab308",
-                              "#22c55e",
-                              "#06b6d4",
-                              "#3b82f6",
-                              "#8b5cf6",
-                              "#ec4899",
-                              "#f43f5e",
-                              "#84cc16",
-                            ];
-                            const color = colors[index % colors.length];
-                            const backgroundColor = color + "20";
-
-                            return (
-                              <div
-                                key={`legend-${docId}-${index}`}
-                                className="flex items-center text-xs"
-                              >
-                                <div
-                                  className="w-4 h-4 mr-2 border rounded"
-                                  style={{
-                                    backgroundColor: backgroundColor,
-                                    borderColor: color,
-                                  }}
-                                />
-                                <span
-                                  className="truncate text-neutral-600"
-                                  title={
-                                    segment?.documentName ||
-                                    `Document ${index + 1}`
-                                  }
-                                >
-                                  {segment?.documentName ||
-                                    `Document ${index + 1}`}
-                                </span>
-                              </div>
-                            );
-                          })
-                      : // Hiển thị legend cho từ khóa chung
-                        data?.matchingDocuments
-                          ?.slice(0, 10)
-                          .map((doc, index) => {
-                            const colors = [
-                              "#ef4444",
-                              "#f97316",
-                              "#eab308",
-                              "#22c55e",
-                              "#06b6d4",
-                              "#3b82f6",
-                              "#8b5cf6",
-                              "#ec4899",
-                              "#f43f5e",
-                              "#84cc16",
-                            ];
-                            const color = colors[index % colors.length];
-                            const backgroundColor = color + "20";
-
-                            return (
-                              <div
-                                key={`legend-common-${doc.id}-${index}`}
-                                className="flex items-center text-xs"
-                              >
-                                <div
-                                  className="w-4 h-4 mr-2 border rounded"
-                                  style={{
-                                    backgroundColor: backgroundColor,
-                                    borderColor: color,
-                                  }}
-                                />
-                                <span
-                                  className="truncate text-neutral-600"
-                                  title={doc.fileName}
-                                >
-                                  {doc.fileName}
-                                </span>
-                              </div>
-                            );
-                          })}
-                  </div>
                 </div>
               )}
             </div>
@@ -751,6 +901,58 @@ const AllDocumentsComparison = () => {
                                   Mới
                                 </span>
                               )}
+                            </div>
+
+                            {/* Hiển thị tỷ lệ trùng lặp */}
+                            <div className="mb-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-neutral-600">
+                                  Tỷ lệ trùng lặp:
+                                </span>
+                                <span
+                                  className={`text-sm font-bold ${
+                                    (doc.duplicatePercentage ||
+                                      doc.duplicateRate ||
+                                      0) >= 50
+                                      ? "text-red-600"
+                                      : (doc.duplicatePercentage ||
+                                          doc.duplicateRate ||
+                                          0) >= 25
+                                      ? "text-orange-600"
+                                      : "text-green-600"
+                                  }`}
+                                >
+                                  {(
+                                    doc.duplicatePercentage ||
+                                    doc.duplicateRate ||
+                                    0
+                                  ).toFixed(1)}
+                                  %
+                                </span>
+                              </div>
+                              <div className="w-full h-2 mt-1 bg-gray-200 rounded-full">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    (doc.duplicatePercentage ||
+                                      doc.duplicateRate ||
+                                      0) >= 50
+                                      ? "bg-red-500"
+                                      : (doc.duplicatePercentage ||
+                                          doc.duplicateRate ||
+                                          0) >= 25
+                                      ? "bg-orange-500"
+                                      : "bg-green-500"
+                                  }`}
+                                  style={{
+                                    width: `${Math.min(
+                                      doc.duplicatePercentage ||
+                                        doc.duplicateRate ||
+                                        0,
+                                      100
+                                    )}%`,
+                                  }}
+                                ></div>
+                              </div>
                             </div>
 
                             <div className="space-y-1 text-xs text-neutral-600">
