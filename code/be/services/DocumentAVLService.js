@@ -209,7 +209,7 @@ class DocumentAVLService {
       await vietnameseStopwordService.initialize();
     }
 
-    const { minSimilarity = 50, maxResults = 10 } = options;
+    const { minSimilarity = 50, maxResults = null } = options;
 
     try {
       console.log(`🔍 Bắt đầu kiểm tra trùng lặp...`);
@@ -231,7 +231,7 @@ class DocumentAVLService {
 
       // Bước 4: Sắp xếp và giới hạn kết quả
       matches.sort((a, b) => b.similarity - a.similarity);
-      const limitedMatches = matches.slice(0, maxResults);
+      const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
       // Bước 5: Tạo kết quả cuối cùng
       const result = this.buildFinalResult(limitedMatches, inputHashes, text);
@@ -306,7 +306,7 @@ class DocumentAVLService {
           matchedHashes: matchedHashes,
           matchedWords: Array.from(matchedWords),
           duplicateSentences: duplicateSentences.length,
-          duplicateSentencesDetails: duplicateSentences.slice(0, 3),
+          duplicateSentencesDetails: duplicateSentences, // Trả về tất cả câu trùng lặp
           method: "simplified-avl-search"
         });
       }
@@ -340,7 +340,7 @@ class DocumentAVLService {
             similarity: Math.round(similarity),
             commonWords: commonWords.length
           });
-          break; // Chỉ lấy câu trùng lặp đầu tiên
+          // Bỏ break để tìm tất cả câu trùng lặp, không chỉ câu đầu tiên
         }
       }
     }

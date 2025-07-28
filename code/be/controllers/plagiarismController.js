@@ -54,8 +54,6 @@ const performDocumentCheck = async (text, options = {}) => {
   const startTime = Date.now();
 
   try {
-    console.log("Performing document-based check using DocumentAVLService...");
-
     // Sử dụng DocumentAVLService để kiểm tra với các document đã upload
     const result = await documentAVLService.checkDuplicateContent(text, {
       minSimilarity:
@@ -65,23 +63,14 @@ const performDocumentCheck = async (text, options = {}) => {
           ? 70
           : 50, // medium = 50
       chunkSize: 50,
-      maxResults: 20,
-    });
-
-    console.log("DocumentAVLService result:", JSON.stringify(result, null, 2));
-    console.log("Most similar document info:", {
-      mostSimilarDocument: result.mostSimilarDocument,
-      documentWithMostDuplicates: result.documentWithMostDuplicates,
-      maxDuplicateSentences: result.maxDuplicateSentences,
+      // Bỏ giới hạn maxResults để trả về tất cả kết quả
     });
 
     // Chuyển đổi format để tương thích với frontend
     const formattedResult = {
       duplicatePercentage: result.duplicatePercentage || 0,
       matches: result.matches.map((match) => ({
-        text: match.matchedText
-          ? match.matchedText.substring(0, 200) + "..."
-          : "Document content",
+        text: match.matchedText || "Document content",
         source:
           match.title ||
           `Document-${match.documentId.toString().substring(0, 8)}`,
@@ -196,7 +185,7 @@ const performPlagiarismCheck = async (text, options = {}) => {
         `Found ${similarWords.length} similar word patterns in cache`
       );
 
-      similarWords.slice(0, 2).forEach((wordMatch, index) => {
+      similarWords.forEach((wordMatch, index) => {
         if (wordMatch.similarity >= 50) {
           // Kiểm tra xem match này đã có chưa để tránh duplicate
           const existingMatch = result.matches.find(
@@ -1315,7 +1304,7 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
 
     // Xử lý kết quả
     const matchingDocuments = processMatchingDocuments(avlResult.matches);
-    const limitedDocuments = matchingDocuments.slice(0, 10);
+    const limitedDocuments = matchingDocuments;
 
     // Tạo highlighted text
     const { highlightedText, highlightedSegments } = createHighlightedText(
@@ -1417,10 +1406,6 @@ function createHighlightedText(originalText, documents) {
       wordPairs.push(`${meaningfulWords[i]}_${meaningfulWords[i + 1]}`);
     }
     const uniqueInputWordPairs = new Set(wordPairs);
-
-    console.log(
-      `📊 Created ${uniqueInputWordPairs.size} unique word pairs from input text for sentence comparison`
-    );
 
     // Tách văn bản gốc thành các câu
     const originalSentences = originalText
