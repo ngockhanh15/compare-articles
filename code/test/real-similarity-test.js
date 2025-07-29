@@ -75,111 +75,28 @@ class RealSimilarityAnalyzer {
     phrases2 = phrases2.flatMap((p) => p.split(/\s+/));
 
     console.log("\n📊 Từ có nghĩa sau khi lọc stopwords (THỰC TẾ):");
-    console.log("Input words:", inputWords);
-    console.log("Doc words:  ", docWords);
-    console.log("Số từ input:", inputWords.length);
-    console.log("Số từ doc:  ", docWords.length);
+    console.log("Input words:", phrases1);
+    console.log("Doc words:  ", phrases2);
 
     // Tìm từ chung (giống logic trong findDuplicateSentences)
-    const commonWords = phrases1.filter((word) => docWords.includes(word));
+    const commonWords = phrases1.filter((word) => phrases2.includes(word));
 
     console.log("\n🔗 Từ chung:");
     console.log("Common words:", commonWords);
-    console.log("Số từ chung: ", commonWords.length);
 
     // Tính độ tương đồng theo công thức chính xác
     const similarity =
-      inputWords.length > 0
-        ? (commonWords.length / inputWords.length) * 100
+      phrases1.length > 0
+        ? (commonWords.length / phrases1.length) * 100
         : 0;
 
     console.log("\n📈 TÍNH TOÁN ĐỘ TƯƠNG ĐỒNG:");
     console.log("Công thức: (Số từ chung / Số từ input) × 100");
     console.log(
-      `Tính toán: (${commonWords.length} / ${inputWords.length}) × 100`
+      `Tính toán: (${commonWords.length} / ${phrases1.length}) × 100`
     );
     console.log(`Kết quả:   ${similarity.toFixed(2)}%`);
     console.log(`Làm tròn:  ${Math.round(similarity)}%`);
-
-    // Phân tích chi tiết từng từ
-    console.log("\n🔍 PHÂN TÍCH TỪNG TỪ:");
-    console.log("Từ trong input:");
-    inputWords.forEach((word, index) => {
-      const isCommon = commonWords.includes(word);
-      console.log(
-        `  ${index + 1}. "${word}" - ${
-          isCommon ? "✅ CÓ TRONG DOC" : "❌ KHÔNG CÓ"
-        }`
-      );
-    });
-
-    console.log("\nTừ trong doc:");
-    docWords.forEach((word, index) => {
-      const isCommon = commonWords.includes(word);
-      console.log(
-        `  ${index + 1}. "${word}" - ${
-          isCommon ? "✅ CÓ TRONG INPUT" : "❌ KHÔNG CÓ"
-        }`
-      );
-    });
-
-    // Kiểm tra từng từ có phải stopword không
-    console.log("\n🛑 KIỂM TRA STOPWORDS:");
-    const allWordsInput = inputSentence.toLowerCase().split(/\s+/);
-    const allWordsDoc = docSentence.toLowerCase().split(/\s+/);
-
-    console.log("Từ trong input sentence:");
-    allWordsInput.forEach((word, index) => {
-      const isStopword = vietnameseStopwordService.isStopword(word);
-      const isKept = inputWords.includes(word);
-      console.log(
-        `  ${index + 1}. "${word}" - ${
-          isStopword ? "🛑 STOPWORD" : "✅ MEANINGFUL"
-        } - ${isKept ? "KEPT" : "REMOVED"}`
-      );
-    });
-
-    console.log("\nTừ trong doc sentence:");
-    allWordsDoc.forEach((word, index) => {
-      const isStopword = vietnameseStopwordService.isStopword(word);
-      const isKept = docWords.includes(word);
-      console.log(
-        `  ${index + 1}. "${word}" - ${
-          isStopword ? "🛑 STOPWORD" : "✅ MEANINGFUL"
-        } - ${isKept ? "KEPT" : "REMOVED"}`
-      );
-    });
-
-    console.log("\n📋 KẾT LUẬN:");
-    console.log(`Độ tương đồng: ${Math.round(similarity)}%`);
-    console.log(`Ngưỡng trùng lặp: 50%`);
-    console.log(
-      `Kết quả: ${similarity >= 50 ? "✅ TRÙNG LẶP" : "❌ KHÔNG TRÙNG LẶP"}`
-    );
-
-    // Giải thích tại sao có kết quả này
-    console.log("\n💡 GIẢI THÍCH KẾT QUẢ:");
-    console.log("=".repeat(50));
-    if (Math.round(similarity) === 83) {
-      console.log("✅ Kết quả khớp với 83% như mong đợi!");
-      console.log(
-        `Lý do: Có ${commonWords.length} từ chung trong tổng số ${inputWords.length} từ có nghĩa của input`
-      );
-      console.log(
-        `Tính toán: ${commonWords.length}/${inputWords.length} = ${(
-          (commonWords.length / inputWords.length) *
-          100
-        ).toFixed(1)}% ≈ 83%`
-      );
-    } else {
-      console.log(
-        `❓ Kết quả ${Math.round(similarity)}% khác với 83% mong đợi`
-      );
-      console.log("Có thể do:");
-      console.log("- Danh sách stopwords khác nhau");
-      console.log("- Logic xử lý từ khác nhau");
-      console.log("- Phiên bản code khác nhau");
-    }
 
     return {
       inputSentence,
