@@ -266,7 +266,7 @@ const DetailedComparison = () => {
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-4 text-center border border-green-200 rounded-lg bg-green-50">
               <div className="text-2xl font-bold text-green-600">
-                {data.totalDuplicateSentences || 0}
+                {data?.detailedMatches[0]?.duplicateSentencesDetails.length || 0}
               </div>
               <div className="text-sm text-green-700">Câu trùng lặp</div>
             </div>
@@ -351,7 +351,7 @@ const DetailedComparison = () => {
                   Câu trùng lặp:
                 </span>
                 <span className="text-neutral-600">
-                  {data.totalDuplicateSentences || 0} câu
+                  {data?.detailedMatches[0]?.duplicateSentencesDetails.length || 0} câu
                 </span>
               </div>
             </div>
