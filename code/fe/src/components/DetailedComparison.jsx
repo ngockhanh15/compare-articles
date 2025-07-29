@@ -386,11 +386,6 @@ const DetailedComparison = () => {
                           🎯 Tỷ lệ trùng lặp: {match.similarity}%
                         </span>
                       </div>
-                      <div className="px-3 py-1 border-2 border-green-300 rounded-full bg-gradient-to-r from-green-100 to-green-200">
-                        <span className="text-sm font-bold text-green-700">
-                          📝 Từ chung: {match.commonWords} từ
-                        </span>
-                      </div>
                     </div>
                   </div>
 

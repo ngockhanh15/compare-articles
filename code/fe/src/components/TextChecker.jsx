@@ -700,7 +700,7 @@ const TextChecker = () => {
 
                   <div className="p-4 border border-orange-200 rounded-xl bg-orange-50">
                     <div className="text-2xl font-bold text-orange-600">
-                      {results.totalDuplicateSentences}
+                      {results?.matches[0]?.duplicateSentencesDetails.length || 0}
                     </div>
                     <div className="text-sm text-orange-600">DA/B</div>
                     <div className="mt-1 text-xs text-orange-500">
