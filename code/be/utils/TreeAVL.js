@@ -255,6 +255,10 @@ class TextHasher {
     phrases1 = vietnameseStopwordService.extractMeaningfulWords(phrases1);
     phrases2 = vietnameseStopwordService.extractMeaningfulWords(phrases2);
 
+    // Biến về từ thường bằng cách tách lại từ dấu cách
+    phrases1 = phrases1.flatMap((p) => p.split(/\s+/));
+    phrases2 = phrases2.flatMap((p) => p.split(/\s+/));
+
     const set1 = new Set(phrases1);
     const set2 = new Set(phrases2);
 
