@@ -63,7 +63,6 @@ const performDocumentCheck = async (text, options = {}) => {
           ? 70
           : 50, // medium = 50
       chunkSize: 50,
-      // Bỏ giới hạn maxResults để trả về tất cả kết quả
     });
 
     // Chuyển đổi format để tương thích với frontend
@@ -118,16 +117,6 @@ const performDocumentCheck = async (text, options = {}) => {
       totalUniqueWords: result.totalUniqueWords || 0,
       totalDuplicateSentences: result.totalDuplicateSentences || 0,
     };
-
-    console.log(
-      `Document check completed: ${formattedResult.duplicatePercentage}% duplicate found in ${formattedResult.processingTime}ms`
-    );
-    console.log(
-      `Checked against ${formattedResult.checkedDocuments} documents in system`
-    );
-    console.log(
-      `Found ${formattedResult.totalDuplicateSentences} duplicate sentences based on word pair analysis`
-    );
 
     return formattedResult;
   } catch (error) {

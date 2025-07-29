@@ -219,7 +219,7 @@ class TextHasher {
     // Ưu tiên tạo cụm từ 2-gram trước
     for (let i = 0; i <= meaningfulWords.length - 2; i++) {
       if (!usedWordIndices.has(i) && !usedWordIndices.has(i + 1)) {
-        const phrase = meaningfulWords.slice(i, i + 2).join("_");
+        const phrase = meaningfulWords.slice(i, i + 2).join(" ");
         allPhrases.add(phrase);
         usedWordIndices.add(i);
         usedWordIndices.add(i + 1);
@@ -245,12 +245,15 @@ class TextHasher {
     const words1 = vietnameseStopwordService.extractMeaningfulWords(text1);
     const words2 = vietnameseStopwordService.extractMeaningfulWords(text2);
 
-    if (words1.length === 0 && words2.length === 0) return 100;
     if (words1.length === 0 || words2.length === 0) return 0;
 
     // Tạo cụm từ từ các từ có nghĩa
-    const phrases1 = this.createMeaningfulPhrases(words1);
-    const phrases2 = this.createMeaningfulPhrases(words2);
+    let phrases1 = this.createMeaningfulPhrases(words1);
+    let phrases2 = this.createMeaningfulPhrases(words2);
+
+    // Loại bỏ nhóm từ
+    phrases1 = vietnameseStopwordService.extractMeaningfulWords(phrases1);
+    phrases2 = vietnameseStopwordService.extractMeaningfulWords(phrases2);
 
     const set1 = new Set(phrases1);
     const set2 = new Set(phrases2);

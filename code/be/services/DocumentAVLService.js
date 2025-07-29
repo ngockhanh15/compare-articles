@@ -328,9 +328,7 @@ class DocumentAVLService {
         
         // Tính số từ chung
         const commonWords = inputWords.filter(word => docWords.includes(word));
-        const similarity = inputWords.length > 0 
-          ? (commonWords.length / inputWords.length) * 100 
-          : 0;
+        const similarity = TextHasher.calculateMeaningfulSimilarity(inputSentence, docSentence);
 
         // Nếu độ tương đồng >= 50%, coi là câu trùng lặp
         if (similarity >= 50) {
