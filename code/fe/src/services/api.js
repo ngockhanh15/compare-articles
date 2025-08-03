@@ -676,6 +676,20 @@ export const getUploadedFiles = async (params = {}) => {
   }
 };
 
+export const getForHome = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/home`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get for home error:", error);
+    throw error;
+  }
+};
+
 // ==================== USER MANAGEMENT API ====================
 
 // Lấy danh sách tất cả người dùng (Admin only)
@@ -723,10 +737,13 @@ export const getUserById = async (userId) => {
 // Kích hoạt/vô hiệu hóa người dùng
 export const toggleUserStatus = async (userId) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/toggle-status`, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/users/${userId}/toggle-status`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {
@@ -784,11 +801,14 @@ export const getUserStats = async () => {
 // Reset mật khẩu người dùng
 export const resetUserPassword = async (userId, newPassword) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/reset-password`, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ newPassword }),
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/users/${userId}/reset-password`,
+      {
+        method: "PUT",
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ newPassword }),
+      }
+    );
 
     return await handleResponse(response);
   } catch (error) {

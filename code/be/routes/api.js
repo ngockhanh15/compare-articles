@@ -74,4 +74,6 @@ router.use('/stopwords', stopwordsRoutes);
 // ===== USER MANAGEMENT ROUTES =====
 router.use('/users', userRoutes);
 
+router.get('/home', protect, plagiarismController.home);
+
 module.exports = router;

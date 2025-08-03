@@ -2,6 +2,8 @@ const PlagiarismCheck = require("../models/PlagiarismCheck");
 const plagiarismCacheService = require("../services/PlagiarismCacheService");
 const plagiarismDetectionService = require("../services/PlagiarismDetectionService");
 const documentAVLService = require("../services/DocumentAVLService");
+const Users = require("../models/User");
+const Documents = require("../models/Document");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
@@ -27,6 +29,21 @@ const storage = multer.diskStorage({
     );
   },
 });
+
+exports.home = async (req, res) => {
+  try {
+    const allUser = await Users.find({});
+    const allDocuments = await Documents.find({});
+
+    res.json({
+      totalUsers: allUser.length,
+      totalDocuments: allDocuments.length,
+    });
+  } catch (error) {
+    console.error("Error in /home:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
 
 const upload = multer({
   storage: storage,

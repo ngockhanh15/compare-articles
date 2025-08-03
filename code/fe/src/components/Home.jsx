@@ -1,21 +1,22 @@
-import { useState, useEffect } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { useState, useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import * as api from "../services/api";
 
 const Home = () => {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [welcomeMessage, setWelcomeMessage] = useState("");
-  
+
   // Mock data cho thống kê
   const [stats, setStats] = useState({
     totalDocuments: 0,
     totalUsers: 0,
     totalChecks: 0,
-    successRate: 0
-  })
+    successRate: 0,
+  });
 
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true);
 
   // Check for welcome message from registration
   useEffect(() => {
@@ -30,20 +31,47 @@ const Home = () => {
 
   // Simulate loading data
   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true); // bắt đầu loading
+        const response = await api.getForHome();
+        console.log("Home data:", response);
+        setStats({
+          totalDocuments: response.totalUsers,
+          totalUsers: response.totalDocuments,
+        });
+      } catch (error) {
+        console.error("Error fetching home data:", error);
+      } finally {
+        setIsLoading(false); // kết thúc loading
+      }
+    };
+
     const timer = setTimeout(() => {
-      setStats({
-        totalDocuments: 1247,
-        totalUsers: 856,
-        totalChecks: 3429,
-        successRate: 94.5
-      })
-      setIsLoading(false)
-    }, 800)
+      fetchData();
+    }, 800); // delay 800ms nếu bạn vẫn muốn mô phỏng
 
-    return () => clearTimeout(timer)
-  }, [])
+    return () => clearTimeout(timer);
+  }, []);
 
-  const StatCard = ({ title, value, icon, bgColor, iconBg, isPercentage = false, isLoading = false }) => (
+  const fetchHomeData = async () => {
+    try {
+      const response = await api.getForHome();
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching home data:", error);
+    }
+  };
+
+  const StatCard = ({
+    title,
+    value,
+    icon,
+    bgColor,
+    iconBg,
+    isPercentage = false,
+    isLoading = false,
+  }) => (
     <div className="transition-all duration-300 transform card hover:shadow-xl hover:-translate-y-1">
       <div className="flex items-center justify-between">
         <div className="flex-1">
@@ -61,7 +89,7 @@ const Home = () => {
         </div>
       </div>
     </div>
-  )
+  );
 
   return (
     <div className="mb-20 bg-gradient-to-br from-neutral-50 to-primary-50">
@@ -83,9 +111,10 @@ const Home = () => {
               🎯 So sánh 2 văn bản
             </h1>
             <p className="mb-6 text-lg text-primary-100">
-              Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp và tỷ lệ trùng lặp
+              Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp và tỷ
+              lệ trùng lặp
             </p>
-            
+
             {/* CTA Button */}
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
               {isAuthenticated ? (
@@ -116,7 +145,7 @@ const Home = () => {
               )}
             </div>
           </div>
-          
+
           <div className="flex flex-wrap justify-center gap-4 text-sm text-neutral-600">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success-500"></div>
@@ -147,23 +176,6 @@ const Home = () => {
             iconBg="bg-accent-100"
             isLoading={isLoading}
           />
-          <StatCard
-            title="Lượt kiểm tra"
-            value={stats.totalChecks}
-            icon="🔍"
-            bgColor="text-secondary-600"
-            iconBg="bg-secondary-100"
-            isLoading={isLoading}
-          />
-          <StatCard
-            title="Tỷ lệ thành công"
-            value={stats.successRate}
-            icon="✅"
-            bgColor="text-success-600"
-            iconBg="bg-success-100"
-            isPercentage={true}
-            isLoading={isLoading}
-          />
         </div>
 
         {/* Tips Section */}
@@ -171,11 +183,14 @@ const Home = () => {
           <div className="flex items-start gap-4">
             <div className="text-4xl">💡</div>
             <div>
-              <h3 className="mb-2 text-xl font-bold text-neutral-800">Mẹo sử dụng hiệu quả</h3>
+              <h3 className="mb-2 text-xl font-bold text-neutral-800">
+                Mẹo sử dụng hiệu quả
+              </h3>
               <ul className="space-y-2 text-neutral-600">
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
-                  Sử dụng chức năng "So sánh văn bản" để kiểm tra độ tương đồng giữa các tài liệu
+                  Sử dụng chức năng "So sánh văn bản" để kiểm tra độ tương đồng
+                  giữa các tài liệu
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
@@ -183,11 +198,13 @@ const Home = () => {
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
-                  Xem báo cáo chi tiết để theo dõi xu hướng và hiệu suất hệ thống
+                  Xem báo cáo chi tiết để theo dõi xu hướng và hiệu suất hệ
+                  thống
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
-                  Hệ thống sử dụng cây AVL để tối ưu hóa tốc độ kiểm tra trùng lặp
+                  Hệ thống sử dụng cây AVL để tối ưu hóa tốc độ kiểm tra trùng
+                  lặp
                 </li>
               </ul>
             </div>
@@ -195,7 +212,7 @@ const Home = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Home
+export default Home;
