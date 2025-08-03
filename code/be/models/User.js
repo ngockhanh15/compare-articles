@@ -1,61 +1,69 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
-const userSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Vui lòng nhập họ tên'],
-    trim: true,
-    maxlength: [50, 'Họ tên không được vượt quá 50 ký tự']
-  },
-  email: {
-    type: String,
-    required: [true, 'Vui lòng nhập email'],
-    unique: true, // Tự tạo unique index
-    lowercase: true,
-    match: [
-      /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-      'Vui lòng nhập email hợp lệ'
-    ]
-  },
-  password: {
-    type: String,
-    required: [true, 'Vui lòng nhập mật khẩu'],
-    minlength: [6, 'Mật khẩu phải có ít nhất 6 ký tự'],
-    select: false
-  },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  emailVerified: {
-    type: Boolean,
-    default: true
-  },
-  emailVerificationToken: String,
-  emailVerificationExpire: Date,
-  resetPasswordToken: String,
-  resetPasswordExpire: Date,
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Vui lòng nhập họ tên"],
+      trim: true,
+      maxlength: [50, "Họ tên không được vượt quá 50 ký tự"],
+    },
+    email: {
+      type: String,
+      required: [true, "Vui lòng nhập email"],
+      unique: true, // Tự tạo unique index
+      lowercase: true,
+      match: [
+        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
+        "Vui lòng nhập email hợp lệ",
+      ],
+    },
+    password: {
+      type: String,
+      required: [false, "Vui lòng nhập mật khẩu"],
+      minlength: [6, "Mật khẩu phải có ít nhất 6 ký tự"],
+      select: false,
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    emailVerified: {
+      type: Boolean,
+      default: true,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
+    emailVerificationToken: String,
+    emailVerificationExpire: Date,
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
 
-  lastLogin: Date,
-  loginAttempts: {
-    type: Number,
-    default: 0
+    lastLogin: Date,
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: Date,
   },
-  lockUntil: Date
-}, {
-  timestamps: true
-});
+  {
+    timestamps: true,
+  }
+);
 
 // Virtual for account lock status
-userSchema.virtual('isLocked').get(function () {
+userSchema.virtual("isLocked").get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
@@ -64,8 +72,8 @@ userSchema.index({ resetPasswordToken: 1 });
 userSchema.index({ emailVerificationToken: 1 });
 
 // Encrypt password using bcrypt
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) {
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) {
     return next();
   }
 
@@ -81,8 +89,6 @@ userSchema.methods.getSignedJwtToken = function () {
   });
 };
 
-
-
 // Match user entered password to hashed password in database
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return bcrypt.compare(enteredPassword, this.password);
@@ -90,11 +96,11 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 
 // Generate and hash password token
 userSchema.methods.getResetPasswordToken = function () {
-  const resetToken = crypto.randomBytes(20).toString('hex');
+  const resetToken = crypto.randomBytes(20).toString("hex");
   this.resetPasswordToken = crypto
-    .createHash('sha256')
+    .createHash("sha256")
     .update(resetToken)
-    .digest('hex');
+    .digest("hex");
   this.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes
   return resetToken;
 };
@@ -117,7 +123,7 @@ userSchema.methods.incLoginAttempts = function () {
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
       $unset: { lockUntil: 1 },
-      $set: { loginAttempts: 1 }
+      $set: { loginAttempts: 1 },
     });
   }
 
@@ -131,10 +137,27 @@ userSchema.methods.incLoginAttempts = function () {
 // Reset login attempts
 userSchema.methods.resetLoginAttempts = function () {
   return this.updateOne({
-    $unset: { loginAttempts: 1, lockUntil: 1 }
+    $unset: { loginAttempts: 1, lockUntil: 1 },
   });
 };
 
+// Link Google account to existing user
+userSchema.methods.linkGoogleAccount = async function (googleId) {
+  try {
+    this.googleId = googleId;
+    this.emailVerified = true;
+    return await this.save();
+  } catch (error) {
+    if (error.code === 11000 && error.keyPattern?.googleId) {
+      throw new Error('Google ID này đã được sử dụng bởi tài khoản khác');
+    }
+    throw error;
+  }
+};
 
+// Check if user has Google account linked
+userSchema.methods.hasGoogleAccount = function () {
+  return !!this.googleId;
+};
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model("User", userSchema);

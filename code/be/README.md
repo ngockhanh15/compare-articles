@@ -423,6 +423,29 @@ curl -X POST http://127.0.0.1:3000/api/auth/login \
   -d '{"email":"test@example.com","password":"password123"}'
 ```
 
+## 🔐 Google OAuth
+
+### Cấu hình Google OAuth
+1. Tạo Google OAuth credentials tại [Google Cloud Console](https://console.cloud.google.com/)
+2. Cập nhật file `.env` với `CLIENT_ID` và `CLIENT_SECRET`
+3. Chạy test để kiểm tra cấu hình:
+   ```bash
+   npm run test:google
+   ```
+4. Xem chi tiết hướng dẫn tại `GOOGLE_OAUTH_SETUP.md`
+
+### Test Google OAuth
+```bash
+# Kiểm tra cấu hình
+npm run test:google
+
+# Kiểm tra endpoint
+curl http://127.0.0.1:3000/auth/google/config
+
+# Sửa lỗi duplicate users (nếu có)
+npm run fix:duplicates
+```
+
 ## 🚀 Deployment
 
 ### Production Checklist
@@ -434,6 +457,7 @@ curl -X POST http://127.0.0.1:3000/api/auth/login \
 - [ ] Thiết lập monitoring và logging
 - [ ] Backup strategy cho database
 - [ ] Load balancing (nếu cần)
+- [ ] Cấu hình Google OAuth cho production
 
 ### Environment Variables Production
 ```env

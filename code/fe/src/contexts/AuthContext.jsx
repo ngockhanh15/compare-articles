@@ -13,6 +13,7 @@ export const AuthProvider = ({ children }) => {
       const savedUser = localStorage.getItem('user');
       const token = localStorage.getItem('token');
       
+      // Kiểm tra localStorage trước
       if (savedUser && token) {
         try {
           const parsedUser = JSON.parse(savedUser);
@@ -24,9 +25,11 @@ export const AuthProvider = ({ children }) => {
             if (response.success) {
               setUser(response.data.user);
               localStorage.setItem('user', JSON.stringify(response.data.user));
+              setIsLoading(false);
+              return; // Đã tìm thấy user hợp lệ, không cần kiểm tra Google session
             }
           } catch (error) {
-            // Token is invalid, clear storage
+            // Token is invalid, clear storage và tiếp tục kiểm tra Google session
             console.error('Token validation failed:', error);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
@@ -38,6 +41,32 @@ export const AuthProvider = ({ children }) => {
           localStorage.removeItem('token');
         }
       }
+      
+      // Nếu không có localStorage hợp lệ, kiểm tra Google OAuth session
+      try {
+        const googleSessionResponse = await fetch('http://localhost:3000/auth/google/status', {
+          method: 'GET',
+          credentials: 'include' // Quan trọng: gửi cookies session
+        });
+        
+        if (googleSessionResponse.ok) {
+          const googleData = await googleSessionResponse.json();
+          if (googleData.success && googleData.user && googleData.token) {
+            console.log('✅ Found valid Google session:', googleData.user);
+            
+            // Lưu thông tin user và token vào localStorage
+            localStorage.setItem('user', JSON.stringify(googleData.user));
+            localStorage.setItem('token', googleData.token);
+            
+            setUser(googleData.user);
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (googleError) {
+        console.log('No valid Google session found:', googleError.message);
+      }
+      
       setIsLoading(false);
     };
 
@@ -82,7 +111,19 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     setIsLoading(true);
     try {
+      // Logout from regular auth
       await api.logout();
+
+      // Clear localStorage
+      // Also logout from Google OAuth session
+      try {
+        await fetch('http://localhost:3000/auth/google/logout', {
+          method: 'GET',
+          credentials: 'include'
+        });
+      } catch (googleLogoutError) {
+        console.error('Google logout error:', googleLogoutError);
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -118,6 +159,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    setUser,
     register,
     login,
     logout,

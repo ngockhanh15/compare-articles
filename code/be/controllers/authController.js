@@ -1,16 +1,17 @@
-const crypto = require('crypto');
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const { 
-  sendEmail, 
-  getPasswordResetEmailTemplate, 
+const crypto = require("crypto");
+const jwt = require("jsonwebtoken");
+const User = require("../models/User");
+const {
+  sendEmail,
+  getPasswordResetEmailTemplate,
   // getEmailVerificationTemplate, // Không cần thiết nữa
-  getWelcomeEmailTemplate 
-} = require('../utils/sendEmail');
-const { validationResult } = require('express-validator');
+  getWelcomeEmailTemplate,
+} = require("../utils/sendEmail");
+const { validationResult } = require("express-validator");
+const { now } = require("mongoose");
 
 // Helper function to send token response
-const sendTokenResponse = async (user, statusCode, res, message = '') => {
+const sendTokenResponse = async (user, statusCode, res, message = "") => {
   // Create token
   const token = user.getSignedJwtToken();
 
@@ -20,18 +21,18 @@ const sendTokenResponse = async (user, statusCode, res, message = '') => {
 
   const options = {
     expires: new Date(
-      Date.now() + parseInt(process.env.JWT_EXPIRE) * 24 * 60 * 60 * 1000,
+      Date.now() + parseInt(process.env.JWT_EXPIRE) * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
   };
 
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === "production") {
     options.secure = true;
   }
 
   res
     .status(statusCode)
-    .cookie('token', token, options)
+    .cookie("token", token, options)
     .json({
       success: true,
       message,
@@ -42,10 +43,10 @@ const sendTokenResponse = async (user, statusCode, res, message = '') => {
           name: user.name,
           email: user.email,
           role: user.role,
-          emailVerified: user.emailVerified,
-          lastLogin: user.lastLogin
-        }
-      }
+          emailVerified: user.emailVerified || true,
+          lastLogin: user.lastLogin || now(),
+        },
+      },
     });
 };
 
@@ -59,8 +60,8 @@ exports.register = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
@@ -71,7 +72,7 @@ exports.register = async (req, res, next) => {
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        error: 'Email này đã được sử dụng'
+        error: "Email này đã được sử dụng",
       });
     }
 
@@ -80,28 +81,33 @@ exports.register = async (req, res, next) => {
       name,
       email,
       password,
-      emailVerified: true // Đặt email đã được xác thực ngay từ đầu
+      emailVerified: true, // Đặt email đã được xác thực ngay từ đầu
     });
 
     // Send welcome email
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Chào mừng bạn đến với Filter Word App!',
-        html: getWelcomeEmailTemplate(user.name)
+        subject: "Chào mừng bạn đến với Filter Word App!",
+        html: getWelcomeEmailTemplate(user.name),
       });
     } catch (err) {
-      console.error('Welcome email send error:', err);
+      console.error("Welcome email send error:", err);
       // Don't fail registration if welcome email fails
     }
 
     // Return success response with token
-    sendTokenResponse(user, 201, res, 'Đăng ký thành công! Chào mừng bạn đến với Filter Word App.');
+    sendTokenResponse(
+      user,
+      201,
+      res,
+      "Đăng ký thành công! Chào mừng bạn đến với Filter Word App."
+    );
   } catch (err) {
-    console.error('Register error:', err);
+    console.error("Register error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi đăng ký tài khoản'
+      error: "Lỗi server khi đăng ký tài khoản",
     });
   }
 };
@@ -116,20 +122,20 @@ exports.login = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
     const { email, password } = req.body;
 
     // Check for user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select("+password");
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Email hoặc mật khẩu không đúng'
+        error: "Email hoặc mật khẩu không đúng",
       });
     }
 
@@ -137,7 +143,8 @@ exports.login = async (req, res, next) => {
     if (user.isLocked) {
       return res.status(423).json({
         success: false,
-        error: 'Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau.'
+        error:
+          "Tài khoản đã bị khóa do đăng nhập sai quá nhiều lần. Vui lòng thử lại sau.",
       });
     }
 
@@ -145,7 +152,7 @@ exports.login = async (req, res, next) => {
     if (!user.isActive) {
       return res.status(401).json({
         success: false,
-        error: 'Tài khoản đã bị vô hiệu hóa'
+        error: "Tài khoản đã bị vô hiệu hóa",
       });
     }
 
@@ -155,10 +162,10 @@ exports.login = async (req, res, next) => {
     if (!isMatch) {
       // Increment login attempts
       await user.incLoginAttempts();
-      
+
       return res.status(401).json({
         success: false,
-        error: 'Email hoặc mật khẩu không đúng'
+        error: "Email hoặc mật khẩu không đúng",
       });
     }
 
@@ -167,12 +174,12 @@ exports.login = async (req, res, next) => {
       await user.resetLoginAttempts();
     }
 
-    sendTokenResponse(user, 200, res, 'Đăng nhập thành công');
+    sendTokenResponse(user, 200, res, "Đăng nhập thành công");
   } catch (err) {
-    console.error('Login error:', err);
+    console.error("Login error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi đăng nhập'
+      error: "Lỗi server khi đăng nhập",
     });
   }
 };
@@ -182,20 +189,20 @@ exports.login = async (req, res, next) => {
 // @access  Private
 exports.logout = async (req, res, next) => {
   try {
-    res.cookie('token', 'none', {
+    res.cookie("token", "none", {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
     });
 
     res.status(200).json({
       success: true,
-      message: 'Đăng xuất thành công'
+      message: "Đăng xuất thành công",
     });
   } catch (err) {
-    console.error('Logout error:', err);
+    console.error("Logout error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi đăng xuất'
+      error: "Lỗi server khi đăng xuất",
     });
   }
 };
@@ -217,15 +224,15 @@ exports.getMe = async (req, res, next) => {
           role: user.role,
           emailVerified: user.emailVerified,
           lastLogin: user.lastLogin,
-          createdAt: user.createdAt
-        }
-      }
+          createdAt: user.createdAt,
+        },
+      },
     });
   } catch (err) {
-    console.error('Get me error:', err);
+    console.error("Get me error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi lấy thông tin người dùng'
+      error: "Lỗi server khi lấy thông tin người dùng",
     });
   }
 };
@@ -240,8 +247,8 @@ exports.updateDetails = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
@@ -256,10 +263,10 @@ exports.updateDetails = async (req, res, next) => {
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          error: 'Email này đã được sử dụng'
+          error: "Email này đã được sử dụng",
         });
       }
-      
+
       fieldsToUpdate.email = req.body.email;
       // Không cần reset emailVerified nữa vì không có xác thực email
     }
@@ -271,22 +278,22 @@ exports.updateDetails = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Cập nhật thông tin thành công',
+      message: "Cập nhật thông tin thành công",
       data: {
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
-          emailVerified: user.emailVerified
-        }
-      }
+          emailVerified: user.emailVerified,
+        },
+      },
     });
   } catch (err) {
-    console.error('Update details error:', err);
+    console.error("Update details error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi cập nhật thông tin'
+      error: "Lỗi server khi cập nhật thông tin",
     });
   }
 };
@@ -301,30 +308,30 @@ exports.updatePassword = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
-    const user = await User.findById(req.user.id).select('+password');
+    const user = await User.findById(req.user.id).select("+password");
 
     // Check current password
     if (!(await user.matchPassword(req.body.currentPassword))) {
       return res.status(401).json({
         success: false,
-        error: 'Mật khẩu hiện tại không đúng'
+        error: "Mật khẩu hiện tại không đúng",
       });
     }
 
     user.password = req.body.newPassword;
     await user.save();
 
-    sendTokenResponse(user, 200, res, 'Đổi mật khẩu thành công');
+    sendTokenResponse(user, 200, res, "Đổi mật khẩu thành công");
   } catch (err) {
-    console.error('Update password error:', err);
+    console.error("Update password error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi đổi mật khẩu'
+      error: "Lỗi server khi đổi mật khẩu",
     });
   }
 };
@@ -339,8 +346,8 @@ exports.forgotPassword = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
@@ -349,7 +356,7 @@ exports.forgotPassword = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        error: 'Không tìm thấy người dùng với email này'
+        error: "Không tìm thấy người dùng với email này",
       });
     }
 
@@ -364,16 +371,16 @@ exports.forgotPassword = async (req, res, next) => {
     try {
       await sendEmail({
         email: user.email,
-        subject: 'Đặt lại mật khẩu - Filter Word App',
-        html: getPasswordResetEmailTemplate(resetUrl, user.name)
+        subject: "Đặt lại mật khẩu - Filter Word App",
+        html: getPasswordResetEmailTemplate(resetUrl, user.name),
       });
 
       res.status(200).json({
         success: true,
-        message: 'Email đặt lại mật khẩu đã được gửi'
+        message: "Email đặt lại mật khẩu đã được gửi",
       });
     } catch (err) {
-      console.error('Email send error:', err);
+      console.error("Email send error:", err);
       user.resetPasswordToken = undefined;
       user.resetPasswordExpire = undefined;
 
@@ -381,14 +388,14 @@ exports.forgotPassword = async (req, res, next) => {
 
       return res.status(500).json({
         success: false,
-        error: 'Không thể gửi email đặt lại mật khẩu'
+        error: "Không thể gửi email đặt lại mật khẩu",
       });
     }
   } catch (err) {
-    console.error('Forgot password error:', err);
+    console.error("Forgot password error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi xử lý yêu cầu đặt lại mật khẩu'
+      error: "Lỗi server khi xử lý yêu cầu đặt lại mật khẩu",
     });
   }
 };
@@ -403,16 +410,16 @@ exports.resetPassword = async (req, res, next) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        error: 'Dữ liệu không hợp lệ',
-        details: errors.array()
+        error: "Dữ liệu không hợp lệ",
+        details: errors.array(),
       });
     }
 
     // Get hashed token
     const resetPasswordToken = crypto
-      .createHash('sha256')
+      .createHash("sha256")
       .update(req.params.resettoken)
-      .digest('hex');
+      .digest("hex");
 
     const user = await User.findOne({
       resetPasswordToken,
@@ -422,7 +429,7 @@ exports.resetPassword = async (req, res, next) => {
     if (!user) {
       return res.status(400).json({
         success: false,
-        error: 'Token không hợp lệ hoặc đã hết hạn'
+        error: "Token không hợp lệ hoặc đã hết hạn",
       });
     }
 
@@ -430,19 +437,19 @@ exports.resetPassword = async (req, res, next) => {
     user.password = req.body.password;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
-    
+
     // Reset login attempts
     user.loginAttempts = 0;
     user.lockUntil = undefined;
-    
+
     await user.save();
 
-    sendTokenResponse(user, 200, res, 'Đặt lại mật khẩu thành công');
+    sendTokenResponse(user, 200, res, "Đặt lại mật khẩu thành công");
   } catch (err) {
-    console.error('Reset password error:', err);
+    console.error("Reset password error:", err);
     res.status(500).json({
       success: false,
-      error: 'Lỗi server khi đặt lại mật khẩu'
+      error: "Lỗi server khi đặt lại mật khẩu",
     });
   }
 };
@@ -581,4 +588,3 @@ exports.resendEmailVerification = async (req, res, next) => {
   }
 };
 */
-
