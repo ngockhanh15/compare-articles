@@ -34,10 +34,12 @@ exports.home = async (req, res) => {
   try {
     const allUser = await Users.find({});
     const allDocuments = await Documents.find({});
+    const allTree = await PlagiarismCheck.find({});
 
     res.json({
       totalUsers: allUser.length,
       totalDocuments: allDocuments.length,
+      totalTree: allTree.length,
     });
   } catch (error) {
     console.error("Error in /home:", error);

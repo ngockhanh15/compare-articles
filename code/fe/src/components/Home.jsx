@@ -39,6 +39,7 @@ const Home = () => {
         setStats({
           totalDocuments: response.totalUsers,
           totalUsers: response.totalDocuments,
+          totalChecks: response.totalTree,
         });
       } catch (error) {
         console.error("Error fetching home data:", error);
@@ -159,7 +160,7 @@ const Home = () => {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 gap-6 mb-12 md:grid-cols-2 lg:grid-cols-4">
+        <div className="flex justify-center gap-6 mb-12">
           <StatCard
             title="Tổng số tài liệu"
             value={stats.totalDocuments}
@@ -172,6 +173,14 @@ const Home = () => {
             title="Số người dùng"
             value={stats.totalUsers}
             icon="👥"
+            bgColor="text-accent-600"
+            iconBg="bg-accent-100"
+            isLoading={isLoading}
+          />
+          <StatCard
+            title="Tổng số lần kiểm tra"
+            value={stats.totalChecks}
+            icon="🔍"
             bgColor="text-accent-600"
             iconBg="bg-accent-100"
             isLoading={isLoading}
