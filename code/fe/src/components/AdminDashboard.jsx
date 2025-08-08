@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import UserManagement from "./UserManagement";
 import DocumentManagement from "./DocumentManagement";
+import AuditLog from "./AuditLog";
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -19,6 +20,7 @@ const AdminDashboard = () => {
   const tabs = [
     { id: "users", name: "Quản lý người dùng", icon: "👥" },
     { id: "documents", name: "Quản lý tài liệu", icon: "📄" },
+    { id: "audit", name: "Lịch sử hoạt động", icon: "📝" },
   ];
 
   const toggleSidebar = () => {
@@ -140,6 +142,7 @@ const AdminDashboard = () => {
             <div className="p-6">
               {activeTab === "users" && <UserManagement />}
               {activeTab === "documents" && <DocumentManagement />}
+              {activeTab === "audit" && <AuditLog />}
             </div>
           </div>
         </div>

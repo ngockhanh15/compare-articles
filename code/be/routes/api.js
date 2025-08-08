@@ -5,6 +5,7 @@ const userUploadRoutes = require("./userUpload");
 const stopwordsRoutes = require("./stopwords");
 const userRoutes = require("./users");
 const router = express.Router();
+const auditController = require("../controllers/auditController");
 
 // ===== PLAGIARISM CHECKING ROUTES =====
 
@@ -116,5 +117,8 @@ router.use("/stopwords", stopwordsRoutes);
 router.use("/users", userRoutes);
 
 router.get("/home", plagiarismController.home);
+
+// ===== AUDIT LOG ROUTES =====
+router.get("/audit-logs", protect, authorize("admin"), auditController.listLogs);
 
 module.exports = router;

@@ -76,7 +76,7 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // Create user with email already verified
+  // Create user with email already verified
     const user = await User.create({
       name,
       email,
@@ -103,6 +103,22 @@ exports.register = async (req, res, next) => {
       res,
       "Đăng ký thành công! Chào mừng bạn đến với Filter Word App."
     );
+    // If the caller is an authenticated admin (register used from admin UI), log audit
+    try {
+      if (req.user && req.user.role === 'admin') {
+        const { logAction } = require('../utils/auditLogger');
+        logAction({
+          req,
+          action: 'create_user',
+          targetType: 'user',
+          targetId: String(user._id),
+          targetName: user.name,
+          metadata: { email: user.email }
+        });
+      }
+    } catch (e) {
+      // ignore audit logging errors
+    }
   } catch (err) {
     console.error("Register error:", err);
     res.status(500).json({

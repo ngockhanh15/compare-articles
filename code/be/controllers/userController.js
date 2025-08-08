@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { logAction } = require('../utils/auditLogger');
 
 // @desc    Lấy danh sách tất cả người dùng (Admin only)
 // @route   GET /api/users
@@ -142,6 +143,14 @@ const toggleUserStatus = async (req, res) => {
       },
       message: `Đã ${user.isActive ? 'kích hoạt' : 'vô hiệu hóa'} tài khoản người dùng`
     });
+    logAction({
+      req,
+      action: 'toggle_user_status',
+      targetType: 'user',
+      targetId: String(user._id),
+      targetName: user.name,
+      metadata: { isActive: user.isActive }
+    });
   } catch (error) {
     console.error('Toggle user status error:', error);
     res.status(500).json({
@@ -201,6 +210,14 @@ const updateUserRole = async (req, res) => {
       },
       message: `Đã cập nhật vai trò người dùng thành ${role === 'admin' ? 'Quản trị viên' : 'Người dùng'}`
     });
+    logAction({
+      req,
+      action: 'update_user_role',
+      targetType: 'user',
+      targetId: String(user._id),
+      targetName: user.name,
+      metadata: { role: user.role }
+    });
   } catch (error) {
     console.error('Update user role error:', error);
     res.status(500).json({
@@ -245,6 +262,13 @@ const deleteUser = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Đã xóa người dùng thành công'
+    });
+    logAction({
+      req,
+      action: 'delete_user',
+      targetType: 'user',
+      targetId: String(user._id),
+      targetName: user.name,
     });
   } catch (error) {
     console.error('Delete user error:', error);
@@ -336,6 +360,13 @@ const resetUserPassword = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Đã reset mật khẩu người dùng thành công'
+    });
+    logAction({
+      req,
+      action: 'reset_user_password',
+      targetType: 'user',
+      targetId: String(user._id),
+      targetName: user.name,
     });
   } catch (error) {
     console.error('Reset user password error:', error);

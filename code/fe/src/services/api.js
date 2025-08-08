@@ -842,4 +842,21 @@ export const resetUserPassword = async (userId, newPassword) => {
   }
 };
 
+// ==================== AUDIT LOGS ====================
+export const getAuditLogs = async (page = 1, limit = 5) => {
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/audit-logs?page=${page}&limit=${limit}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get audit logs error:", error);
+    throw error;
+  }
+};
+
 // ==================== OTHER API ====================

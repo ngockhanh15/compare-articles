@@ -7,6 +7,7 @@ const fsSync = require('fs');
 const mammoth = require('mammoth');
 const pdfParse = require('pdf-parse');
 const XLSX = require('xlsx');
+const { logAction } = require('../utils/auditLogger');
 
 // Configure multer for file uploads with persistent storage
 const storage = multer.diskStorage({
@@ -191,6 +192,15 @@ exports.uploadDocument = [
         },
         message: 'File đã được upload thành công'
       });
+      // Fire-and-forget audit log
+      logAction({
+        req,
+        action: 'upload_document',
+        targetType: 'document',
+        targetId: String(document._id),
+        targetName: document.title,
+        metadata: { fileType: document.fileType, fileSize: document.fileSize }
+      });
       
     } catch (error) {
       console.error('Document upload error:', error);
@@ -374,12 +384,20 @@ exports.downloadDocument = async (req, res) => {
     await document.incrementDownloadCount();
 
     // Set headers for file download
-    res.setHeader('Content-Disposition', `attachment; filename="${document.originalFileName}"`);
+  res.setHeader('Content-Disposition', `attachment; filename="${document.originalFileName}"`);
     res.setHeader('Content-Type', document.mimeType);
     
     // Stream file to response
     const fileStream = fsSync.createReadStream(document.filePath);
     fileStream.pipe(res);
+    // Audit log for download
+    logAction({
+      req,
+      action: 'download_document',
+      targetType: 'document',
+      targetId: String(document._id),
+      targetName: document.title,
+    });
     
   } catch (error) {
     console.error('Download document error:', error);
@@ -426,6 +444,14 @@ exports.updateDocument = async (req, res) => {
         isPublic: document.isPublic
       },
       message: 'Cập nhật tài liệu thành công'
+    });
+    logAction({
+      req,
+      action: 'update_document',
+      targetType: 'document',
+      targetId: String(document._id),
+      targetName: document.title,
+      metadata: { title, description, isPublic }
     });
     
   } catch (error) {
@@ -475,6 +501,13 @@ exports.deleteDocument = async (req, res) => {
     res.json({
       success: true,
       message: 'Xóa tài liệu thành công'
+    });
+    logAction({
+      req,
+      action: 'delete_document',
+      targetType: 'document',
+      targetId: String(document._id),
+      targetName: document.title,
     });
     
   } catch (error) {
