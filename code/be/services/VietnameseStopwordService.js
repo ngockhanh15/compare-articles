@@ -1,6 +1,8 @@
 const fs = require("fs");
 const path = require("path");
+// Use vntk tokenizer per requirements
 const vntk = require("vntk");
+const tokenizer = vntk.tokenizer();
 
 class VietnameseStopwordService {
   constructor() {
@@ -37,6 +39,51 @@ class VietnameseStopwordService {
     }
   }
 
+  // Tokenize a sentence with vntk and filter tokens per rules
+  // - lowercase
+  // - remove punctuation, special chars, numbers
+  // - remove stopwords
+  // - remove duplicates within a sentence
+  tokenizeAndFilterUnique(sentence) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    if (!sentence || typeof sentence !== "string") return [];
+
+    // vntk tokenize
+    let tokens = [];
+    try {
+      tokens = tokenizer.tokenize(sentence);
+    } catch (e) {
+      // Fallback: simple split
+      tokens = String(sentence).split(/\s+/);
+    }
+
+    // Normalize and filter
+    const cleaned = [];
+    const seen = new Set();
+    for (const raw of tokens) {
+      const lower = String(raw).toLowerCase();
+      // remove punctuation/specials/numbers
+      const normalized = lower
+        .normalize("NFKC")
+        .replace(/[.,!?;:()\[\]{}"'`~@#$%^&*+=|\\<>\/…“”‘’–—\-]/g, " ")
+        .replace(/\d+/g, " ")
+        .trim();
+      if (!normalized) continue;
+
+      // Token can still contain spaces from normalization; split again
+      for (const t of normalized.split(/\s+/)) {
+        if (!t) continue;
+        if (this.stopwords.has(t)) continue;
+        if (seen.has(t)) continue; // de-duplicate within the sentence
+        seen.add(t);
+        cleaned.push(t);
+      }
+    }
+    return cleaned;
+  }
+
   // Kiểm tra xem một từ có phải là stopword không
   isStopword(word) {
     if (!this.initialized) {
@@ -52,9 +99,8 @@ class VietnameseStopwordService {
     }
 
     try {
-      // Sử dụng vntk để tách từ tiếng Việt
-      var tokenizer = vntk.wordTokenizer();
-      const words = tokenizer.tag(text);
+  // Sử dụng vntk để tách từ tiếng Việt
+  const words = tokenizer.tokenize(text);
       
       // Lọc ra những từ không phải stopword
       const filteredWords = words.filter(word => {
@@ -99,8 +145,7 @@ class VietnameseStopwordService {
     if (typeof text === "string") {
       try {
         // Sử dụng vntk để tách từ tiếng Việt
-        var tokenizer = vntk.wordTokenizer();
-        const words = tokenizer.tag(text);
+    const words = tokenizer.tokenize(text);
         
         // Lọc ra những từ có nghĩa (loại bỏ stopwords và từ rỗng)
         meaningfulWords = words
@@ -151,7 +196,7 @@ class VietnameseStopwordService {
     let words;
     try {
       // Sử dụng vntk để tách từ tiếng Việt
-      words = vntk.wordTokenize(text).filter((word) => word.trim().length > 0);
+  words = tokenizer.tokenize(text).filter((word) => word.trim().length > 0);
     } catch (error) {
       console.warn("Lỗi khi sử dụng vntk trong splitByStopwords, fallback về phương pháp cũ:", error);
       // Fallback về phương pháp cũ nếu vntk gặp lỗi
@@ -232,8 +277,8 @@ class VietnameseStopwordService {
 
     try {
       // Sử dụng vntk để tách từ tiếng Việt
-      var tokenizer = vntk.wordTokenizer();
-      const words = tokenizer.tag(text)
+      const words = tokenizer
+        .tokenize(text)
         .map(word => word.toLowerCase().trim())
         .filter(word => word.length > 0 && !/^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/\s]+$/.test(word));
 

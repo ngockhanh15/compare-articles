@@ -11,6 +11,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
 import TextChecker from "./components/TextChecker";
+import UploadChecker from "./components/UploadChecker";
 import DetailedComparison from "./components/DetailedComparison";
 import AllDocumentsComparison from "./components/AllDocumentsComparison";
 import DocumentManagement from "./components/DocumentManagement";
@@ -145,6 +146,14 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route
+                path="/upload-checker"
+                element={
+                  <ProtectedRoute>
+                    <UploadChecker />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/text-checker"
                 element={

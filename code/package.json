@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "murmurhash3js": "^3.0.1",
+    "vntk": "^1.4.4"
+  }
+}

@@ -22,7 +22,9 @@ const handleResponse = async (response) => {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
     }
-    throw new Error(data.error || "Something went wrong");
+  const err = new Error(data.error || "Something went wrong");
+  if (data && data.details) err.details = data.details;
+  throw err;
   }
 
   return data;
@@ -57,6 +59,29 @@ export const register = async (userData) => {
     return data;
   } catch (error) {
     console.error("Register error:", error);
+    throw error;
+  }
+};
+
+// Admin create user without changing current session
+export const adminCreateUser = async (userData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/register`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+  name: (userData.name || "").trim(),
+  email: (userData.email || "").trim(),
+        password: userData.password,
+        confirmPassword: userData.confirmPassword || userData.password,
+        // server ignores role here; we'll set via /users/:id/role if needed
+      }),
+    });
+
+    // Do NOT store token/user from response
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Admin create user error:", error);
     throw error;
   }
 };

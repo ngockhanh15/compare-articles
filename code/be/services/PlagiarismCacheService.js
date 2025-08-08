@@ -2,8 +2,8 @@ const { TreeAVL, TextHasher } = require('../utils/TreeAVL');
 
 class PlagiarismCacheService {
   constructor() {
-    this.textCache = new TreeAVL();
-    this.wordCache = new TreeAVL();
+  this.textCache = new TreeAVL();
+  this.wordCache = new TreeAVL();
     this.stats = {
       totalCached: 0,
       cacheHits: 0,
@@ -13,8 +13,8 @@ class PlagiarismCacheService {
 
   cacheResult(text, result) {
     try {
-      const fullHash = TextHasher.createMD5Hash(text);
-      const words = TextHasher.createWordHashes(text, true);
+  const fullHash = TextHasher.createMeaningfulHash(text);
+  const words = TextHasher.createWordHashes(text);
       
       const cacheData = {
         text: text,
@@ -24,16 +24,13 @@ class PlagiarismCacheService {
         meaningfulWordCount: words.length
       };
       
-      this.textCache.insert(fullHash, cacheData);
+  this.textCache.insertOccurrence(fullHash, "_cache_", "_cache_:");
+  // store payload reference by overriding getAllNodes is not suitable; attach to a side map
+  if (!this.payloads) this.payloads = new Map();
+  this.payloads.set(fullHash, cacheData);
       
       words.forEach(wordData => {
-        this.wordCache.insert(wordData.hash, {
-          word: wordData.word,
-          fullHash: fullHash,
-          index: wordData.index,
-          method: wordData.method,
-          timestamp: Date.now()
-        });
+        this.wordCache.insertOccurrence(wordData.hash, fullHash, `cache:${fullHash}`);
       });
       
       this.stats.totalCached++;
@@ -52,14 +49,14 @@ class PlagiarismCacheService {
 
   findCachedResult(text) {
     try {
-      const fullHash = TextHasher.createMD5Hash(text);
-      const exactMatch = this.textCache.search(fullHash);
+  const fullHash = TextHasher.createMeaningfulHash(text);
+  const exactMatch = this.textCache.search(fullHash);
       
       if (exactMatch) {
         this.stats.cacheHits++;
         return {
           type: 'exact',
-          data: exactMatch.data,
+          data: this.payloads ? this.payloads.get(fullHash) : undefined,
           similarity: 100
         };
       }
@@ -76,14 +73,15 @@ class PlagiarismCacheService {
 
   findSimilarWords(text, threshold = 0.5) {
     try {
-      const words = TextHasher.createWordHashes(text, true);
+  const words = TextHasher.createWordHashes(text);
       const similarWords = [];
       const documentMatches = new Map();
       
       words.forEach(wordData => {
         const exactMatch = this.wordCache.search(wordData.hash);
         if (exactMatch) {
-          const docHash = exactMatch.data.fullHash;
+          // use the first doc reference from node.documents as the cached doc key
+          const docHash = Array.from(exactMatch.documents)[0];
           
           if (!documentMatches.has(docHash)) {
             documentMatches.set(docHash, {
@@ -110,12 +108,12 @@ class PlagiarismCacheService {
         
         if (similarity >= threshold * 100) {
           // Lấy thông tin text gốc từ cache
-          const cachedText = this.textCache.search(docHash);
+          const cachedText = this.payloads ? this.payloads.get(docHash) : undefined;
           
           similarWords.push({
             type: 'word-based',
             originalText: text.substring(0, 200) + '...',
-            matchedText: cachedText ? cachedText.data.text.substring(0, 200) + '...' : 'Unknown',
+            matchedText: cachedText ? String(cachedText.text || '').substring(0, 200) + '...' : 'Unknown',
             similarity: Math.round(similarity),
             matchedWords: docMatch.matchedWords.slice(0, 10), // Giới hạn 10 từ
             fullHash: docHash

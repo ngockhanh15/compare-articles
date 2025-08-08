@@ -6,6 +6,7 @@ class DocumentAVLService {
   constructor() {
     this.documentTree = new TreeAVL();
     this.initialized = false;
+  this.docInfo = new Map(); // docId -> metadata incl. sentenceCount
   }
 
   // Initialize tree with existing documents
@@ -36,7 +37,6 @@ class DocumentAVLService {
       }
 
       for (const doc of documents) {
-        // Only add to tree, don't regenerate AVL tree data if it already exists
         await this.addDocumentToTreeOnly(doc);
       }
 
@@ -63,36 +63,15 @@ class DocumentAVLService {
       // Create composite key for sorting: fileType + createdAt + _id
       const sortKey = this.createSortKey(document);
 
-      // Create word hashes from document text (using new method)
-      const wordHashes = TextHasher.createWordHashes(
-        document.extractedText,
-        true
-      );
-
-      // Store document metadata with word hashes
-      const documentData = {
-        documentId: document._id,
-        title: document.title,
-        fileType: document.fileType,
-        createdAt: document.createdAt,
-        uploadedBy: document.uploadedBy,
-        textLength: document.extractedText.length,
-        wordCount: document.extractedText.split(/\s+/).length,
-        wordHashes: wordHashes,
-        fullText: document.extractedText,
-        sortKey: sortKey,
-      };
-
-      // Insert each word hash into tree (not the sortKey!)
-      for (const wordHash of wordHashes) {
-        this.documentTree.insert(wordHash.hash, documentData);
-      }
+      // Index document into global AVL (word -> docs/sentences)
+      const { sentenceCount, uniqueTokenCount } = this.indexDocument(document);
 
       console.log(
-        `Added document "${document.title}" to AVL tree with ${wordHashes.length} word hashes`
+        `Added document "${document.title}" to AVL index: ${sentenceCount} sentences, ${uniqueTokenCount} unique tokens`
       );
 
-      // Return AVL tree data for saving to database
+      // Also generate per-doc hash vector data for DB if needed
+      const wordHashes = TextHasher.createWordHashes(document.extractedText);
       return this.generateAVLTreeData(document, sortKey, wordHashes);
     } catch (error) {
       console.error(`Error adding document ${document._id} to tree:`, error);
@@ -113,37 +92,41 @@ class DocumentAVLService {
       // Create composite key for sorting: fileType + createdAt + _id
       const sortKey = this.createSortKey(document);
 
-      // Create word hashes from document text (using new method)
-      const wordHashes = TextHasher.createWordHashes(
-        document.extractedText,
-        true
-      );
-
-      // Store document metadata with word hashes
-      const documentData = {
-        documentId: document._id,
-        title: document.title,
-        fileType: document.fileType,
-        createdAt: document.createdAt,
-        uploadedBy: document.uploadedBy,
-        textLength: document.extractedText.length,
-        wordCount: document.extractedText.split(/\s+/).length,
-        wordHashes: wordHashes,
-        fullText: document.extractedText,
-        sortKey: sortKey,
-      };
-
-      // Insert each word hash into tree (not the sortKey!)
-      for (const wordHash of wordHashes) {
-        this.documentTree.insert(wordHash.hash, documentData);
-      }
-
+      // Index document into global AVL
+      const { sentenceCount, uniqueTokenCount } = this.indexDocument(document);
       console.log(
-        `Added document "${document.title}" to AVL tree with ${wordHashes.length} word hashes`
+        `Added document "${document.title}" to AVL index: ${sentenceCount} sentences, ${uniqueTokenCount} unique tokens`
       );
     } catch (error) {
       console.error(`Error adding document ${document._id} to tree:`, error);
     }
+  }
+
+  // Index a single document into the global AVL: tokens -> documents/sentences
+  indexDocument(document) {
+    const sentences = TextHasher.extractSentences(document.extractedText);
+    let uniqueTokenCount = 0;
+    for (let i = 0; i < sentences.length; i++) {
+      const tokens = vietnameseStopwordService.tokenizeAndFilterUnique(sentences[i]);
+      uniqueTokenCount += tokens.length;
+      for (const token of tokens) {
+        const hash = TextHasher.createMurmurHash(token);
+        this.documentTree.insertOccurrence(hash, document._id, `${document._id}:${i}`);
+      }
+    }
+
+    // Save doc metadata
+    this.docInfo.set(String(document._id), {
+      documentId: document._id,
+      title: document.title,
+      fileType: document.fileType,
+      createdAt: document.createdAt,
+      uploadedBy: document.uploadedBy,
+      sentenceCount: sentences.length,
+      wordCount: document.extractedText.split(/\s+/).filter(Boolean).length,
+    });
+
+    return { sentenceCount: sentences.length, uniqueTokenCount };
   }
 
   // Generate AVL tree data as hash vector for database storage
@@ -209,32 +192,96 @@ class DocumentAVLService {
       await vietnameseStopwordService.initialize();
     }
 
-    const { minSimilarity = 50, maxResults = null } = options;
+  const { minSimilarity = 50, maxResults = null } = options;
 
     try {
       console.log(`🔍 Bắt đầu kiểm tra trùng lặp...`);
       
-      // Bước 1: Tạo hash từ văn bản đầu vào
-      const inputHashes = TextHasher.createWordHashes(text, true);
-      const meaningfulWords = vietnameseStopwordService.extractMeaningfulWords(text);
-      const uniqueInputWords = new Set(meaningfulWords);
+      // Bước 1: Tách câu từ văn bản đầu vào
+      const inputSentences = TextHasher.extractSentences(text);
+      const totalInputSentences = inputSentences.length;
 
-      console.log(`📊 Văn bản có ${uniqueInputWords.size} từ có nghĩa và ${inputHashes.length} hash`);
+      // Bước 2: Với mỗi câu, tokenize + lọc + dedupe, sau đó tìm matches trong AVL
+      const docMatches = new Map(); // docId -> { matchedSentenceCount, details: [] }
+      let totalDuplicatedSentences = 0; // sentences in A that are duplicate with any doc
 
-      // Bước 2: Tìm kiếm trong cây AVL
-      const documentMatches = this.searchInAVLTree(inputHashes, uniqueInputWords);
+      for (let i = 0; i < inputSentences.length; i++) {
+        const sentence = inputSentences[i];
+        const tokens = vietnameseStopwordService.tokenizeAndFilterUnique(sentence);
+        const tokenCount = tokens.length;
+        if (tokenCount === 0) continue;
 
-      // Bước 3: Tính toán độ tương đồng cho từng tài liệu
-      const matches = this.calculateSimilarityScores(documentMatches, text, minSimilarity);
+        // Đếm số token trùng theo từng tài liệu
+        const perDocTokenMatches = new Map(); // docId -> count
+
+        for (const token of tokens) {
+          const hash = TextHasher.createMurmurHash(token);
+          const node = this.documentTree.search(hash);
+          if (!node) continue;
+          for (const docId of node.documents) {
+            perDocTokenMatches.set(docId, (perDocTokenMatches.get(docId) || 0) + 1);
+          }
+        }
+
+        // Xét ngưỡng cho từng doc
+        let sentenceMarkedDuplicate = false;
+        for (const [docId, matchedCount] of perDocTokenMatches) {
+          const percent = (matchedCount / tokenCount) * 100;
+          if (percent >= 50) {
+            sentenceMarkedDuplicate = true;
+            if (!docMatches.has(docId)) {
+              docMatches.set(docId, { matchedSentenceCount: 0, details: [] });
+            }
+            const entry = docMatches.get(docId);
+            entry.matchedSentenceCount += 1;
+            entry.details.push({
+              inputSentenceIndex: i,
+              inputSentence: sentence,
+              matchedTokens: matchedCount,
+              totalTokens: tokenCount,
+              similarity: Math.round(percent),
+            });
+          }
+        }
+
+        if (sentenceMarkedDuplicate) totalDuplicatedSentences += 1;
+      }
+
+      // Bước 3: Tính toán kết quả cho từng tài liệu
+      const matches = [];
+      for (const [docId, data] of docMatches) {
+        const meta = this.docInfo.get(String(docId)) || {};
+        const totalSentencesInB = meta.sentenceCount || 1;
+        const dabPercent = Math.round((data.matchedSentenceCount / totalSentencesInB) * 100);
+        const similarityForSorting = dabPercent; // dùng Da/b làm similarity
+        if (similarityForSorting >= minSimilarity) {
+          matches.push({
+            documentId: meta.documentId || docId,
+            title: meta.title || "Document",
+            fileType: meta.fileType,
+            createdAt: meta.createdAt,
+            similarity: similarityForSorting,
+            matchedHashes: undefined,
+            matchedWords: undefined,
+            duplicateSentences: data.matchedSentenceCount,
+            duplicateSentencesDetails: data.details,
+            method: "global-avl-word-index",
+            dabPercent,
+            totalSentencesInSource: totalSentencesInB,
+          });
+        }
+      }
 
       // Bước 4: Sắp xếp và giới hạn kết quả
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-      // Bước 5: Tạo kết quả cuối cùng
-      const result = this.buildFinalResult(limitedMatches, inputHashes, text);
+      // Bước 5: Dtotal (phần trăm câu trùng trong A)
+      const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
-      console.log(`📊 Kết quả: ${result.duplicatePercentage}% trùng lặp với ${result.totalMatches} tài liệu`);
+      // Xây dựng kết quả cuối
+      const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences);
+      console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu phù hợp`);
       return result;
 
     } catch (error) {
@@ -243,126 +290,25 @@ class DocumentAVLService {
     }
   }
 
-  // Tìm kiếm các từ trong cây AVL
-  searchInAVLTree(inputHashes, uniqueInputWords) {
-    const documentMatches = new Map();
-
-    for (const wordHash of inputHashes) {
-      const foundNode = this.documentTree.search(wordHash.hash);
-      
-      if (foundNode) {
-        const docData = foundNode.data;
-        const documentId = docData.documentId.toString();
-
-        if (!documentMatches.has(documentId)) {
-          documentMatches.set(documentId, {
-            documentData: docData,
-            matchedWords: new Set(),
-            matchedHashes: 0
-          });
-        }
-
-        const matchData = documentMatches.get(documentId);
-        if (!matchData.matchedWords.has(wordHash.word)) {
-          matchData.matchedWords.add(wordHash.word);
-          matchData.matchedHashes++;
-        }
-      }
-    }
-
-    return documentMatches;
-  }
-
-  // Tính toán điểm tương đồng cho từng tài liệu
-  calculateSimilarityScores(documentMatches, inputText, minSimilarity) {
-    const matches = [];
-    const inputSentences = TextHasher.extractSentences(inputText);
-
-    for (const [documentId, matchData] of documentMatches.entries()) {
-      const { documentData, matchedWords, matchedHashes } = matchData;
-      
-      // Tính độ tương đồng dựa trên câu
-      const duplicateSentences = this.findDuplicateSentences(
-        inputSentences, 
-        documentData.fullText, 
-        matchedWords
-      );
-
-      // Tính tỷ lệ trùng lặp
-      const similarity = duplicateSentences.length > 0 
-        ? Math.round(duplicateSentences.reduce((sum, s) => sum + s.similarity, 0) / duplicateSentences.length)
-        : 0;
-
-      // Chỉ thêm vào kết quả nếu vượt ngưỡng
-      if (similarity >= minSimilarity) {
-        matches.push({
-          documentId: documentData.documentId,
-          title: documentData.title,
-          fileType: documentData.fileType,
-          createdAt: documentData.createdAt,
-          similarity: similarity,
-          matchedHashes: matchedHashes,
-          matchedWords: Array.from(matchedWords),
-          duplicateSentences: duplicateSentences.length,
-          duplicateSentencesDetails: duplicateSentences, // Trả về tất cả câu trùng lặp
-          method: "simplified-avl-search"
-        });
-      }
-    }
-
-    return matches;
-  }
-
-  // Tìm các câu trùng lặp giữa hai văn bản
-  findDuplicateSentences(inputSentences, documentText, matchedWords) {
-    const docSentences = TextHasher.extractSentences(documentText);
-    const duplicateSentences = [];
-
-    for (const inputSentence of inputSentences) {
-      const inputWords = vietnameseStopwordService.extractMeaningfulWords(inputSentence);
-      
-      for (const docSentence of docSentences) {
-        const docWords = vietnameseStopwordService.extractMeaningfulWords(docSentence);
-        
-        // Tính số từ chung
-        const commonWords = inputWords.filter(word => docWords.includes(word));
-        const similarity = TextHasher.calculateMeaningfulSimilarity(inputSentence, docSentence);
-
-        // Nếu độ tương đồng >= 50%, coi là câu trùng lặp
-        if (similarity >= 50) {
-          duplicateSentences.push({
-            inputSentence,
-            docSentence,
-            similarity: Math.round(similarity),
-            commonWords: commonWords.length
-          });
-          // Bỏ break để tìm tất cả câu trùng lặp, không chỉ câu đầu tiên
-        }
-      }
-    }
-
-    return duplicateSentences;
-  }
-
   // Tạo kết quả cuối cùng
-  buildFinalResult(matches, inputHashes, inputText) {
-    const duplicatePercentage = matches.length > 0 ? matches[0].similarity : 0;
-    const { dtotal, dab, mostSimilarDocument } = this.calculateDtotalAndDAB(matches);
+  buildFinalResult(matches, dtotalPercent, totalInputSentences) {
+    const duplicatePercentage = dtotalPercent;
+    const { dab, mostSimilarDocument } = this.calculateDtotalAndDAB(matches);
 
     return {
       duplicatePercentage,
       matches,
       totalMatches: matches.length,
-      checkedDocuments: this.documentTree.getSize(),
-      totalDocumentsInSystem: this.documentTree.getSize(),
-      sources: matches.map(m => m.title),
-      confidence: duplicatePercentage > 70 ? "high" : duplicatePercentage > 30 ? "medium" : "low",
+      checkedDocuments: this.docInfo.size,
+      totalDocumentsInSystem: this.docInfo.size,
+      sources: matches.map((m) => m.title),
+      confidence: duplicatePercentage >= 70 ? "high" : duplicatePercentage >= 30 ? "medium" : "low",
       mostSimilarDocument,
-      dtotal,
+      dtotal: duplicatePercentage,
       dab,
-      totalInputHashes: inputHashes.length,
-      searchMethod: "simplified-avl-tree",
-      totalDuplicateSentences: dtotal
+      totalInputHashes: totalInputSentences,
+      searchMethod: "global-avl-tree",
+      totalDuplicateSentences: duplicatePercentage,
     };
   }
 
@@ -379,24 +325,16 @@ class DocumentAVLService {
   // Tính toán Dtotal và DA/B đơn giản
   calculateDtotalAndDAB(matches) {
     if (matches.length === 0) {
-      return { dtotal: 0, dab: 0, mostSimilarDocument: null };
+      return { dab: 0, mostSimilarDocument: null };
     }
-
-    // Tổng số câu trùng lặp từ tất cả tài liệu
-    const dtotal = matches.reduce((sum, match) => sum + match.duplicateSentences, 0);
-    
-    // Tài liệu có độ tương đồng cao nhất
-    const mostSimilarMatch = matches[0]; // matches đã được sắp xếp theo similarity
-    const dab = mostSimilarMatch.matchedHashes;
-
+    const mostSimilarMatch = matches[0];
+    const dab = mostSimilarMatch.dabPercent || mostSimilarMatch.similarity || 0;
     const mostSimilarDocument = {
       id: mostSimilarMatch.documentId,
       name: mostSimilarMatch.title,
       similarity: mostSimilarMatch.similarity,
     };
-
-    console.log(`📊 Dtotal: ${dtotal}, DA/B: ${dab}`);
-    return { dtotal, dab, mostSimilarDocument };
+    return { dab, mostSimilarDocument };
   }
 
   // Tính độ tương đồng giữa hai văn bản
@@ -426,65 +364,25 @@ class DocumentAVLService {
         totalNodes: 0,
         treeSize: 0,
         initialized: false,
-        uniqueSentences: 0,
-        uniquePercentage: 0,
-        duplicateSentences: 0,
-        duplicatePercentage: 0,
       };
     }
 
-    const allNodes = this.documentTree.getAllNodes();
-    const uniqueDocuments = new Set();
-    const fileTypeStats = {};
+    // Aggregate from docInfo
     let totalSentences = 0;
-
-    // Đếm số câu duy nhất (không trùng lặp)
-    const hashCounts = new Map();
-
-    allNodes.forEach((node) => {
-      const documentId = node.data.documentId;
-      const fileType = node.data.fileType;
-      const hash = node.key; // Giả sử key là hash của câu
-
-      // Count unique documents
-      uniqueDocuments.add(documentId.toString());
-
-      // Count file types (based on nodes, not documents)
-      fileTypeStats[fileType] = (fileTypeStats[fileType] || 0) + 1;
-
-      // Count sentences/word hashes
-      totalSentences++;
-
-      // Đếm số lần xuất hiện của mỗi hash
-      hashCounts.set(hash, (hashCounts.get(hash) || 0) + 1);
-    });
-
-    // Đếm số câu duy nhất (hash chỉ xuất hiện một lần)
-    let uniqueSentences = 0;
-    hashCounts.forEach((count) => {
-      if (count === 1) {
-        uniqueSentences++;
-      }
-    });
-
-    // Tính phần trăm câu duy nhất
-    const uniquePercentage =
-      totalSentences > 0 ? (uniqueSentences / totalSentences) * 100 : 0;
-    const duplicateSentences = totalSentences - uniqueSentences;
-    const duplicatePercentage = 100 - uniquePercentage;
+    const fileTypeStats = {};
+    for (const meta of this.docInfo.values()) {
+      totalSentences += meta.sentenceCount || 0;
+      if (meta.fileType) fileTypeStats[meta.fileType] = (fileTypeStats[meta.fileType] || 0) + 1;
+    }
 
     return {
-      totalDocuments: uniqueDocuments.size, // Số lượng documents duy nhất
-      totalSentences: totalSentences, // Tổng số word hashes/sentences
-      totalNodes: this.documentTree.getSize(), // Tổng số nodes trong tree
+      totalDocuments: this.docInfo.size,
+      totalSentences,
+      totalNodes: this.documentTree.getSize(),
       treeSize: this.documentTree.getSize(),
       initialized: this.initialized,
       fileTypeDistribution: fileTypeStats,
       treeHeight: this.getTreeHeight(),
-      uniqueSentences: uniqueSentences, // Số câu duy nhất (không trùng lặp)
-      uniquePercentage: uniquePercentage.toFixed(2), // Phần trăm câu duy nhất
-      duplicateSentences: duplicateSentences, // Số câu trùng lặp
-      duplicatePercentage: duplicatePercentage.toFixed(2), // Phần trăm câu trùng lặp
     };
   }
 
@@ -497,21 +395,9 @@ class DocumentAVLService {
   // Remove document from tree (when document is deleted)
   async removeDocumentFromTree(documentId) {
     try {
-      // Since AVL tree doesn't have direct delete by value,
-      // we need to rebuild the tree without this document
-      const allNodes = this.documentTree.getAllNodes();
-      const filteredNodes = allNodes.filter(
-        (node) => node.data.documentId.toString() !== documentId.toString()
-      );
-
-      // Clear and rebuild tree
-      this.documentTree.clear();
-
-      for (const node of filteredNodes) {
-        this.documentTree.insert(node.hash, node.data);
-      }
-
-      console.log(`Removed document ${documentId} from AVL tree`);
+  // Theo yêu cầu: có thể rebuild lại từ database để loại bỏ dữ liệu đã xóa
+  console.log(`Rebuilding AVL index to remove document ${documentId}...`);
+  await this.refreshTree();
     } catch (error) {
       console.error(`Error removing document ${documentId} from tree:`, error);
     }
@@ -519,9 +405,10 @@ class DocumentAVLService {
 
   // Refresh tree (reload from database)
   async refreshTree() {
-    this.documentTree.clear();
-    this.initialized = false;
-    await this.initialize();
+  this.documentTree.clear();
+  this.docInfo.clear();
+  this.initialized = false;
+  await this.initialize();
   }
 }
 

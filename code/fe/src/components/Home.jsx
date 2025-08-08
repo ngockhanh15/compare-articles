@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
 import * as api from "../services/api";
 
 const Home = () => {
-  const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [welcomeMessage, setWelcomeMessage] = useState("");
 
@@ -55,14 +53,7 @@ const Home = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  const fetchHomeData = async () => {
-    try {
-      const response = await api.getForHome();
-      return response.data;
-    } catch (error) {
-      console.error("Error fetching home data:", error);
-    }
-  };
+  // removed unused fetchHomeData helper
 
   const StatCard = ({
     title,
@@ -109,41 +100,29 @@ const Home = () => {
         <div className="mb-12 text-center">
           <div className="p-8 mb-6 text-white shadow-xl bg-gradient-primary rounded-2xl">
             <h1 className="mb-4 text-4xl font-bold md:text-5xl">
-              🎯 So sánh 2 văn bản
+              🎯 So sánh văn bản
             </h1>
             <p className="mb-6 text-lg text-primary-100">
               Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp và tỷ
               lệ trùng lặp
             </p>
 
-            {/* CTA Button */}
+            {/* CTA Buttons: Tải văn bản & Nhập văn bản */}
             <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-              {isAuthenticated ? (
-                <Link
-                  to="/text-checker"
-                  className="inline-flex items-center gap-2 px-8 py-3 font-semibold transition-all duration-200 transform bg-white shadow-lg text-primary-600 rounded-xl hover:bg-primary-50 hover:shadow-xl hover:-translate-y-1"
-                >
-                  <span>🔍</span>
-                  Bắt đầu kiểm tra ngay
-                </Link>
-              ) : (
-                <div className="flex gap-4">
-                  <Link
-                    to="/login"
-                    className="inline-flex items-center gap-2 px-8 py-3 font-semibold transition-all duration-200 transform bg-white shadow-lg text-primary-600 rounded-xl hover:bg-primary-50 hover:shadow-xl hover:-translate-y-1"
-                  >
-                    <span>🔐</span>
-                    Đăng nhập để kiểm tra
-                  </Link>
-                  <Link
-                    to="/register"
-                    className="inline-flex items-center gap-2 px-8 py-3 font-semibold text-white transition-all duration-200 border-2 border-white rounded-xl hover:bg-white/10"
-                  >
-                    <span>📝</span>
-                    Đăng ký miễn phí
-                  </Link>
-                </div>
-              )}
+              <Link
+                to="/upload-checker"
+                className="inline-flex items-center gap-2 px-8 py-3 font-semibold transition-all duration-200 transform bg-white shadow-lg text-primary-600 rounded-xl hover:bg-primary-50 hover:shadow-xl hover:-translate-y-1"
+              >
+                <span>�</span>
+                Tải văn bản
+              </Link>
+              <Link
+                to="/text-checker"
+                className="inline-flex items-center gap-2 px-8 py-3 font-semibold text-white transition-all duration-200 border-2 border-white rounded-xl hover:bg-white/10"
+              >
+                <span>✍️</span>
+                Nhập văn bản
+              </Link>
             </div>
           </div>
 

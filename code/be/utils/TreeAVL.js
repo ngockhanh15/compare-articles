@@ -1,10 +1,12 @@
-const crypto = require("crypto");
+const MurmurHash3 = require("murmurhash3js");
 const vietnameseStopwordService = require("../services/VietnameseStopwordService");
 
 class AVLNode {
-  constructor(hash, data) {
+  constructor(hash) {
     this.hash = hash;
-    this.data = data;
+    // Store aggregated refs
+    this.documents = new Set(); // document IDs containing this token
+    this.sentences = new Set(); // sentence IDs (docId:index) containing this token
     this.height = 1;
     this.left = null;
     this.right = null;
@@ -52,27 +54,40 @@ class TreeAVL {
     return y;
   }
 
-  insert(hash, data) {
-    this.root = this._insertNode(this.root, hash, data);
-    this.size++;
+  // Insert an occurrence of a token hash, adding doc and sentence refs
+  insertOccurrence(hash, documentId, sentenceId) {
+    const [newRoot, insertedNew] = this._insertNode(this.root, hash, documentId, sentenceId);
+    this.root = newRoot;
+    if (insertedNew) this.size++;
   }
 
-  _insertNode(node, hash, data) {
+  _insertNode(node, hash, documentId, sentenceId) {
     if (!node) {
-      return new AVLNode(hash, data);
+      const created = new AVLNode(hash);
+      if (documentId) created.documents.add(String(documentId));
+      if (sentenceId) created.sentences.add(String(sentenceId));
+      return [created, true];
     }
 
     if (hash < node.hash) {
-      node.left = this._insertNode(node.left, hash, data);
+      const [left, insertedNew] = this._insertNode(node.left, hash, documentId, sentenceId);
+      node.left = left;
+      this.updateHeight(node);
+      return [this._rebalance(node, hash), insertedNew];
     } else if (hash > node.hash) {
-      node.right = this._insertNode(node.right, hash, data);
+      const [right, insertedNew] = this._insertNode(node.right, hash, documentId, sentenceId);
+      node.right = right;
+      this.updateHeight(node);
+      return [this._rebalance(node, hash), insertedNew];
     } else {
-      node.data = data;
-      this.size--;
-      return node;
+      // Existing node: add refs (no size change)
+      if (documentId) node.documents.add(String(documentId));
+      if (sentenceId) node.sentences.add(String(sentenceId));
+      return [node, false];
     }
+  }
 
-    this.updateHeight(node);
+  _rebalance(node, hash) {
     const balance = this.getBalance(node);
 
     if (balance > 1 && hash < node.left.hash) {
@@ -119,7 +134,11 @@ class TreeAVL {
   _inOrderTraversal(node, result) {
     if (node) {
       this._inOrderTraversal(node.left, result);
-      result.push({ hash: node.hash, data: node.data });
+      result.push({
+        hash: node.hash,
+        documents: Array.from(node.documents),
+        sentences: Array.from(node.sentences),
+      });
       this._inOrderTraversal(node.right, result);
     }
   }
@@ -135,61 +154,45 @@ class TreeAVL {
 }
 
 class TextHasher {
-  static createMD5Hash(text) {
-    return crypto
-      .createHash("md5")
-      .update(text.trim().toLowerCase())
-      .digest("hex");
+  static createMurmurHash(text) {
+    // 32-bit hash as hex string for consistency
+    const val = MurmurHash3.x86.hash32(String(text).trim().toLowerCase());
+    // Ensure hex padding to 8 chars
+    return Number(val >>> 0).toString(16).padStart(8, "0");
   }
 
-  static createWordHashes(text, useStopwords = true) {
-    const wordHashes = [];
+  static createWordHashes(text) {
+    // Use vntk-based tokenizer and unique within sentence semantics not needed here; this is generic
+    const words = vietnameseStopwordService.initialized
+      ? vietnameseStopwordService.extractMeaningfulWords(text)
+      : String(text)
+          .toLowerCase()
+          .replace(/[^\p{L}\s]/gu, " ")
+          .split(/\s+/)
+          .filter(Boolean);
 
-    if (useStopwords && vietnameseStopwordService.initialized) {
-      // Lọc stopwords và tạo hash cho từng từ có nghĩa
-      const meaningfulWords =
-        vietnameseStopwordService.extractMeaningfulWords(text);
-
-      meaningfulWords.forEach((word, index) => {
-        if (word.trim().length > 0) {
-          wordHashes.push({
-            hash: this.createMD5Hash(word),
-            word: word,
-            index: index,
-            method: "stopword-filtered",
-          });
-        }
-      });
-
-      return this.createWordHashesLegacy(text);
-    } else {
-      // Fallback về method cũ nếu stopword service chưa khởi tạo
-      return this.createWordHashesLegacy(text);
-    }
+    return words.map((word, index) => ({
+      hash: this.createMurmurHash(word),
+      word,
+      index,
+      method: "murmur32",
+    }));
   }
 
   // Method cũ để tạo word hashes (backup)
   static createWordHashesLegacy(text) {
-    const words = text
+    const words = String(text)
       .toLowerCase()
-      .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, " ")
+      .replace(/[^\p{L}\s]/gu, " ")
       .split(/\s+/)
-      .filter((word) => word.trim().length > 0);
+      .filter(Boolean);
 
-    const wordHashes = [];
-
-    words.forEach((word, index) => {
-      if (word.trim().length > 0) {
-        wordHashes.push({
-          hash: this.createMD5Hash(word),
-          word: word,
-          index: index,
-          method: "legacy",
-        });
-      }
-    });
-
-    return wordHashes;
+    return words.map((word, index) => ({
+      hash: this.createMurmurHash(word),
+      word,
+      index,
+      method: "legacy-murmur32",
+    }));
   }
 
   // Tương thích ngược: tạo chunk hashes (deprecated)
@@ -202,13 +205,10 @@ class TextHasher {
 
   // Tạo hash cho text đã loại bỏ stopwords
   static createMeaningfulHash(text) {
-    if (vietnameseStopwordService.initialized) {
-      const meaningfulWords =
-        vietnameseStopwordService.extractMeaningfulWords(text);
-      const meaningfulText = meaningfulWords.join(" ");
-      return this.createMD5Hash(meaningfulText);
-    }
-    return this.createMD5Hash(text);
+    const words = vietnameseStopwordService.initialized
+      ? vietnameseStopwordService.extractMeaningfulWords(text)
+      : String(text).toLowerCase().split(/\s+/);
+    return this.createMurmurHash(words.join(" "));
   }
 
   // Tạo cụm từ (n-grams) từ danh sách từ có nghĩa (ưu tiên cụm từ 2-gram)
@@ -272,8 +272,8 @@ class TextHasher {
 
   // So sánh cơ bản (fallback) - sử dụng Plagiarism Ratio
   static calculateBasicSimilarity(text1, text2) {
-    const words1 = text1.toLowerCase().split(/\s+/);
-    const words2 = text2.toLowerCase().split(/\s+/);
+  const words1 = String(text1).toLowerCase().split(/\s+/);
+  const words2 = String(text2).toLowerCase().split(/\s+/);
 
     const set1 = new Set(words1);
     const set2 = new Set(words2);
@@ -303,7 +303,7 @@ class TextHasher {
     sentences.forEach((sentence, index) => {
       if (sentence.trim().length > 10) {
         // Tạo hash cho câu gốc
-        const originalHash = this.createMD5Hash(sentence);
+  const originalHash = this.createMurmurHash(sentence);
 
         // Tạo hash cho câu đã lọc stopwords (nếu có)
         let meaningfulHash = originalHash;
@@ -312,7 +312,7 @@ class TextHasher {
             vietnameseStopwordService.extractMeaningfulWords(sentence);
           const meaningfulText = meaningfulWords.join(" ");
           if (meaningfulText.trim().length > 0) {
-            meaningfulHash = this.createMD5Hash(meaningfulText);
+            meaningfulHash = this.createMurmurHash(meaningfulText);
           }
         }
 
@@ -435,9 +435,9 @@ class TextHasher {
       // Sắp xếp từ để tạo hash nhất quán cho nội dung tương tự
       const sortedWords = meaningfulWords.sort();
       const semanticText = sortedWords.join(" ");
-      return this.createMD5Hash(semanticText);
+      return this.createMurmurHash(semanticText);
     }
-    return this.createMD5Hash(text);
+    return this.createMurmurHash(text);
   }
 
   // So sánh hash semantic
