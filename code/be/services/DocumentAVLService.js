@@ -224,8 +224,6 @@ class DocumentAVLService {
       // Bước 2: Tìm kiếm trong cây AVL
       const documentMatches = this.searchInAVLTree(inputHashes, uniqueInputWords);
 
-      console.log(`🔍 Tìm thấy ${documentMatches.size} tài liệu có từ trùng lặp`);
-
       // Bước 3: Tính toán độ tương đồng cho từng tài liệu
       const matches = this.calculateSimilarityScores(documentMatches, text, minSimilarity);
 

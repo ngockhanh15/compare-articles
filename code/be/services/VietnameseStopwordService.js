@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const vntk = require("vntk");
 
 class VietnameseStopwordService {
   constructor() {
@@ -44,35 +45,50 @@ class VietnameseStopwordService {
     return this.stopwords.has(word.toLowerCase().trim());
   }
 
-  // Loại bỏ stopwords từ một đoạn text
+  // Loại bỏ stopwords từ một đoạn text sử dụng vntk
   removeStopwords(text) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
     }
 
-    // Tách từ bằng regex để giữ lại dấu câu
-    const words = text.split(/(\s+|[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/])/);
+    try {
+      // Sử dụng vntk để tách từ tiếng Việt
+      var tokenizer = vntk.wordTokenizer();
+      const words = tokenizer.tag(text);
+      
+      // Lọc ra những từ không phải stopword
+      const filteredWords = words.filter(word => {
+        const cleanWord = word.toLowerCase().trim();
+        return cleanWord.length > 0 && !this.stopwords.has(cleanWord);
+      });
 
-    const filteredWords = words.filter((word) => {
-      // Giữ lại khoảng trắng và dấu câu
-      if (
-        /^\s+$/.test(word) ||
-        /^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]+$/.test(word)
-      ) {
-        return true;
-      }
+      return filteredWords.join(" ");
+    } catch (error) {
+      console.warn("Lỗi khi sử dụng vntk trong removeStopwords, fallback về phương pháp cũ:", error);
+      // Fallback về phương pháp cũ nếu vntk gặp lỗi
+      const words = text.split(/(\s+|[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/])/);
 
-      // Loại bỏ stopwords
-      const cleanWord = word.trim().toLowerCase();
-      if (cleanWord.length === 0) return false;
+      const filteredWords = words.filter((word) => {
+        // Giữ lại khoảng trắng và dấu câu
+        if (
+          /^\s+$/.test(word) ||
+          /^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]+$/.test(word)
+        ) {
+          return true;
+        }
 
-      return !this.stopwords.has(cleanWord);
-    });
+        // Loại bỏ stopwords
+        const cleanWord = word.trim().toLowerCase();
+        if (cleanWord.length === 0) return false;
 
-    return filteredWords.join("").replace(/\s+/g, " ").trim();
+        return !this.stopwords.has(cleanWord);
+      });
+
+      return filteredWords.join("").replace(/\s+/g, " ").trim();
+    }
   }
 
-  // Tách text thành các từ có nghĩa (loại bỏ stopwords)
+  // Tách text thành các từ có nghĩa (loại bỏ stopwords) sử dụng vntk
   extractMeaningfulWords(text) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
@@ -80,17 +96,34 @@ class VietnameseStopwordService {
 
     let meaningfulWords;
 
-    // Tách từ và loại bỏ dấu câu
     if (typeof text === "string") {
-      const words = text
-        .toLowerCase()
-        .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, " ")
-        .split(/\s+/)
-        .filter((word) => word.trim().length > 0);
+      try {
+        // Sử dụng vntk để tách từ tiếng Việt
+        var tokenizer = vntk.wordTokenizer();
+        const words = tokenizer.tag(text);
+        
+        // Lọc ra những từ có nghĩa (loại bỏ stopwords và từ rỗng)
+        meaningfulWords = words
+          .map(word => word.toLowerCase().trim())
+          .filter(word => {
+            // Loại bỏ từ rỗng, dấu câu và stopwords
+            return word.length > 0 && 
+                   !/^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/\s]+$/.test(word) &&
+                   !this.stopwords.has(word);
+          });
+      } catch (error) {
+        console.warn("Lỗi khi sử dụng vntk, fallback về phương pháp cũ:", error);
+        // Fallback về phương pháp cũ nếu vntk gặp lỗi
+        const words = text
+          .toLowerCase()
+          .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, " ")
+          .split(/\s+/)
+          .filter((word) => word.trim().length > 0);
 
-      // Lọc ra những từ không phải stopword
-      meaningfulWords = words.filter((word) => !this.stopwords.has(word));
+        meaningfulWords = words.filter((word) => !this.stopwords.has(word));
+      }
     } else {
+      // Xử lý khi input là array
       meaningfulWords = [];
       text.forEach((word) => {
         const cleanWord = word.toLowerCase().trim();
@@ -103,7 +136,7 @@ class VietnameseStopwordService {
     return meaningfulWords;
   }
 
-  // Tách text thành chunks dựa trên stopwords
+  // Tách text thành chunks dựa trên stopwords sử dụng vntk
   splitByStopwords(text, options = {}) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
@@ -115,8 +148,15 @@ class VietnameseStopwordService {
       preserveStopwords = false, // Có giữ lại stopwords trong kết quả không
     } = options;
 
-    // Tách từ giữ nguyên vị trí
-    const words = text.split(/\s+/).filter((word) => word.trim().length > 0);
+    let words;
+    try {
+      // Sử dụng vntk để tách từ tiếng Việt
+      words = vntk.wordTokenize(text).filter((word) => word.trim().length > 0);
+    } catch (error) {
+      console.warn("Lỗi khi sử dụng vntk trong splitByStopwords, fallback về phương pháp cũ:", error);
+      // Fallback về phương pháp cũ nếu vntk gặp lỗi
+      words = text.split(/\s+/).filter((word) => word.trim().length > 0);
+    }
     const chunks = [];
     let currentChunk = [];
     let meaningfulWordCount = 0;
@@ -184,24 +224,41 @@ class VietnameseStopwordService {
     return chunks;
   }
 
-  // Tính toán mật độ stopwords trong text
+  // Tính toán mật độ stopwords trong text sử dụng vntk
   calculateStopwordDensity(text) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
     }
 
-    const words = text
-      .toLowerCase()
-      .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, " ")
-      .split(/\s+/)
-      .filter((word) => word.trim().length > 0);
+    try {
+      // Sử dụng vntk để tách từ tiếng Việt
+      var tokenizer = vntk.wordTokenizer();
+      const words = tokenizer.tag(text)
+        .map(word => word.toLowerCase().trim())
+        .filter(word => word.length > 0 && !/^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/\s]+$/.test(word));
 
-    if (words.length === 0) return 0;
+      if (words.length === 0) return 0;
 
-    const stopwordCount = words.filter((word) =>
-      this.stopwords.has(word)
-    ).length;
-    return (stopwordCount / words.length) * 100;
+      const stopwordCount = words.filter((word) =>
+        this.stopwords.has(word)
+      ).length;
+      return (stopwordCount / words.length) * 100;
+    } catch (error) {
+      console.warn("Lỗi khi sử dụng vntk trong calculateStopwordDensity, fallback về phương pháp cũ:", error);
+      // Fallback về phương pháp cũ nếu vntk gặp lỗi
+      const words = text
+        .toLowerCase()
+        .replace(/[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/]/g, " ")
+        .split(/\s+/)
+        .filter((word) => word.trim().length > 0);
+
+      if (words.length === 0) return 0;
+
+      const stopwordCount = words.filter((word) =>
+        this.stopwords.has(word)
+      ).length;
+      return (stopwordCount / words.length) * 100;
+    }
   }
 
   // Lấy thống kê

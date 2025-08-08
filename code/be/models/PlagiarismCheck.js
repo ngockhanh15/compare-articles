@@ -116,6 +116,8 @@ plagiarismCheckSchema.statics.getRecentChecks = function (userId, limit = 10) {
     .limit(limit);
 };
 
+// Hàm mới 
+
 // Method to determine status based on duplicate percentage
 plagiarismCheckSchema.methods.determineStatus = function() {
   if (this.duplicatePercentage > 30) {
