@@ -189,8 +189,8 @@ const UploadChecker = () => {
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
         dtotal: result.dtotal,
-        dtotalRaw: duplicateSentencesCount,
-        totalSentences: totalSentencesInText,
+        dtotalRaw: result.totalDuplicatedSentences || result.totalDuplicateSentences || duplicateSentencesCount,
+        totalSentences: result.totalInputSentences || result.totalSentencesWithInputWords || totalSentencesInText,
         dab: result.dab || 0,
         mostSimilarDocument: result.mostSimilarDocument || null,
         treeStats: treeStats,
@@ -451,8 +451,8 @@ const UploadChecker = () => {
 
                   {/* Thông tin tỷ lệ trùng lặp mới */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {(
+                    <div className="text-lg font-bold text-purple-600">
+                      {results.dtotalRaw || 0}/{results.totalSentences || 0} = {(
                         typeof results.dtotal === "number"
                           ? Math.round(results.dtotal)
                           : (results.totalSentences

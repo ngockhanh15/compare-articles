@@ -849,7 +849,7 @@ exports.getDetailedComparison = async (req, res) => {
     let overallSimilarity = result.duplicatePercentage || 0;
     let detailedMatches = [];
 
-    // Tìm document có similarity cao nhất
+    // Tìm document có similarity cao nhất và lấy toàn bộ nội dung
     if (result.matches && result.matches.length > 0) {
       const bestMatch = result.matches.reduce((prev, current) =>
         prev.similarity > current.similarity ? prev : current
@@ -862,30 +862,66 @@ exports.getDetailedComparison = async (req, res) => {
           }% similarity`
         );
 
-        mostSimilarDocument = {
-          fileName:
-            bestMatch.title ||
-            `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
-          fileSize: bestMatch.textLength || 0,
-          fileType: bestMatch.fileType || "text/plain",
-          author: bestMatch.uploadedBy?.name || "Unknown",
-          uploadedAt: bestMatch.createdAt || new Date(),
-          wordCount: bestMatch.matchedText
-            ? bestMatch.matchedText.split(/\s+/).filter((w) => w.length > 0)
-                .length
-            : 0,
-        };
-        mostSimilarContent = bestMatch.matchedText || "";
+        // Lấy toàn bộ nội dung document từ database
+        try {
+          const Document = require("../models/Document");
+          const fullDocument = await Document.findById(bestMatch.documentId);
+          
+          mostSimilarDocument = {
+            fileName:
+              bestMatch.title ||
+              `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
+            fileSize: fullDocument?.fileSize || bestMatch.textLength || 0,
+            fileType: bestMatch.fileType || "text/plain",
+            author: bestMatch.uploadedBy?.name || "Unknown",
+            uploadedAt: bestMatch.createdAt || new Date(),
+            wordCount: fullDocument?.extractedText
+              ? fullDocument.extractedText.split(/\s+/).filter((w) => w.length > 0).length
+              : 0,
+          };
+          
+          // Sử dụng toàn bộ nội dung document thay vì chỉ matchedText
+          mostSimilarContent = fullDocument?.extractedText || bestMatch.matchedText || "";
+        } catch (docError) {
+          console.warn("Could not fetch full document content:", docError);
+          mostSimilarDocument = {
+            fileName:
+              bestMatch.title ||
+              `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
+            fileSize: bestMatch.textLength || 0,
+            fileType: bestMatch.fileType || "text/plain",
+            author: bestMatch.uploadedBy?.name || "Unknown",
+            uploadedAt: bestMatch.createdAt || new Date(),
+            wordCount: bestMatch.matchedText
+              ? bestMatch.matchedText.split(/\s+/).filter((w) => w.length > 0).length
+              : 0,
+          };
+          mostSimilarContent = bestMatch.matchedText || "";
+        }
       }
     }
 
-    // Tạo detailed matches từ kết quả DocumentAVLService
+    // Tạo detailed matches từ kết quả DocumentAVLService với toàn bộ nội dung document
     console.log("Creating detailed matches from DocumentAVLService results...");
 
-    result.matches.forEach((match, index) => {
+    const Document = require("../models/Document"); // Import Document model
+
+    for (let index = 0; index < result.matches.length; index++) {
+      const match = result.matches[index];
       const originalText = plagiarismCheck.originalText;
-      const matchText = match.matchedText
-        ? match.matchedText.substring(0, 200) + "..."
+      
+      // Lấy toàn bộ nội dung document từ database
+      let fullDocumentContent = "";
+      try {
+        const fullDocument = await Document.findById(match.documentId);
+        fullDocumentContent = fullDocument?.extractedText || match.matchedText || "";
+      } catch (docError) {
+        console.warn(`Could not fetch full content for document ${match.documentId}:`, docError);
+        fullDocumentContent = match.matchedText || "";
+      }
+
+      const matchText = fullDocumentContent.length > 0 
+        ? fullDocumentContent.substring(0, 500) + (fullDocumentContent.length > 500 ? "..." : "")
         : "Document content";
 
       // Tìm vị trí của match trong text gốc (đơn giản hóa)
@@ -896,7 +932,7 @@ exports.getDetailedComparison = async (req, res) => {
       detailedMatches.push({
         id: `avl-match-${index + 1}`,
         originalText: matchText,
-        matchedText: matchText,
+        matchedText: fullDocumentContent, // Trả về toàn bộ nội dung document
         similarity: match.similarity,
         source:
           match.title ||
@@ -911,8 +947,9 @@ exports.getDetailedComparison = async (req, res) => {
         method: "document-based",
         duplicateSentences: match.duplicateSentences || 0,
         duplicateSentencesDetails: match.duplicateSentencesDetails || [],
+        fullContent: fullDocumentContent, // Thêm field chứa toàn bộ nội dung
       });
-    });
+    }
 
     console.log(
       `Created ${detailedMatches.length} detailed matches from DocumentAVLService`
@@ -993,6 +1030,34 @@ exports.getDetailedComparison = async (req, res) => {
       similarHighlightedText = highlightedText;
     }
 
+    // Lấy thông tin mostSimilarDocument từ database để có đầy đủ nội dung
+    let enhancedMostSimilarDocument = null;
+    if (result.mostSimilarDocument && result.mostSimilarDocument.id) {
+      try {
+        const fullDocument = await Document.findById(result.mostSimilarDocument.id);
+        if (fullDocument) {
+          enhancedMostSimilarDocument = {
+            ...result.mostSimilarDocument,
+            content: fullDocument.extractedText || "",
+            fullContent: fullDocument.extractedText || "",
+            title: fullDocument.title || fullDocument.fileName || "",
+            fileName: fullDocument.fileName || "",
+            fileType: fullDocument.fileType || "",
+            createdAt: fullDocument.createdAt,
+            highlightedText: similarHighlightedText,
+          };
+          console.log(`📋 Loaded full content for mostSimilarDocument: ${fullDocument.extractedText?.length || 0} characters`);
+        }
+      } catch (docError) {
+        console.warn(`Could not fetch full content for mostSimilarDocument ${result.mostSimilarDocument.id}:`, docError);
+        enhancedMostSimilarDocument = {
+          ...result.mostSimilarDocument,
+          content: mostSimilarContent || "",
+          highlightedText: similarHighlightedText,
+        };
+      }
+    }
+
     const response = {
       success: true,
       currentDocument: {
@@ -1012,28 +1077,18 @@ exports.getDetailedComparison = async (req, res) => {
         content: plagiarismCheck.originalText || "",
         highlightedText: currentHighlightedText,
       },
-      mostSimilarDocument: mostSimilarDocument
-        ? {
-            ...mostSimilarDocument,
-            content: mostSimilarContent || "",
-            highlightedText: similarHighlightedText,
-          }
-        : {
-            fileName: "Không tìm thấy document tương tự",
-            fileSize: 0,
-            fileType: "text/plain",
-            author: "Hệ thống",
-            uploadedAt: new Date(),
-            wordCount: 0,
-            content: "Không có document tương tự trong hệ thống để so sánh.",
-            highlightedText:
-              "Không có document tương tự trong hệ thống để so sánh.",
-          },
+      mostSimilarDocument: enhancedMostSimilarDocument || {
+        fileName: "Không tìm thấy document tương tự",
+        fileSize: 0,
+        fileType: "text/plain",
+        author: "Hệ thống",
+        uploadedAt: new Date(),
+        wordCount: 0,
+        content: "Không có document tương tự trong hệ thống để so sánh.",
+        fullContent: "Không có document tương tự trong hệ thống để so sánh.",
+        highlightedText: "Không có document tương tự trong hệ thống để so sánh.",
+      },
       overallSimilarity: overallSimilarity || 0,
-      mostSimilarDocument: result.mostSimilarDocument || null,
-      mostSimilarDocumentName: result.mostSimilarDocument
-        ? result.mostSimilarDocument.name
-        : "",
       detailedMatches: detailedMatches || [],
       // Thêm các thông số mới từ DocumentAVLService giống checkDocumentSimilarity
       totalMatches: result.totalMatches || 0,

@@ -60,6 +60,7 @@ export default function DetailedComparison() {
   const rightHtml = useMemo(() => {
     const selected = matches[selectedIndex];
     if (!selected) return "";
+    
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       // Only render the details path if at least one entry has usable text
@@ -78,10 +79,28 @@ export default function DetailedComparison() {
           .join("");
       }
     }
+    
+    // Fallback: hiển thị toàn bộ nội dung từ mostSimilarDocument
+    // Ưu tiên fullContent, sau đó content, cuối cùng matchedText
+    const fullDocumentContent = data?.mostSimilarDocument?.fullContent || 
+                               data?.mostSimilarDocument?.content || 
+                               data?.mostSimilarDocument?.matchedText;
+    
+    if (fullDocumentContent) {
+      console.log("Using fallback content:", {
+        hasFullContent: !!data?.mostSimilarDocument?.fullContent,
+        hasContent: !!data?.mostSimilarDocument?.content,
+        hasMatchedText: !!data?.mostSimilarDocument?.matchedText,
+        contentLength: fullDocumentContent.length
+      });
+      return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
+    }
+    
+    // Fallback cuối: sử dụng matchedText
     const block = selected.matchedText || selected.text || "";
     if (!block) return "";
-    return `<div style="white-space:pre-wrap">${block.replace(/\n/g, "<br/>")}</div>`;
-  }, [matches, selectedIndex]);
+    return `<div style="white-space:pre-wrap; line-height:1.6">${block.replace(/\n/g, "<br/>")}</div>`;
+  }, [matches, selectedIndex, data]);
 
   if (loading) {
     return (
