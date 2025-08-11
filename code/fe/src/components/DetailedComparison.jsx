@@ -54,6 +54,8 @@ export default function DetailedComparison() {
   const dtotalPercent = Math.round(
     typeof data?.dtotal === "number" ? data.dtotal : data?.overallSimilarity || 0
   );
+  const totalInputSentences = data?.totalInputSentences || data?.totalSentencesWithInputWords || 0;
+  const totalDuplicatedSentences = data?.totalDuplicatedSentences || data?.totalDuplicateSentences || 0;
 
   const rightHtml = useMemo(() => {
     const selected = matches[selectedIndex];
@@ -162,8 +164,10 @@ export default function DetailedComparison() {
               <div className="text-sm text-neutral-600">Kích thước</div>
             </div>
             <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-              <div className="text-2xl font-bold text-purple-600">{dtotalPercent}%</div>
-              <div className="text-sm text-purple-600">Dtotal (%)</div>
+              <div className="text-lg font-bold text-purple-600">
+                {totalDuplicatedSentences}/{totalInputSentences} = {dtotalPercent}%
+              </div>
+              <div className="mt-1 text-xs text-purple-600">Dtotal (câu trùng / tổng câu)</div>
             </div>
           </div>
         </div>
@@ -198,6 +202,8 @@ export default function DetailedComparison() {
               <div className="space-y-3">
                 {matches.map((m, idx) => {
                   const rate = m.similarity || 0;
+                  const docTotalSentences = m.totalSentencesInSource || 0;
+                  const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
                   return (
                     <div
@@ -216,13 +222,13 @@ export default function DetailedComparison() {
                           <div className="mb-2">
                             <div className="flex items-center justify-between">
                               <span className="text-xs text-neutral-600">DA/B:</span>
-                              <span className={`text-sm font-bold ${rate >= 50 ? "text-red-600" : rate >= 25 ? "text-orange-600" : "text-green-600"}`}>{rate.toFixed(1)}%</span>
+                              <span className={`text-xs font-medium ${rate >= 50 ? "text-red-600" : rate >= 25 ? "text-orange-600" : "text-green-600"}`}>{docDuplicate}/{docTotalSentences} = {rate.toFixed(1)}%</span>
                             </div>
                             <div className="w-full h-2 mt-1 bg-gray-200 rounded-full">
                               <div className={`${rate >= 50 ? "bg-red-500" : rate >= 25 ? "bg-orange-500" : "bg-green-500"} h-2 rounded-full`} style={{ width: `${Math.min(rate, 100)}%` }} />
                             </div>
                           </div>
-                          <div className="text-xs text-neutral-600">Câu trùng: {m.duplicateSentences || m.duplicateSentencesDetails?.length || 0}</div>
+                          <div className="text-xs text-neutral-600">Câu trùng: {docDuplicate}</div>
                         </div>
                         <div className="ml-3 shrink-0">
                           <button

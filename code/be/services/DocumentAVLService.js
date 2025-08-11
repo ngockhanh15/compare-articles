@@ -6,7 +6,19 @@ class DocumentAVLService {
   constructor() {
     this.documentTree = new TreeAVL();
     this.initialized = false;
-  this.docInfo = new Map(); // docId -> metadata incl. sentenceCount
+    this.docInfo = new Map(); // docId -> metadata incl. sentenceCount
+    
+    // Inject this service into cache service để thống nhất cây AVL
+    this.setupCacheService();
+  }
+
+  setupCacheService() {
+    try {
+      const plagiarismCacheService = require('./PlagiarismCacheService');
+      plagiarismCacheService.setDocumentAVLService(this);
+    } catch (error) {
+      console.warn('Could not setup cache service integration:', error.message);
+    }
   }
 
   // Initialize tree with existing documents
@@ -276,11 +288,11 @@ class DocumentAVLService {
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-      // Bước 5: Dtotal (phần trăm câu trùng trong A)
-      const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
+  // Bước 5: Dtotal (phần trăm câu trùng trong A)
+  const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
-      // Xây dựng kết quả cuối
-      const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences);
+  // Xây dựng kết quả cuối
+  const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, totalDuplicatedSentences);
       console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu phù hợp`);
       return result;
 
@@ -291,7 +303,7 @@ class DocumentAVLService {
   }
 
   // Tạo kết quả cuối cùng
-  buildFinalResult(matches, dtotalPercent, totalInputSentences) {
+  buildFinalResult(matches, dtotalPercent, totalInputSentences, totalDuplicatedSentences) {
     const duplicatePercentage = dtotalPercent;
     const { dab, mostSimilarDocument } = this.calculateDtotalAndDAB(matches);
 
@@ -306,9 +318,10 @@ class DocumentAVLService {
       mostSimilarDocument,
       dtotal: duplicatePercentage,
       dab,
-      totalInputHashes: totalInputSentences,
+      totalInputSentences,
+      totalDuplicatedSentences,
       searchMethod: "global-avl-tree",
-      totalDuplicateSentences: duplicatePercentage,
+      totalDuplicateSentences: totalDuplicatedSentences,
     };
   }
 
