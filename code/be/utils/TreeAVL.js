@@ -154,17 +154,15 @@ class TreeAVL {
 }
 
 class TextHasher {
-  static createMurmurHash(text) {
-    // 32-bit hash as hex string for consistency
-    const val = MurmurHash3.x86.hash32(String(text).trim().toLowerCase());
-    // Ensure hex padding to 8 chars
-    return Number(val >>> 0).toString(16).padStart(8, "0");
-  }
+static createMurmurHash(text) {
+  return MurmurHash3.x86.hash32(String(text).trim().toLowerCase()) >>> 0;
+}
+
 
   static createWordHashes(text) {
-    // Use vntk-based tokenizer and unique within sentence semantics not needed here; this is generic
+    // Use vntk-based tokenizer with phrase protection
     const words = vietnameseStopwordService.initialized
-      ? vietnameseStopwordService.extractMeaningfulWords(text)
+      ? vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(text)
       : String(text)
           .toLowerCase()
           .replace(/[^\p{L}\s]/gu, " ")

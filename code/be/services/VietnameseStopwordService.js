@@ -1,13 +1,16 @@
 const fs = require("fs");
 const path = require("path");
-// Use vntk tokenizer per requirements
+// Use vntk word tokenizer for better phrase recognition
 const vntk = require("vntk");
 const tokenizer = vntk.tokenizer();
+const wordTokenizer = vntk.wordTokenizer();
 
 class VietnameseStopwordService {
   constructor() {
     this.stopwords = new Set();
     this.initialized = false;
+    // Chỉ sử dụng các cụm từ từ file vietnamese-stopwords.txt
+    this.preservedPhrases = new Set();
   }
 
   // Khởi tạo và load stopwords từ file
@@ -26,17 +29,242 @@ class VietnameseStopwordService {
         .map((word) => word.trim().toLowerCase())
         .filter((word) => word.length > 0);
 
-      // Thêm vào Set để tìm kiếm nhanh
-      words.forEach((word) => this.stopwords.add(word));
+      // Phân loại các từ và cụm từ từ file stopwords
+      words.forEach((word) => {
+        // Nếu là cụm từ (có khoảng trắng), thêm vào preservedPhrases
+        if (word.includes(' ')) {
+          this.preservedPhrases.add(word);
+        }
+        // Vẫn thêm vào stopwords set để kiểm tra
+        this.stopwords.add(word);
+      });
 
       this.initialized = true;
       console.log(
         `Vietnamese stopwords service initialized with ${this.stopwords.size} stopwords`
       );
+      console.log(
+        `Found ${this.preservedPhrases.size} preserved phrases from stopwords file`
+      );
     } catch (error) {
       console.error("Error initializing Vietnamese stopwords service:", error);
       throw error;
     }
+  }
+
+  // Bảo vệ cụm từ khỏi bị tách bằng cách thay thế chúng bằng placeholder
+  protectPhrases(text) {
+    if (!text || typeof text !== "string") return { text, mappings: new Map() };
+    
+    const mappings = new Map();
+    let protectedText = text;
+    let counter = 0;
+    
+    // Tạo danh sách tất cả các cụm từ cần bảo vệ - chỉ từ file stopwords
+    const allPhrases = this.preservedPhrases;
+    
+    // Sắp xếp theo độ dài giảm dần để xử lý cụm từ dài trước
+    const sortedPhrases = Array.from(allPhrases).sort((a, b) => b.length - a.length);
+    
+    for (const phrase of sortedPhrases) {
+      const regex = new RegExp(`\\b${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      protectedText = protectedText.replace(regex, (match) => {
+        const placeholder = `__PHRASE_${counter}__`;
+        mappings.set(placeholder, match);
+        counter++;
+        return placeholder;
+      });
+    }
+    
+    return { text: protectedText, mappings };
+  }
+
+  // Khôi phục các cụm từ đã được bảo vệ
+  restorePhrases(text, mappings) {
+    if (!text || !mappings || mappings.size === 0) return text;
+    
+    let restoredText = text;
+    for (const [placeholder, originalPhrase] of mappings) {
+      const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      restoredText = restoredText.replace(regex, originalPhrase);
+    }
+    
+    return restoredText;
+  }
+
+  // Tokenize với bảo vệ cụm từ
+  tokenizeWithPhraseProtection(sentence) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    if (!sentence || typeof sentence !== "string") return [];
+
+    // Bảo vệ cụm từ
+    const { text: protectedText, mappings } = this.protectPhrases(sentence);
+
+    // Sử dụng word tokenizer để tách từ
+    let tokens = [];
+    try {
+      tokens = wordTokenizer.tag(protectedText);
+    } catch (e) {
+      try {
+        tokens = tokenizer.tokenize(protectedText);
+      } catch (e2) {
+        tokens = protectedText.split(/\s+/);
+      }
+    }
+
+    // Khôi phục cụm từ và xử lý
+    const processed = [];
+    for (const token of tokens) {
+      const restored = this.restorePhrases(token, mappings);
+      
+      // Nếu là cụm từ được bảo vệ, giữ nguyên
+      if (this.preservedPhrases.has(restored.toLowerCase())) {
+        processed.push(restored);
+      } else {
+        // Xử lý bình thường
+        const normalized = restored.toLowerCase()
+          .normalize("NFKC")
+          .replace(/[.,!?;:()\[\]{}"'`~@#$%^&*+=|\\<>\/…""''–—\-]/g, " ")
+          .replace(/\d+/g, " ")
+          .trim();
+        
+        if (normalized && !this.stopwords.has(normalized)) {
+          // Có thể còn chứa khoảng trắng, tách tiếp
+          for (const t of normalized.split(/\s+/)) {
+            if (t && !this.stopwords.has(t)) {
+              processed.push(t);
+            }
+          }
+        }
+      }
+    }
+
+    return processed;
+  }
+
+  // Tokenize với vntk wordTokenizer (tự động nhận diện cụm từ)
+  tokenizeWithWordTokenizer(sentence) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    if (!sentence || typeof sentence !== "string") return [];
+
+    let tokens = [];
+    try {
+      // vntk wordTokenizer tự động nhận diện cụm từ
+      tokens = wordTokenizer.tag(sentence);
+    } catch (e) {
+      try {
+        tokens = tokenizer.tokenize(sentence);
+      } catch (e2) {
+        tokens = sentence.split(/\s+/);
+      }
+    }
+
+    // Lọc stopwords và normalize
+    const processed = [];
+    const seen = new Set();
+    
+    for (const token of tokens) {
+      const lower = token.toLowerCase().trim();
+      
+      // Bỏ qua nếu là stopword hoặc đã thấy
+      if (!lower || this.stopwords.has(lower) || seen.has(lower)) {
+        continue;
+      }
+      
+      // Nếu là cụm từ (có khoảng trắng), kiểm tra xem có nên giữ không
+      if (lower.includes(' ')) {
+        // Cụm từ từ file stopwords hoặc preserved phrases
+        if (this.preservedPhrasesFromStopwords.has(lower) || 
+            this.preservedPhrases.has(lower)) {
+          processed.push(lower);
+          seen.add(lower);
+        } else {
+          // Tách cụm từ và xử lý từng từ
+          const words = lower.split(/\s+/);
+          for (const word of words) {
+            if (word && !this.stopwords.has(word) && !seen.has(word)) {
+              processed.push(word);
+              seen.add(word);
+            }
+          }
+        }
+      } else {
+        // Từ đơn
+        const normalized = lower
+          .replace(/[.,!?;:()\[\]{}"'`~@#$%^&*+=|\\<>\/…""''–—\-]/g, "")
+          .replace(/\d+/g, "")
+          .trim();
+        
+        if (normalized && !this.stopwords.has(normalized)) {
+          processed.push(normalized);
+          seen.add(normalized);
+        }
+      }
+    }
+
+    return processed;
+  }
+
+  // Tokenize a sentence with vntk word tokenizer (better for phrases)
+  tokenizeAndFilterUniqueWithPhrases(sentence) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    if (!sentence || typeof sentence !== "string") return [];
+
+    // Use word tokenizer for better phrase recognition
+    let tokens = [];
+    try {
+      const segmented = wordTokenizer.tag(sentence);
+      // wordTokenizer trả về Array, convert to string rồi split
+      const stringResult = String(segmented);
+      tokens = stringResult.split(',').filter(t => t.trim()).map(t => t.trim());
+    } catch (e) {
+      // Fallback to tokenizer
+      try {
+        tokens = tokenizer.tokenize(sentence);
+      } catch (e2) {
+        // Final fallback: simple split
+        tokens = String(sentence).split(/\s+/);
+      }
+    }
+
+    // Normalize and filter
+    const cleaned = [];
+    const seen = new Set();
+    for (const raw of tokens) {
+      const lower = String(raw).toLowerCase();
+      // remove punctuation/specials/numbers
+      const normalized = lower
+        .normalize("NFKC")
+        .replace(/[.,!?;:()\[\]{}"'`~@#$%^&*+=|\\<>\/…""''–—\-]/g, " ")
+        .replace(/\d+/g, " ")
+        .trim();
+      if (!normalized) continue;
+
+      // Token can still contain spaces from normalization
+      // Nếu là cụm từ có khoảng trắng, kiểm tra xem có phải stopword hay không
+      if (normalized.includes(' ')) {
+        // Nếu không phải stopword, giữ nguyên cụm từ
+        if (!this.stopwords.has(normalized)) {
+          if (!seen.has(normalized)) {
+            seen.add(normalized);
+            cleaned.push(normalized);
+          }
+        }
+      } else {
+        // Xử lý từ đơn như cũ
+        if (!this.stopwords.has(normalized) && !seen.has(normalized)) {
+          seen.add(normalized);
+          cleaned.push(normalized);
+        }
+      }
+    }
+    return cleaned;
   }
 
   // Tokenize a sentence with vntk and filter tokens per rules
@@ -92,23 +320,34 @@ class VietnameseStopwordService {
     return this.stopwords.has(word.toLowerCase().trim());
   }
 
-  // Loại bỏ stopwords từ một đoạn text sử dụng vntk
+  // Loại bỏ stopwords từ một đoạn text sử dụng vntk với bảo vệ cụm từ
   removeStopwords(text) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
     }
 
     try {
-  // Sử dụng vntk để tách từ tiếng Việt
-  const words = tokenizer.tokenize(text);
+      // Bảo vệ cụm từ trước khi xử lý
+      const { text: protectedText, mappings } = this.protectPhrases(text);
+      
+      // Sử dụng vntk để tách từ tiếng Việt
+      const words = tokenizer.tokenize(protectedText);
       
       // Lọc ra những từ không phải stopword
       const filteredWords = words.filter(word => {
         const cleanWord = word.toLowerCase().trim();
+        
+        // Kiểm tra xem có phải là placeholder của cụm từ được bảo vệ không
+        if (word.startsWith('__PHRASE_') && word.endsWith('__')) {
+          return true; // Giữ lại placeholder
+        }
+        
         return cleanWord.length > 0 && !this.stopwords.has(cleanWord);
       });
 
-      return filteredWords.join(" ");
+      // Khôi phục cụm từ và join lại
+      const result = filteredWords.join(" ");
+      return this.restorePhrases(result, mappings);
     } catch (error) {
       console.warn("Lỗi khi sử dụng vntk trong removeStopwords, fallback về phương pháp cũ:", error);
       // Fallback về phương pháp cũ nếu vntk gặp lỗi
@@ -134,7 +373,7 @@ class VietnameseStopwordService {
     }
   }
 
-  // Tách text thành các từ có nghĩa (loại bỏ stopwords) sử dụng vntk
+  // Tách text thành các từ có nghĩa (loại bỏ stopwords) sử dụng vntk với bảo vệ cụm từ
   extractMeaningfulWords(text) {
     if (!this.initialized) {
       throw new Error("Vietnamese stopwords service not initialized");
@@ -144,18 +383,31 @@ class VietnameseStopwordService {
 
     if (typeof text === "string") {
       try {
+        // Bảo vệ cụm từ trước khi xử lý
+        const { text: protectedText, mappings } = this.protectPhrases(text);
+        
         // Sử dụng vntk để tách từ tiếng Việt
-    const words = tokenizer.tokenize(text);
+        const words = tokenizer.tokenize(protectedText);
         
         // Lọc ra những từ có nghĩa (loại bỏ stopwords và từ rỗng)
-        meaningfulWords = words
-          .map(word => word.toLowerCase().trim())
-          .filter(word => {
+        meaningfulWords = [];
+        for (const word of words) {
+          // Khôi phục cụm từ nếu là placeholder
+          const restored = this.restorePhrases(word, mappings);
+          
+          // Nếu là cụm từ được bảo vệ, giữ nguyên
+          if (this.preservedPhrases.has(restored.toLowerCase())) {
+            meaningfulWords.push(restored.toLowerCase());
+          } else {
+            const lower = restored.toLowerCase().trim();
             // Loại bỏ từ rỗng, dấu câu và stopwords
-            return word.length > 0 && 
-                   !/^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/\s]+$/.test(word) &&
-                   !this.stopwords.has(word);
-          });
+            if (lower.length > 0 && 
+                !/^[.,!?;:()[\]{}""''`~@#$%^&*+=|\\<>\/\s]+$/.test(lower) &&
+                !this.stopwords.has(lower)) {
+              meaningfulWords.push(lower);
+            }
+          }
+        }
       } catch (error) {
         console.warn("Lỗi khi sử dụng vntk, fallback về phương pháp cũ:", error);
         // Fallback về phương pháp cũ nếu vntk gặp lỗi
@@ -337,6 +589,43 @@ class VietnameseStopwordService {
       throw new Error("Vietnamese stopwords service not initialized");
     }
     return Array.from(this.stopwords).sort();
+  }
+
+  // Thêm cụm từ cần bảo vệ
+  addPreservedPhrase(phrase) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    this.preservedPhrases.add(phrase.toLowerCase().trim());
+  }
+
+  // Xóa cụm từ bảo vệ
+  removePreservedPhrase(phrase) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    return this.preservedPhrases.delete(phrase.toLowerCase().trim());
+  }
+
+  // Lấy tất cả cụm từ được bảo vệ
+  getAllPreservedPhrases() {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    return {
+      customPhrases: Array.from(this.preservedPhrases).sort(),
+      stopwordPhrases: Array.from(this.preservedPhrasesFromStopwords).sort()
+    };
+  }
+
+  // Kiểm tra xem có phải cụm từ được bảo vệ không
+  isPreservedPhrase(phrase) {
+    if (!this.initialized) {
+      throw new Error("Vietnamese stopwords service not initialized");
+    }
+    const normalized = phrase.toLowerCase().trim();
+    return this.preservedPhrases.has(normalized) || 
+           this.preservedPhrasesFromStopwords.has(normalized);
   }
 }
 

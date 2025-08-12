@@ -119,7 +119,7 @@ class DocumentAVLService {
     const sentences = TextHasher.extractSentences(document.extractedText);
     let uniqueTokenCount = 0;
     for (let i = 0; i < sentences.length; i++) {
-      const tokens = vietnameseStopwordService.tokenizeAndFilterUnique(sentences[i]);
+      const tokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentences[i]);
       uniqueTokenCount += tokens.length;
       for (const token of tokens) {
         const hash = TextHasher.createMurmurHash(token);
@@ -219,7 +219,7 @@ class DocumentAVLService {
 
       for (let i = 0; i < inputSentences.length; i++) {
         const sentence = inputSentences[i];
-        const tokens = vietnameseStopwordService.tokenizeAndFilterUnique(sentence);
+        const tokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentence);
         const tokenCount = tokens.length;
         if (tokenCount === 0) continue;
 
