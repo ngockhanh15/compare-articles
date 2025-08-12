@@ -948,6 +948,15 @@ exports.getDetailedComparison = async (req, res) => {
         duplicateSentences: match.duplicateSentences || 0,
         duplicateSentencesDetails: match.duplicateSentencesDetails || [],
         fullContent: fullDocumentContent, // Thêm field chứa toàn bộ nội dung
+        // Thêm thông tin câu trùng lặp chi tiết cho hiển thị
+        duplicateContentInfo: match.duplicateSentencesDetails ? {
+          totalDuplicates: match.duplicateSentencesDetails.length,
+          sampleDuplicates: match.duplicateSentencesDetails.slice(0, 3).map(detail => ({
+            inputSentence: detail.inputSentence || '',
+            sourceSentence: detail.sourceSentence || '',
+            similarity: detail.similarity || 0
+          }))
+        } : null
       });
     }
 
@@ -1105,6 +1114,23 @@ exports.getDetailedComparison = async (req, res) => {
       totalDuplicateSentences: result.totalDuplicateSentences || 0,
   totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
   totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
+      // Thêm thông tin tổng hợp về câu trùng lặp
+      duplicateContentSummary: {
+        totalDuplicateSentences: result.totalDuplicateSentences || 0,
+        totalInputSentences: result.totalInputSentences || 0,
+        duplicatePercentage: result.duplicatePercentage || 0,
+        documentsWithDuplicates: detailedMatches.filter(match => 
+          match.duplicateSentences && match.duplicateSentences > 0
+        ).length,
+        sampleDuplicateContent: detailedMatches
+          .filter(match => match.duplicateContentInfo && match.duplicateContentInfo.sampleDuplicates.length > 0)
+          .slice(0, 3)
+          .map(match => ({
+            sourceDocument: match.source,
+            duplicateCount: match.duplicateContentInfo.totalDuplicates,
+            samples: match.duplicateContentInfo.sampleDuplicates
+          }))
+      }
     };
 
     res.json(response);

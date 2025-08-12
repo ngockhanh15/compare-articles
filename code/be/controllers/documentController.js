@@ -163,10 +163,16 @@ exports.uploadDocument = [
         // Add document to AVL tree for plagiarism checking and save tree data
         try {
           const avlTreeData = await documentAVLService.addDocumentToTree(document);
-          if (avlTreeData) {
-            document.avlTreeData = avlTreeData;
-            await document.save();
-            console.log(`Document "${document.title}" added to AVL tree and tree data saved`);
+          if (avlTreeData && avlTreeData.success) {
+            console.log(`Document "${document.title}" added to AVL tree: ${avlTreeData.sentenceCount} sentences, ${avlTreeData.uniqueTokenCount} tokens`);
+            
+            // Force save the updated AVL tree to database
+            try {
+              await documentAVLService.forceSave();
+              console.log(`✅ Global AVL Tree saved to database after adding document "${document.title}"`);
+            } catch (saveError) {
+              console.error('Error saving AVL tree to database:', saveError);
+            }
           }
         } catch (avlError) {
           console.error('Error adding document to AVL tree:', avlError);

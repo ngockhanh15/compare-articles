@@ -70,10 +70,6 @@ const documentSchema = new mongoose.Schema({
   downloadCount: {
     type: Number,
     default: 0
-  },
-  avlTreeData: {
-    type: Object,
-    default: null
   }
 }, {
   timestamps: true

@@ -2,11 +2,20 @@ const MurmurHash3 = require("murmurhash3js");
 const vietnameseStopwordService = require("../services/VietnameseStopwordService");
 
 class AVLNode {
-  constructor(hash) {
+  constructor(hash, originalWord = null, tokenInfo = null) {
     this.hash = hash;
     // Store aggregated refs
     this.documents = new Set(); // document IDs containing this token
     this.sentences = new Set(); // sentence IDs (docId:index) containing this token
+    
+    // Token information
+    this.originalWord = originalWord;
+    this.tokenInfo = tokenInfo || {
+      method: 'wordTokenizer',
+      isPreservedPhrase: false,
+      totalFrequency: 1
+    };
+    
     this.height = 1;
     this.left = null;
     this.right = null;
@@ -55,34 +64,37 @@ class TreeAVL {
   }
 
   // Insert an occurrence of a token hash, adding doc and sentence refs
-  insertOccurrence(hash, documentId, sentenceId) {
-    const [newRoot, insertedNew] = this._insertNode(this.root, hash, documentId, sentenceId);
+  insertOccurrence(hash, documentId, sentenceId, originalWord = null, tokenInfo = null) {
+    const [newRoot, insertedNew] = this._insertNode(this.root, hash, documentId, sentenceId, originalWord, tokenInfo);
     this.root = newRoot;
     if (insertedNew) this.size++;
   }
 
-  _insertNode(node, hash, documentId, sentenceId) {
+  _insertNode(node, hash, documentId, sentenceId, originalWord = null, tokenInfo = null) {
     if (!node) {
-      const created = new AVLNode(hash);
+      const created = new AVLNode(hash, originalWord, tokenInfo);
       if (documentId) created.documents.add(String(documentId));
       if (sentenceId) created.sentences.add(String(sentenceId));
       return [created, true];
     }
 
     if (hash < node.hash) {
-      const [left, insertedNew] = this._insertNode(node.left, hash, documentId, sentenceId);
+      const [left, insertedNew] = this._insertNode(node.left, hash, documentId, sentenceId, originalWord, tokenInfo);
       node.left = left;
       this.updateHeight(node);
       return [this._rebalance(node, hash), insertedNew];
     } else if (hash > node.hash) {
-      const [right, insertedNew] = this._insertNode(node.right, hash, documentId, sentenceId);
+      const [right, insertedNew] = this._insertNode(node.right, hash, documentId, sentenceId, originalWord, tokenInfo);
       node.right = right;
       this.updateHeight(node);
       return [this._rebalance(node, hash), insertedNew];
     } else {
-      // Existing node: add refs (no size change)
+      // Existing node: add refs and update frequency
       if (documentId) node.documents.add(String(documentId));
       if (sentenceId) node.sentences.add(String(sentenceId));
+      if (node.tokenInfo) {
+        node.tokenInfo.totalFrequency++;
+      }
       return [node, false];
     }
   }
@@ -150,6 +162,107 @@ class TreeAVL {
   clear() {
     this.root = null;
     this.size = 0;
+  }
+
+  // Serialize tree để lưu vào database
+  serialize() {
+    const nodes = [];
+    const nodeMap = new Map(); // hash -> serialized node
+    
+    if (!this.root) {
+      return {
+        nodes: [],
+        rootHash: null,
+        metadata: {
+          totalNodes: 0,
+          treeHeight: 0
+        }
+      };
+    }
+
+    // Traverse và serialize tất cả nodes
+    this._serializeNode(this.root, nodes, nodeMap);
+
+    return {
+      nodes: nodes,
+      rootHash: this.root.hash,
+      metadata: {
+        totalNodes: this.size,
+        treeHeight: this.getHeight(this.root)
+      }
+    };
+  }
+
+  _serializeNode(node, nodes, nodeMap) {
+    if (!node) return;
+
+    const serialized = {
+      hash: node.hash,
+      originalWord: node.originalWord,
+      tokenInfo: node.tokenInfo,
+      documents: Array.from(node.documents),
+      sentences: Array.from(node.sentences),
+      height: node.height,
+      leftHash: node.left ? node.left.hash : null,
+      rightHash: node.right ? node.right.hash : null
+    };
+
+    nodes.push(serialized);
+    nodeMap.set(node.hash, serialized);
+
+    // Recursively serialize children
+    this._serializeNode(node.left, nodes, nodeMap);
+    this._serializeNode(node.right, nodes, nodeMap);
+  }
+
+  // Deserialize tree từ database
+  static deserialize(serializedData) {
+    const tree = new TreeAVL();
+    
+    if (!serializedData.nodes || serializedData.nodes.length === 0) {
+      return tree;
+    }
+
+    // Tạo map từ hash -> node data
+    const nodeDataMap = new Map();
+    serializedData.nodes.forEach(nodeData => {
+      nodeDataMap.set(nodeData.hash, nodeData);
+    });
+
+    // Rebuild tree structure
+    if (serializedData.rootHash) {
+      tree.root = tree._deserializeNode(serializedData.rootHash, nodeDataMap, new Map());
+      tree.size = serializedData.nodes.length;
+    }
+
+    return tree;
+  }
+
+  _deserializeNode(hash, nodeDataMap, createdNodes) {
+    if (!hash || createdNodes.has(hash)) {
+      return createdNodes.get(hash) || null;
+    }
+
+    const nodeData = nodeDataMap.get(hash);
+    if (!nodeData) return null;
+
+    // Tạo node mới với token info
+    const node = new AVLNode(hash, nodeData.originalWord, nodeData.tokenInfo);
+    node.documents = new Set(nodeData.documents);
+    node.sentences = new Set(nodeData.sentences);
+    node.height = nodeData.height;
+
+    createdNodes.set(hash, node);
+
+    // Recursively create children
+    if (nodeData.leftHash) {
+      node.left = this._deserializeNode(nodeData.leftHash, nodeDataMap, createdNodes);
+    }
+    if (nodeData.rightHash) {
+      node.right = this._deserializeNode(nodeData.rightHash, nodeDataMap, createdNodes);
+    }
+
+    return node;
   }
 }
 

@@ -4,6 +4,7 @@ const plagiarismController = require("../controllers/plagiarismController");
 const userUploadRoutes = require("./userUpload");
 const stopwordsRoutes = require("./stopwords");
 const userRoutes = require("./users");
+const avltreeRoutes = require("./avltree");
 const router = express.Router();
 const auditController = require("../controllers/auditController");
 
@@ -112,6 +113,9 @@ router.use("/user-upload", userUploadRoutes);
 
 // ===== VIETNAMESE STOPWORDS ROUTES =====
 router.use("/stopwords", stopwordsRoutes);
+
+// ===== AVL TREE DATABASE PERSISTENCE ROUTES =====
+router.use("/avltree", protect, authorize("admin"), avltreeRoutes);
 
 // ===== USER MANAGEMENT ROUTES =====
 router.use("/users", userRoutes);
