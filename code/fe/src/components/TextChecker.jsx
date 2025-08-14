@@ -6,7 +6,6 @@ import {
   getDocumentText,
   getTreeStats,
   getDetailedComparison,
-  getDocumentStats,
 } from "../services/api";
 import { Link } from "react-router-dom";
 
@@ -19,12 +18,11 @@ const TextChecker = () => {
   const [userDocuments, setUserDocuments] = useState([]);
   const [showDocumentSelector, setShowDocumentSelector] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
-  const [checkOptions, setCheckOptions] = useState({
+  const [checkOptions] = useState({
     sensitivity: "medium",
     language: "vi",
   });
   const [treeStats, setTreeStats] = useState(null);
-  const [userStats, setUserStats] = useState(null);
   // Helper to render percentage regardless of whether backend returns 0-1 or 0-100
   const formatPercent = (value) => {
     if (value === undefined || value === null || isNaN(Number(value))) return "0%";
@@ -51,7 +49,7 @@ const TextChecker = () => {
           if (sim > 100) sim = 100;
           pairs.push({
             left: d.inputSentence || m.text || d.text || "",
-            right: d.docSentence || d.matched || d.text || m.matchedText || "",
+            right: d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || m.matchedText || m.text || "",
             similarity: sim,
             source: m.source || m.title || m.documentName || m.documentId || "",
           });
@@ -61,7 +59,7 @@ const TextChecker = () => {
         if (sim <= 1) sim = sim * 100;
         pairs.push({
           left: m.text || "",
-          right: m.matchedText || "",
+          right: m.matchedText || m.text || "",
           similarity: Math.max(0, Math.min(100, sim)),
           source: m.source || m.title || m.documentName || m.documentId || "",
         });
@@ -82,7 +80,6 @@ const TextChecker = () => {
   useEffect(() => {
     loadUserDocuments();
     loadTreeStats();
-    loadUserStats();
   }, []);
 
   const loadTreeStats = async () => {
@@ -96,16 +93,7 @@ const TextChecker = () => {
     }
   };
 
-  const loadUserStats = async () => {
-    try {
-      const response = await getDocumentStats();
-      if (response.success) {
-        setUserStats(response.stats);
-      }
-    } catch (error) {
-      console.error("Error loading user stats:", error);
-    }
-  };
+
 
   const loadUserDocuments = async () => {
     try {
@@ -234,7 +222,15 @@ const TextChecker = () => {
 
       // Duyệt qua tất cả matches để tìm câu chứa nội dung trùng lặp
       matches.forEach((match) => {
-        if (match.text) {
+        if (match.duplicateSentencesDetails && Array.isArray(match.duplicateSentencesDetails)) {
+          // Sử dụng duplicateSentencesDetails từ backend nếu có
+          match.duplicateSentencesDetails.forEach((detail) => {
+            if (detail.inputSentenceIndex !== undefined) {
+              duplicateSentencesFromText.add(detail.inputSentenceIndex);
+            }
+          });
+        } else if (match.text) {
+          // Fallback: so sánh với match.text
           sentences.forEach((sentence, index) => {
             if (
               sentence.trim().includes(match.text.trim()) ||
@@ -248,6 +244,9 @@ const TextChecker = () => {
 
       // Số câu trùng lặp thực tế
       const duplicateSentencesCount = duplicateSentencesFromText.size;
+      
+      // Tính dtotal chính xác
+      const calculatedDtotal = totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0;
 
       setResults({
         checkId: similarityResult.checkId,
@@ -267,9 +266,9 @@ const TextChecker = () => {
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
         // Thông tin tỷ lệ trùng lặp mới
-        dtotal: result.dtotal, // Tỷ lệ phần trăm câu trùng so với tổng số câu trong văn bản kiểm tra
-        dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế
-        totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra
+        dtotal: result.dtotal || calculatedDtotal, // Ưu tiên giá trị từ backend, fallback về tính toán local
+        dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế (tính toán local)
+        totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra (tính toán local)
         dab: result.dab || 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: result.mostSimilarDocument || null, // Thông tin document giống nhất
         // Tree stats info
@@ -540,13 +539,7 @@ const TextChecker = () => {
                   {/* % Dtotal */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
                     <div className="text-2xl font-bold text-purple-600">
-                      {formatPercent(
-                        results.dtotal !== undefined && results.dtotal !== null
-                          ? results.dtotal
-                          : results.totalSentences
-                          ? (results.dtotalRaw / results.totalSentences) * 100
-                          : 0
-                      )}
+                      {formatPercent(results.dtotal || 0)}
                     </div>
                     <div className="text-sm text-purple-600">% Dtotal</div>
                     <div className="mt-1 text-xs text-purple-500">
@@ -566,25 +559,7 @@ const TextChecker = () => {
                       Kết quả chi tiết
                     </Link>
                   )}
-                  {results?.checkId && results.totalDuplicateSentences > 0 && (
-                    <Link
-                      to={`/detailed-comparison/${results.checkId}`}
-                      className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <span className="mr-2">🔍</span>
-                      So sánh với document giống nhất
-                    </Link>
-                  )}
 
-                  {results?.checkId && results.totalDuplicateSentences > 0 && (
-                    <Link
-                      to={`/all-documents-comparison/${results.checkId}`}
-                      className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 transition-all duration-200 bg-white border border-blue-600 rounded-lg hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <span className="mr-2">📊</span>
-                      So sánh với toàn bộ documents
-                    </Link>
-                  )}
                 </div>
 
                 {/* Detailed sentence pairs */}

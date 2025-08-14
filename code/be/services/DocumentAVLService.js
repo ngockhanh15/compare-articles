@@ -429,9 +429,12 @@ class DocumentAVLService {
             
             return {
               ...detail,
-              sourceSentence: bestMatchSentence, // Đổi từ matchedSentence thành sourceSentence
-              similarity: Math.round(bestMatchSimilarity), // Đổi từ matchedSentenceSimilarity thành similarity
-              matchedSentence: bestMatchSentence, // Giữ cả hai để backward compatibility
+              sourceSentence: bestMatchSentence || detail.inputSentence, // Fallback to input sentence if no match found
+              docSentence: bestMatchSentence || detail.inputSentence, // Add docSentence field for frontend
+              matched: bestMatchSentence || detail.inputSentence, // Add matched field for frontend
+              text: bestMatchSentence || detail.inputSentence, // Add text field for frontend
+              similarity: Math.round(bestMatchSimilarity),
+              matchedSentence: bestMatchSentence || detail.inputSentence, // Giữ cả hai để backward compatibility
               matchedSentenceSimilarity: Math.round(bestMatchSimilarity)
             };
           }));

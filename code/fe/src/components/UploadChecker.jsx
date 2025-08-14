@@ -158,7 +158,15 @@ const UploadChecker = () => {
       const duplicateSentencesFromText = new Set();
 
       matches.forEach((match) => {
-        if (match.text) {
+        if (match.duplicateSentencesDetails && Array.isArray(match.duplicateSentencesDetails)) {
+          // Sử dụng duplicateSentencesDetails từ backend nếu có
+          match.duplicateSentencesDetails.forEach((detail) => {
+            if (detail.inputSentenceIndex !== undefined) {
+              duplicateSentencesFromText.add(detail.inputSentenceIndex);
+            }
+          });
+        } else if (match.text) {
+          // Fallback: so sánh với match.text
           sentences.forEach((sentence, index) => {
             if (
               sentence.trim().includes(match.text.trim()) ||
@@ -171,6 +179,9 @@ const UploadChecker = () => {
       });
 
       const duplicateSentencesCount = duplicateSentencesFromText.size;
+      
+      // Tính dtotal chính xác
+      const calculatedDtotal = totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0;
 
       setResults({
         checkId: similarityResult.checkId,
@@ -188,9 +199,9 @@ const UploadChecker = () => {
         totalMatches: result.totalMatches || 0,
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
-        dtotal: result.dtotal,
-        dtotalRaw: result.totalDuplicatedSentences || result.totalDuplicateSentences || duplicateSentencesCount,
-        totalSentences: result.totalInputSentences || result.totalSentencesWithInputWords || totalSentencesInText,
+        dtotal: result.dtotal || calculatedDtotal, // Ưu tiên giá trị từ backend, fallback về tính toán local
+        dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế (tính toán local)
+        totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra (tính toán local)
         dab: result.dab || 0,
         mostSimilarDocument: result.mostSimilarDocument || null,
         treeStats: treeStats,
@@ -452,13 +463,7 @@ const UploadChecker = () => {
                   {/* Thông tin tỷ lệ trùng lặp mới */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
                     <div className="text-lg font-bold text-purple-600">
-                      {results.dtotalRaw || 0}/{results.totalSentences || 0} = {(
-                        typeof results.dtotal === "number"
-                          ? Math.round(results.dtotal)
-                          : (results.totalSentences
-                              ? Math.round((results.dtotalRaw / results.totalSentences) * 100)
-                              : 0)
-                      )}%
+                      {Math.round(results.dtotal || 0)}%
                     </div>
                     <div className="text-sm text-purple-600">Dtotal</div>
                     <div className="mt-1 text-xs text-purple-500">
