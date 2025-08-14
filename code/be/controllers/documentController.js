@@ -269,13 +269,10 @@ exports.getUserDocuments = async (req, res) => {
     const documentsWithDetails = documents.map(doc => ({
       _id: doc._id,
       title: doc.title,
+      author: doc.author,
       fileName: doc.originalFileName,
       fileType: doc.fileType,
       fileSize: doc.fileSize,
-      uploadedBy: {
-        name: doc.uploadedBy.name,
-        email: doc.uploadedBy.email
-      },
       uploadedAt: doc.createdAt,
       checkCount: doc.checkCount,
       lastChecked: doc.lastChecked,
@@ -317,7 +314,7 @@ exports.getDocumentById = async (req, res) => {
         { uploadedBy: req.user.id },
         { isPublic: true }
       ]
-    }).populate('uploadedBy', 'name email');
+    });
 
     if (!document) {
       return res.status(404).json({
@@ -331,13 +328,10 @@ exports.getDocumentById = async (req, res) => {
       document: {
         _id: document._id,
         title: document.title,
+        author: document.author,
         fileName: document.originalFileName,
         fileType: document.fileType,
         fileSize: document.fileSize,
-        uploadedBy: {
-          name: document.uploadedBy.name,
-          email: document.uploadedBy.email
-        },
         uploadedAt: document.createdAt,
         checkCount: document.checkCount,
         lastChecked: document.lastChecked,
@@ -474,21 +468,27 @@ exports.updateDocument = async (req, res) => {
 exports.deleteDocument = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Deleting document with ID:', id);
+    
     const document = await Document.findOne({
       _id: id,
       uploadedBy: req.user.id
     });
 
     if (!document) {
+      console.log('Document not found for user:', req.user.id);
       return res.status(404).json({
         success: false,
         message: 'Không tìm thấy tài liệu'
       });
     }
 
+    console.log('Found document:', document.title);
+
     // Delete file from filesystem
     try {
       await fs.unlink(document.filePath);
+      console.log('File deleted from filesystem');
     } catch (fileError) {
       console.error('Error deleting file:', fileError);
     }
@@ -503,18 +503,24 @@ exports.deleteDocument = async (req, res) => {
     }
 
     // Delete document from database
-    await document.remove();
+    console.log('Deleting document from database...');
+    await Document.findByIdAndDelete(document._id);
+    console.log('Document deleted from database');
 
-    res.json({
-      success: true,
-      message: 'Xóa tài liệu thành công'
-    });
+    // Log action
+    console.log('Logging action...');
     logAction({
       req,
       action: 'delete_document',
       targetType: 'document',
       targetId: String(document._id),
       targetName: document.title,
+    });
+
+    console.log('Sending success response');
+    res.json({
+      success: true,
+      message: 'Xóa tài liệu thành công'
     });
     
   } catch (error) {

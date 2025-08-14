@@ -13,7 +13,7 @@ const DocumentManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [stats, setStats] = useState(null);
-  const [treeStats, setTreeStats] = useState(null);
+  const [setTreeStats] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
@@ -141,21 +141,6 @@ const DocumentManagement = () => {
     }
   };
 
-  const handleCheckDocument = async (documentId) => {
-    try {
-      const response = await api.getDocumentText(documentId);
-      if (response.success) {
-        // Navigate to text checker with extracted text
-        // This would typically use React Router
-        console.log("Document text:", response.extractedText);
-        // You can implement navigation logic here
-      }
-    } catch (error) {
-      setError("Không thể lấy nội dung tài liệu: " + error.message);
-      console.error("Error getting document text:", error);
-    }
-  };
-
   // Search and filter are now handled by the API
   const handleSearchChange = (value) => {
     setSearchTerm(value);
@@ -198,19 +183,6 @@ const DocumentManagement = () => {
       case 'xlsx': case 'xls': return '📊';
       case 'pptx': case 'ppt': return '📊';
       default: return '📁';
-    }
-  };
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'processed':
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Đã xử lý</span>;
-      case 'processing':
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold text-yellow-800 bg-yellow-100 rounded-full">Đang xử lý</span>;
-      case 'failed':
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Lỗi</span>;
-      default:
-        return <span className="inline-flex px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 rounded-full">Không xác định</span>;
     }
   };
 
@@ -331,16 +303,10 @@ const DocumentManagement = () => {
                   Tài liệu
                 </th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
-                  Người tải lên / Tác giả
+                  Tác giả
                 </th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
                   Kích thước
-                </th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
-                  Trạng thái
-                </th>
-                <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
-                  Số lần kiểm tra
                 </th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
                   Ngày tải lên
@@ -370,48 +336,17 @@ const DocumentManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm text-neutral-900">
-                      {document.uploadedBy.name}
+                      {document.author || 'Không có thông tin tác giả'}
                     </div>
-                    <div className="text-sm text-neutral-500">
-                      {document.uploadedBy.email}
-                    </div>
-                    {document.author && (
-                      <div className="text-xs text-blue-600">
-                        Tác giả: {document.author}
-                      </div>
-                    )}
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-neutral-500">
                     {formatFileSize(document.fileSize)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(document.status)}
-                  </td>
-                  <td className="px-6 py-4 text-sm whitespace-nowrap text-neutral-500">
-                    <div className="flex items-center">
-                      <span className="font-medium">{document.checkCount}</span>
-                      <span className="ml-1">lần</span>
-                    </div>
-                    {document.lastChecked && (
-                      <div className="text-xs text-neutral-400">
-                        Cuối: {formatDate(document.lastChecked)}
-                      </div>
-                    )}
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-neutral-500">
                     {formatDate(document.uploadedAt)}
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-right whitespace-nowrap">
                     <div className="flex items-center justify-end space-x-2">
-                      {document.status === 'processed' && (
-                        <button
-                          onClick={() => handleCheckDocument(document._id)}
-                          className="px-3 py-1 text-xs font-medium text-green-700 transition-colors bg-green-100 rounded-lg hover:bg-green-200"
-                          title="Kiểm tra plagiarism"
-                        >
-                          🔍 Kiểm tra
-                        </button>
-                      )}
                       <button
                         onClick={() => handleDownloadDocument(document._id, document.fileName)}
                         className="px-3 py-1 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
