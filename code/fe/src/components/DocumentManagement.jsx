@@ -331,7 +331,7 @@ const DocumentManagement = () => {
                   Tài liệu
                 </th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
-                  Người tải lên
+                  Người tải lên / Tác giả
                 </th>
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
                   Kích thước
@@ -375,6 +375,11 @@ const DocumentManagement = () => {
                     <div className="text-sm text-neutral-500">
                       {document.uploadedBy.email}
                     </div>
+                    {document.author && (
+                      <div className="text-xs text-blue-600">
+                        Tác giả: {document.author}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-neutral-500">
                     {formatFileSize(document.fileSize)}
@@ -475,6 +480,7 @@ const DocumentManagement = () => {
 const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [isPublic, setIsPublic] = useState(false);
@@ -520,6 +526,7 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
 
     const metadata = {
       title: title || file.name,
+      author,
       description,
       tags,
       isPublic
@@ -614,6 +621,19 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Nhập tiêu đề tài liệu..."
+              />
+            </div>
+
+            <div>
+              <label className="block mb-2 text-sm font-medium text-neutral-700">
+                Tác giả
+              </label>
+              <input
+                type="text"
+                value={author}
+                onChange={(e) => setAuthor(e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Nhập tên tác giả..."
               />
             </div>
 

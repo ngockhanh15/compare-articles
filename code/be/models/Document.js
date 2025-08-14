@@ -6,6 +6,11 @@ const documentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  author: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   fileName: {
     type: String,
     required: true

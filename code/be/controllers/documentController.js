@@ -130,7 +130,7 @@ exports.uploadDocument = [
         });
       }
 
-      const { title, description, tags, isPublic } = req.body;
+      const { title, author, description, tags, isPublic } = req.body;
       const filePath = req.file.path;
       const mimeType = req.file.mimetype;
       const fileType = getFileTypeFromMime(mimeType);
@@ -138,6 +138,7 @@ exports.uploadDocument = [
       // Create document record
       const document = new Document({
         title: title || req.file.originalname,
+        author: author || '',
         fileName: req.file.filename,
         originalFileName: req.file.originalname,
         filePath: filePath,

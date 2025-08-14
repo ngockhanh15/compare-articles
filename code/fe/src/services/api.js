@@ -516,6 +516,7 @@ export const uploadDocument = async (file, metadata = {}) => {
 
     // Add metadata
     if (metadata.title) formData.append("title", metadata.title);
+    if (metadata.author) formData.append("author", metadata.author);
     if (metadata.description)
       formData.append("description", metadata.description);
     if (metadata.tags) formData.append("tags", metadata.tags);
