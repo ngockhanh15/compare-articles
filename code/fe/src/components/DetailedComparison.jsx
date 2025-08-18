@@ -313,7 +313,7 @@ export default function DetailedComparison() {
               <div className="text-lg font-bold text-purple-600">
                 {dtotalPercent}%
               </div>
-              <div className="mt-1 text-xs text-purple-600">Dtotal (câu trùng / tổng câu)</div>
+              <div className="mt-1 text-xs text-purple-600">Dtotal</div>
             </div>
           </div>
         </div>
