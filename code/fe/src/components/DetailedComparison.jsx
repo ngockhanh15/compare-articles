@@ -69,9 +69,17 @@ export default function DetailedComparison() {
     
     return [];
   }, [data]);
-  const dtotalPercent = Math.round(
-    typeof data?.dtotal === "number" ? data.dtotal : data?.overallSimilarity || 0
-  );
+  // Lấy Dtotal từ document giống nhất
+  const dtotalPercent = useMemo(() => {
+    // Nếu có matches và có document đầu tiên (giống nhất)
+    if (matches.length > 0 && matches[0]) {
+      return Math.round(matches[0].similarity || 0);
+    }
+    // Fallback: sử dụng giá trị cũ
+    return Math.round(
+      typeof data?.dtotal === "number" ? data.dtotal : data?.overallSimilarity || 0
+    );
+  }, [matches, data]);
 
 
   const leftHtml = useMemo(() => {
@@ -243,7 +251,7 @@ export default function DetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · DA/B: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
+                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · Dtotal: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -362,7 +370,7 @@ export default function DetailedComparison() {
                           </div>
                           <div className="mb-2">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs text-neutral-600">DA/B:</span>
+                              <span className="text-xs text-neutral-600">Dtotal:</span>
                               <span className={`text-xs font-medium ${rate >= 50 ? "text-red-600" : rate >= 25 ? "text-orange-600" : "text-green-600"}`}>{rate.toFixed(1)}%</span>
                             </div>
                             <div className="w-full h-2 mt-1 bg-gray-200 rounded-full">
