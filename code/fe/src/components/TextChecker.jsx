@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   checkDocumentSimilarity,
@@ -33,40 +33,7 @@ const TextChecker = () => {
     if (v > 100) v = 100;
     return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}%`;
   };
-  // Build pairs of duplicate sentences across all matches
-  const duplicatePairs = useMemo(() => {
-    if (!results || !Array.isArray(results.matches)) return [];
-    const pairs = [];
-    results.matches.forEach((m) => {
-      const list = Array.isArray(m.duplicateSentencesDetails)
-        ? m.duplicateSentencesDetails
-        : [];
-      if (list.length) {
-        list.forEach((d) => {
-          let sim = typeof d?.similarity === "number" ? d.similarity : m?.similarity || 0;
-          if (sim <= 1) sim = sim * 100;
-          if (sim < 0) sim = 0;
-          if (sim > 100) sim = 100;
-          pairs.push({
-            left: d.inputSentence || m.text || d.text || "",
-            right: d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || m.matchedText || m.text || "",
-            similarity: sim,
-            source: m.source || m.title || m.documentName || m.documentId || "",
-          });
-        });
-      } else if (m?.text || m?.matchedText) {
-        let sim = typeof m?.similarity === "number" ? m.similarity : 0;
-        if (sim <= 1) sim = sim * 100;
-        pairs.push({
-          left: m.text || "",
-          right: m.matchedText || m.text || "",
-          similarity: Math.max(0, Math.min(100, sim)),
-          source: m.source || m.title || m.documentName || m.documentId || "",
-        });
-      }
-    });
-    return pairs;
-  }, [results]);
+
   // Thêm vào phần khai báo state
   const [, setDetailedStats] = useState({
     totalSentencesWithInputWords: 0,
@@ -561,60 +528,6 @@ const TextChecker = () => {
                   )}
 
                 </div>
-
-                {/* Detailed sentence pairs */}
-                {duplicatePairs.length > 0 && (
-                  <div className="p-4 bg-white border rounded-xl border-neutral-200">
-                    <h3 className="flex items-center mb-3 text-lg font-semibold text-neutral-800">
-                      <span className="mr-2">📑</span>
-                      Chi tiết các câu trùng lặp
-                    </h3>
-                    <div className="mb-3 text-xs text-neutral-500">Phần trăm ở đây là % của câu · List hết các cặp câu trùng lặp (không phân biệt trong Doc giống nhất)</div>
-                    <div className="space-y-4">
-                      {duplicatePairs.map((p, idx) => {
-                        const rate = p.similarity || 0;
-                        const colorClass = rate >= 80 ? "bg-red-500" : rate >= 50 ? "bg-orange-500" : "bg-green-500";
-                        const chipClass = rate >= 80 ? "text-red-700 bg-red-50 border-red-200" : rate >= 50 ? "text-orange-700 bg-orange-50 border-orange-200" : "text-green-700 bg-green-50 border-green-200";
-                        return (
-                          <div key={idx} className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
-                            <div className="flex flex-wrap items-center gap-2 mb-3">
-                              <span className="px-2 py-0.5 text-xs font-medium border rounded-full text-neutral-700 bg-white border-neutral-200">Cặp #{idx + 1}</span>
-                              <span className={`px-2 py-0.5 text-xs font-semibold border rounded-full ${chipClass}`}>Tỷ lệ trùng lặp: {rate.toFixed(0)}%</span>
-                              {p.source && (
-                                <span className="px-2 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-full" title={String(p.source)}>
-                                  Nguồn: {String(p.source).toString().slice(0, 40)}{String(p.source).length > 40 ? "…" : ""}
-                                </span>
-                              )}
-                            </div>
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div>
-                                <div className="mb-1 text-xs font-semibold text-blue-700">CÂU TRONG DOCUMENT CỦA BẠN</div>
-                                <div className="p-3 text-sm bg-white border rounded-lg text-neutral-800 border-neutral-200">
-                                  {p.left || "(Không có dữ liệu)"}
-                                </div>
-                              </div>
-                              <div>
-                                <div className="mb-1 text-xs font-semibold text-orange-700">CÂU TRÙNG LẶP</div>
-                                <div className="p-3 text-sm bg-white border rounded-lg text-neutral-800 border-neutral-200">
-                                  {p.right || "(Không có dữ liệu)"}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-3">
-                              <div className="flex items-center justify-between mb-1 text-xs text-neutral-600">
-                                <span>Mức độ trùng lặp</span>
-                                <span>{rate.toFixed(0)}%</span>
-                              </div>
-                              <div className="w-full h-2 bg-gray-200 rounded-full">
-                                <div className={`${colorClass} h-2 rounded-full`} style={{ width: `${Math.min(rate, 100)}%` }} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Timestamp */}
                 <div className="pt-4 text-xs text-center border-t border-neutral-200 text-neutral-500">

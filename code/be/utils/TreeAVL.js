@@ -401,7 +401,7 @@ static createMurmurHash(text) {
     const sentences = text
       .split(/[.!?]+/)
       .map((sentence) => sentence.trim())
-      .filter((sentence) => sentence.length > 10); // Lọc câu quá ngắn
+      .filter((sentence) => sentence.length > 0); // Chỉ lọc câu rỗng, không lọc câu ngắn
 
     return sentences;
   }

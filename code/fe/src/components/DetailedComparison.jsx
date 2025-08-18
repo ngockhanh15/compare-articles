@@ -20,6 +20,7 @@ export default function DetailedComparison() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showComparisonOnly, setShowComparisonOnly] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -50,7 +51,24 @@ export default function DetailedComparison() {
     }
   }, [data, searchParams]);
 
-  const matches = useMemo(() => data?.detailedMatches || [], [data]);
+  const matches = useMemo(() => {
+    const rawMatches = data?.detailedMatches || [];
+    
+    // Chỉ lấy document giống nhất (có similarity cao nhất)
+    if (rawMatches.length > 0) {
+      // Sắp xếp theo similarity giảm dần và lấy document đầu tiên
+      const sortedMatches = [...rawMatches].sort((a, b) => {
+        const simA = a.similarity || 0;
+        const simB = b.similarity || 0;
+        return simB - simA;
+      });
+      
+      console.log(`Selected most similar document with similarity: ${sortedMatches[0]?.similarity || 0}%`);
+      return [sortedMatches[0]];
+    }
+    
+    return [];
+  }, [data]);
   const dtotalPercent = Math.round(
     typeof data?.dtotal === "number" ? data.dtotal : data?.overallSimilarity || 0
   );
@@ -174,6 +192,73 @@ export default function DetailedComparison() {
     );
   }
 
+  // Nếu showComparisonOnly là true, chỉ hiển thị phần so sánh
+  if (showComparisonOnly && matches.length > 0 && matches[selectedIndex]) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
+        <div className="px-4 py-8 mx-auto max-w-7xl">
+          {/* Header đơn giản */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <button
+                  onClick={() => {
+                    setShowComparisonOnly(false);
+                    window.scrollTo({ top: 0, behavior: "auto" });
+                  }}
+                  className="flex items-center px-3 py-2 mr-4 text-sm text-neutral-600 hover:text-neutral-800"
+                >
+                  <span className="mr-1">←</span>
+                  Quay lại
+                </button>
+                <div className="flex items-center">
+                  <div className="p-3 mr-3 shadow-lg bg-gradient-primary rounded-2xl">
+                    <span className="text-3xl">🔍</span>
+                  </div>
+                  <h1 className="text-3xl font-bold text-neutral-800">So sánh chi tiết</h1>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Side-by-side view */}
+          <div className="grid gap-6 mb-8 lg:grid-cols-2">
+            <div className="p-6 bg-white shadow-xl rounded-2xl">
+              <h3 className="flex items-center mb-4 text-lg font-semibold text-neutral-800">
+                <span className="mr-2">📄</span>
+                Tài liệu của bạn (đã tô đậm chỗ trùng)
+              </h3>
+              <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
+                <div
+                  className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
+                  dangerouslySetInnerHTML={{
+                    __html: leftHtml
+                  }}
+                />
+              </div>
+            </div>
+            <div className="p-6 bg-white shadow-xl rounded-2xl">
+              <h3 className="flex items-center mb-2 text-lg font-semibold text-neutral-800">
+                <span className="mr-2">📚</span>
+                Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
+              </h3>
+              <div className="mb-3 text-sm text-neutral-600">
+                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · DA/B: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
+              </div>
+              <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
+                <div
+                  className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
+                  dangerouslySetInnerHTML={{ __html: rightHtml }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Hiển thị giao diện đầy đủ
   return (
     <div className="min-h-screen bg-gradient-to-br from-neutral-50 to-neutral-100">
       <div className="px-4 py-8 mx-auto max-w-7xl">
@@ -245,7 +330,7 @@ export default function DetailedComparison() {
           <div className="lg:col-span-1 p-6 bg-white shadow-xl rounded-2xl">
             <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
               <span className="mr-2">📋</span>
-              Documents trùng lặp ({matches.length})
+              Document trùng lặp giống nhất
             </h2>
             {matches.length === 0 ? (
               <div className="py-8 text-center text-neutral-600">Không tìm thấy documents trùng lặp</div>
@@ -255,9 +340,11 @@ export default function DetailedComparison() {
                   const rate = m.similarity || 0;
                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
+                  // Tạo unique key từ documentId và index để tránh trùng lặp
+                  const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
                   return (
                     <div
-                      key={m.documentId || idx}
+                      key={uniqueKey}
                       className="p-4 transition-shadow border rounded-lg border-neutral-200 hover:shadow-md"
                       style={{ borderLeftColor: active ? "#3b82f6" : "#e5e7eb", borderLeftWidth: 4 }}
                     >
@@ -268,6 +355,10 @@ export default function DetailedComparison() {
                             <h3 className="font-medium truncate text-neutral-800" title={m.source || m.title || "Document"}>
                               {m.source || m.title || "Document"}
                             </h3>
+                            {/* Hiển thị ID ngắn để phân biệt documents cùng tên */}
+                            <span className="ml-2 px-2 py-0.5 text-xs font-mono text-neutral-500 bg-neutral-100 rounded">
+                              ID: {(m.documentId || '').toString().slice(-6)}
+                            </span>
                           </div>
                           <div className="mb-2">
                             <div className="flex items-center justify-between">
@@ -284,8 +375,10 @@ export default function DetailedComparison() {
                           <button
                             onClick={() => {
                               setSelectedIndex(idx);
-                              const el = document.getElementById("side-by-side-section");
-                              if (el) el.scrollIntoView({ behavior: "smooth" });
+                              // Hiển thị trực tiếp phần so sánh và ẩn các phần khác
+                              setShowComparisonOnly(true);
+                              // Cuộn lên đầu trang
+                              window.scrollTo({ top: 0, behavior: "auto" });
                             }}
                             className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                           >
@@ -301,40 +394,10 @@ export default function DetailedComparison() {
           </div>
         </div>
 
-        {/* Side-by-side view */}
-        {matches.length > 0 && matches[selectedIndex] && (
-          <div id="side-by-side-section" className="grid gap-6 mb-8 lg:grid-cols-2">
-            <div className="p-6 bg-white shadow-xl rounded-2xl">
-              <h3 className="flex items-center mb-4 text-lg font-semibold text-neutral-800">
-                <span className="mr-2">📄</span>
-                Tài liệu của bạn (đã tô đậm chỗ trùng)
-              </h3>
-              <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[60vh] overflow-auto">
-                <div
-                  className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
-                  dangerouslySetInnerHTML={{
-                    __html: leftHtml
-                  }}
-                />
-              </div>
-            </div>
-            <div className="p-6 bg-white shadow-xl rounded-2xl">
-              <h3 className="flex items-center mb-2 text-lg font-semibold text-neutral-800">
-                <span className="mr-2">📚</span>
-                Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
-              </h3>
-              <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · DA/B: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
-              </div>
-              <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[60vh] overflow-auto">
-                <div
-                  className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
-                  dangerouslySetInnerHTML={{ __html: rightHtml }}
-                />
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Phần so sánh ở dưới đã được bỏ */}
+        <div id="side-by-side-section" className="hidden">
+          {/* Giữ lại id này để tránh lỗi khi tham chiếu đến nó */}
+        </div>
       </div>
     </div>
   );

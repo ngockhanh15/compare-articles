@@ -905,9 +905,20 @@ exports.getDetailedComparison = async (req, res) => {
     console.log("Creating detailed matches from DocumentAVLService results...");
 
     const Document = require("../models/Document"); // Import Document model
+    const processedDocuments = new Set(); // Track processed document IDs
 
     for (let index = 0; index < result.matches.length; index++) {
       const match = result.matches[index];
+      
+      console.log(`Processing match ${index}: documentId=${match.documentId}, title=${match.title}`);
+      
+      // Skip if we already processed this document
+      if (processedDocuments.has(match.documentId)) {
+        console.log(`Skipping duplicate document: ${match.documentId}`);
+        continue;
+      }
+      processedDocuments.add(match.documentId);
+      
       const originalText = plagiarismCheck.originalText;
       
       // Lấy toàn bộ nội dung document từ database
