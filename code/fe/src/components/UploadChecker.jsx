@@ -476,12 +476,12 @@ const UploadChecker = () => {
 
                 {/* Comparison Buttons replaced with a single details button */}
                 <div className="flex gap-3">
-                  {results?.checkId && (
+                  {results?.checkId && (results.dtotal || 0) >= 50 && (
                     <Link
                       to={`/detailed-comparison/${results.checkId}`}
                       className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <span className="mr-2">�</span>
+                      <span className="mr-2">📄</span>
                       Kết quả chi tiết
                     </Link>
                   )}
