@@ -139,8 +139,17 @@ class TreeAVL {
 
   getAllNodes() {
     const result = [];
-    this._inOrderTraversal(this.root, result);
+    this._getAllNodesTraversal(this.root, result);
     return result;
+  }
+
+  // Get actual node references (not copies)
+  _getAllNodesTraversal(node, result) {
+    if (node) {
+      this._getAllNodesTraversal(node.left, result);
+      result.push(node);
+      this._getAllNodesTraversal(node.right, result);
+    }
   }
 
   _inOrderTraversal(node, result) {
@@ -159,9 +168,152 @@ class TreeAVL {
     return this.size;
   }
 
+  // Get statistics about empty nodes (nodes with no documents)
+  getEmptyNodesCount() {
+    if (!this.root) return 0;
+    return this._countEmptyNodes(this.root);
+  }
+
+  _countEmptyNodes(node) {
+    if (!node) return 0;
+    
+    let count = 0;
+    if (node.documents.size === 0) {
+      count = 1;
+    }
+    
+    count += this._countEmptyNodes(node.left);
+    count += this._countEmptyNodes(node.right);
+    
+    return count;
+  }
+
   clear() {
     this.root = null;
     this.size = 0;
+  }
+
+  // Remove document from all nodes in the tree
+  removeDocumentFromAllNodes(documentId) {
+    const docIdStr = String(documentId);
+    let removedCount = 0;
+    
+    if (this.root) {
+      removedCount = this._removeDocumentFromNode(this.root, docIdStr);
+    }
+    
+    return removedCount;
+  }
+
+  // Remove document and clean up empty nodes
+  removeDocumentAndCleanup(documentId) {
+    const docIdStr = String(documentId);
+    let removedCount = 0;
+    
+    if (this.root) {
+      removedCount = this._removeDocumentFromNode(this.root, docIdStr);
+      // Clean up empty nodes after removal
+      this.root = this._removeEmptyNodes(this.root);
+      this._updateSize();
+    }
+    
+    return removedCount;
+  }
+
+  // Remove empty nodes from the tree
+  _removeEmptyNodes(node) {
+    if (!node) return null;
+    
+    // Recursively clean children first
+    node.left = this._removeEmptyNodes(node.left);
+    node.right = this._removeEmptyNodes(node.right);
+    
+    // If this node is empty (no documents), remove it
+    if (node.documents.size === 0) {
+      // If it's a leaf node, just remove it
+      if (!node.left && !node.right) {
+        return null;
+      }
+      
+      // If it has only one child, replace with that child
+      if (!node.left) {
+        return node.right;
+      }
+      if (!node.right) {
+        return node.left;
+      }
+      
+      // If it has two children, find inorder successor
+      const successor = this._findMin(node.right);
+      
+      // Copy successor's data to this node
+      node.hash = successor.hash;
+      node.originalWord = successor.originalWord;
+      node.tokenInfo = successor.tokenInfo;
+      node.documents = new Set(successor.documents);
+      node.sentences = new Set(successor.sentences);
+      
+      // Remove the successor
+      node.right = this._removeEmptyNodes(node.right);
+    }
+    
+    // Update height and rebalance
+    node.height = 1 + Math.max(this.getHeight(node.left), this.getHeight(node.right));
+    return this._rebalance(node);
+  }
+
+  // Find minimum node in subtree
+  _findMin(node) {
+    while (node.left) {
+      node = node.left;
+    }
+    return node;
+  }
+
+  // Update tree size by counting nodes
+  _updateSize() {
+    this.size = this._countNodes(this.root);
+  }
+
+  // Count total nodes in tree
+  _countNodes(node) {
+    if (!node) return 0;
+    return 1 + this._countNodes(node.left) + this._countNodes(node.right);
+  }
+
+  _removeDocumentFromNode(node, documentId) {
+    if (!node) return 0;
+    
+    let removedCount = 0;
+    
+    // Remove document from this node
+    if (node.documents.has(documentId)) {
+      node.documents.delete(documentId);
+      removedCount++;
+    }
+    
+    // Remove sentences belonging to this document
+    const sentencesToRemove = [];
+    for (const sentenceId of node.sentences) {
+      if (sentenceId.startsWith(documentId + ':')) {
+        sentencesToRemove.push(sentenceId);
+      }
+    }
+    
+    sentencesToRemove.forEach(sentenceId => {
+      node.sentences.delete(sentenceId);
+    });
+    
+    // Update token frequency if needed
+    if (node.tokenInfo && removedCount > 0) {
+      node.tokenInfo.totalFrequency = Math.max(0, node.tokenInfo.totalFrequency - removedCount);
+    }
+    
+    // Recursively process children
+    removedCount += this._removeDocumentFromNode(node.left, documentId);
+    removedCount += this._removeDocumentFromNode(node.right, documentId);
+    
+    return removedCount;
   }
 
   // Serialize tree để lưu vào database

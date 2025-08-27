@@ -120,35 +120,8 @@ const Header = () => {
                           <span className="text-lg">🛠️</span>
                           <span>Bảng điều khiển Admin</span>
                         </Link>
-                        <Link
-                          to="/system-stats"
-                          onClick={() => setShowUserMenu(false)}
-                          className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
-                        >
-                          <span className="text-lg">📊</span>
-                          <span>Thống kê Hệ thống</span>
-                        </Link>
                       </>
                     )}
-
-                    <a
-                      href="#"
-                      className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
-                    >
-                      <span className="text-lg">👤</span>
-                      <span>Hồ sơ cá nhân</span>
-                    </a>
-                    <a
-                      href="#"
-                      className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
-                    >
-                      <span className="text-lg">⚙️</span>
-                      <span>Cài đặt</span>
-                    </a>
-
-
-                    <hr className="my-2 border-neutral-100" />
-
                     <button
                       onClick={handleLogout}
                       className="flex items-center w-full gap-3 px-4 py-3 transition-colors text-error-600 hover:bg-error-50"

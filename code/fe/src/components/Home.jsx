@@ -140,6 +140,14 @@ const Home = () => {
 
         {/* Statistics Cards */}
         <div className="flex justify-center gap-6 mb-12">
+            <StatCard
+            title="Số người dùng"
+            value={stats.totalUsers}
+            icon="👥"
+            bgColor="text-accent-600"
+            iconBg="bg-accent-100"
+            isLoading={isLoading}
+          />
           <StatCard
             title="Tổng số tài liệu"
             value={stats.totalDocuments}
@@ -148,14 +156,7 @@ const Home = () => {
             iconBg="bg-primary-100"
             isLoading={isLoading}
           />
-          <StatCard
-            title="Số người dùng"
-            value={stats.totalUsers}
-            icon="👥"
-            bgColor="text-accent-600"
-            iconBg="bg-accent-100"
-            isLoading={isLoading}
-          />
+      
           <StatCard
             title="Tổng số lần kiểm tra"
             value={stats.totalChecks}

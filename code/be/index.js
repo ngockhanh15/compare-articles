@@ -3,7 +3,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const crypto = require("crypto"); // Thêm import crypto
 const connectDB = require("./config/database");
-const { generalLimiter } = require("./middleware/rateLimiter");
+// Rate limiter disabled
+// const { generalLimiter } = require("./middleware/rateLimiter");
 const createDefaultAdmin = require("./utils/createDefaultAdmin");
 const initializePlagiarismSystem = require("./scripts/initializePlagiarismSystem");
 const initializeDocumentAVL = require("./scripts/initializeDocumentAVL");
@@ -202,8 +203,8 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Apply rate limiting to all requests
-app.use(generalLimiter);
+// Apply rate limiting to all requests - DISABLED
+// app.use(generalLimiter);
 
 app.use(
   session({

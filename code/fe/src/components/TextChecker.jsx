@@ -517,7 +517,7 @@ const TextChecker = () => {
 
                 {/* Comparison Buttons */}
                 <div className="flex gap-3">
-                  {results?.checkId && (results.dtotal || 0) >= 50 && (
+                  {results?.checkId && (
                     <Link
                       to={`/detailed-comparison/${results.checkId}`}
                       className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-green-600 rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
@@ -526,7 +526,6 @@ const TextChecker = () => {
                       Kết quả chi tiết
                     </Link>
                   )}
-
                 </div>
 
                 {/* Timestamp */}

@@ -10,7 +10,7 @@ const formatFileSize = (size) => {
   return `${(size / (1024 * 1024)).toFixed(2)} MB`;
 };
 
-export default function DetailedComparison() {
+export default function TextDetailedComparison() {
   const { checkId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -21,6 +21,7 @@ export default function DetailedComparison() {
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showComparisonOnly, setShowComparisonOnly] = useState(false);
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -69,6 +70,7 @@ export default function DetailedComparison() {
     
     return [];
   }, [data]);
+
   // Lấy Dtotal từ document giống nhất
   const dtotalPercent = useMemo(() => {
     // Nếu có matches và có document đầu tiên (giống nhất)
@@ -81,6 +83,23 @@ export default function DetailedComparison() {
     );
   }, [matches, data]);
 
+  // Lấy danh sách câu trùng lặp chi tiết
+  const duplicateSentences = useMemo(() => {
+    const selected = matches[selectedIndex];
+    if (!selected) return [];
+    
+    const details = selected.duplicateSentencesDetails || [];
+    if (Array.isArray(details) && details.length > 0) {
+      return details.map((detail, index) => ({
+        id: index,
+        inputSentence: detail.inputSentence || "",
+        docSentence: detail.docSentence || detail.matched || detail.text || detail.sourceSentence || detail.matchedSentence || "",
+        similarity: typeof detail.similarity === "number" ? detail.similarity : selected.similarity || 0
+      }));
+    }
+    
+    return [];
+  }, [matches, selectedIndex]);
 
   const leftHtml = useMemo(() => {
     // Lấy input text từ data
@@ -200,6 +219,8 @@ export default function DetailedComparison() {
     );
   }
 
+
+
   // Nếu showComparisonOnly là true, chỉ hiển thị phần so sánh
   if (showComparisonOnly && matches.length > 0 && matches[selectedIndex]) {
     return (
@@ -251,7 +272,7 @@ export default function DetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{((matches[selectedIndex].dab || matches[selectedIndex].similarity || 0)).toFixed(1)}%</span>
+                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · Dtotal: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -309,98 +330,88 @@ export default function DetailedComparison() {
               <div className="text-2xl font-bold text-primary-600">{formatFileSize(data.currentDocument?.fileSize || 0)}</div>
               <div className="text-sm text-neutral-600">Kích thước</div>
             </div>
-                         <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-               <div className="text-lg font-bold text-purple-600">
-                 {dtotalPercent}%
-               </div>
-               <div className="mt-1 text-xs text-purple-600">Dtotal</div>
-             </div>
-          </div>
-        </div>
-
-        {/* Left: original highlighted; Right: duplicates list */}
-        <div className="grid gap-6 mb-8 lg:grid-cols-3">
-          <div className="lg:col-span-2 p-6 bg-white shadow-xl rounded-2xl">
-            <h2 className="flex items-center mb-4 text-xl font-semibold text-neutral-800">
-              <span className="mr-2">📝</span>
-              Nội dung văn bản cần kiểm tra
-            </h2>
-            <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50">
-              <div
-                className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
-                dangerouslySetInnerHTML={{
-                  __html: (data?.inputText || data?.currentDocument?.content || "").replace(/\n/g, "<br/>")
-                }}
-              />
+            <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+              <div className="text-lg font-bold text-purple-600">
+                {dtotalPercent}%
+              </div>
+              <div className="mt-1 text-xs text-purple-600">Dtotal</div>
             </div>
           </div>
-
-          <div className="lg:col-span-1 p-6 bg-white shadow-xl rounded-2xl">
-            <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
-              <span className="mr-2">📋</span>
-              Document trùng lặp giống nhất
-            </h2>
-            {matches.length === 0 ? (
-              <div className="py-8 text-center text-neutral-600">Không tìm thấy documents trùng lặp</div>
-            ) : (
-              <div className="space-y-3">
-                                 {matches.map((m, idx) => {
-                   const rate = m.dab || m.similarity || 0;
-                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
-                  const active = idx === selectedIndex;
-                  // Tạo unique key từ documentId và index để tránh trùng lặp
-                  const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
-                  return (
-                    <div
-                      key={uniqueKey}
-                      className="p-4 transition-shadow border rounded-lg border-neutral-200 hover:shadow-md"
-                      style={{ borderLeftColor: active ? "#3b82f6" : "#e5e7eb", borderLeftWidth: 4 }}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center mb-2">
-                            <span className="mr-2 text-lg">📄</span>
-                            <h3 className="font-medium truncate text-neutral-800" title={m.source || m.title || "Document"}>
-                              {m.source || m.title || "Document"}
-                            </h3>
-                            {/* Hiển thị ID ngắn để phân biệt documents cùng tên */}
-                            <span className="ml-2 px-2 py-0.5 text-xs font-mono text-neutral-500 bg-neutral-100 rounded">
-                              ID: {(m.documentId || '').toString().slice(-6)}
-                            </span>
-                          </div>
-                          <div className="mb-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-neutral-600">D A/B:</span>
-                              <span className={`text-xs font-medium ${rate >= 50 ? "text-red-600" : rate >= 25 ? "text-orange-600" : "text-green-600"}`}>{rate.toFixed(1)}%</span>
-                            </div>
-                            <div className="w-full h-2 mt-1 bg-gray-200 rounded-full">
-                              <div className={`${rate >= 50 ? "bg-red-500" : rate >= 25 ? "bg-orange-500" : "bg-green-500"} h-2 rounded-full`} style={{ width: `${Math.min(rate, 100)}%` }} />
-                            </div>
-                          </div>
-                          <div className="text-xs text-neutral-600">Câu trùng: {docDuplicate}</div>
-                        </div>
-                        <div className="ml-3 shrink-0">
-                          <button
-                            onClick={() => {
-                              setSelectedIndex(idx);
-                              // Hiển thị trực tiếp phần so sánh và ẩn các phần khác
-                              setShowComparisonOnly(true);
-                              // Cuộn lên đầu trang
-                              window.scrollTo({ top: 0, behavior: "auto" });
-                            }}
-                            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                          >
-                            Chi tiết
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
+
+        {/* Chi tiết các câu trùng lặp */}
+        {duplicateSentences.length > 0 && (
+          <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
+            {/* Header */}
+            <div className="flex items-center mb-6">
+              <span className="text-gray-500 mr-3 text-xl">📎</span>
+              <h2 className="text-xl font-semibold text-gray-800">Chi tiết các câu trùng lặp</h2>
+            </div>
+
+                         {/* Comparison Overview */}
+             <div className="p-6 mb-6 border border-gray-200 rounded-xl bg-gray-50">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center space-x-3">
+                   <span className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-full">
+                     Cặp #{selectedIndex + 1}
+                   </span>
+                   <span className="px-4 py-2 text-sm font-medium text-white bg-pink-500 rounded-full">
+                     Tỷ lệ trùng lặp: {dtotalPercent}%
+                   </span>
+                 </div>
+                 <div className="text-right">
+                   <p className="text-sm text-gray-600">Phần trăm ở đây là % của câu</p>
+                   <p className="text-sm text-red-600">List hết các cặp câu trùng lặp (ko phân biệt là trong Doc giống nhất)</p>
+                   <p className="text-xs text-red-400">trong Document nào?</p>
+                 </div>
+               </div>
+             </div>
+
+             {/* Duplication Level Indicator */}
+             <div className="p-4 mb-6 border border-gray-200 rounded-xl bg-gray-50">
+               <p className="mb-2 text-sm font-medium text-gray-700">Mức độ trùng lặp</p>
+               <div className="w-full bg-gray-200 rounded-full h-2">
+                 <div 
+                   className="bg-red-500 h-2 rounded-full" 
+                   style={{ width: `${Math.min(dtotalPercent, 100)}%` }}
+                 ></div>
+               </div>
+               <div className="flex justify-end mt-1">
+                 <span className="text-sm font-medium text-gray-700">{dtotalPercent}%</span>
+               </div>
+             </div>
+
+             {/* Sentence Comparison */}
+             <div className="grid gap-6 lg:grid-cols-2">
+               {/* Left Panel - Your Document */}
+               <div>
+                 <h3 className="flex items-center mb-4 text-lg font-semibold text-blue-600">
+                   <span className="mr-2">📄</span>
+                   CÂU TRONG DOCUMENT CỦA BẠN
+                 </h3>
+                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                   <p className="text-sm text-gray-800 leading-relaxed">
+                     {duplicateSentences[0]?.inputSentence || "Không có câu trùng lặp"}
+                   </p>
+                 </div>
+               </div>
+
+               {/* Right Panel - Most Similar Document */}
+               <div>
+                 <h3 className="flex items-center mb-4 text-lg font-semibold text-red-600">
+                   <span className="mr-2">📄</span>
+                   CÂU TRÙNG LẬP TỪ DOCUMENT GIỐNG NHẤT
+                 </h3>
+                 <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                   <p className="text-sm text-gray-800 leading-relaxed">
+                     {duplicateSentences[0]?.docSentence || "Không có câu trùng lặp"}
+                   </p>
+                 </div>
+               </div>
+             </div>
+          </div>
+        )}
+
 
         {/* Phần so sánh ở dưới đã được bỏ */}
         <div id="side-by-side-section" className="hidden">

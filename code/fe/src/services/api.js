@@ -676,6 +676,66 @@ export const getDocumentStats = async () => {
   }
 };
 
+// ==================== ADMIN DOCUMENT MANAGEMENT API ====================
+
+// Get all documents for admin with pagination and filters
+export const getAllDocuments = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.fileType) queryParams.append("fileType", params.fileType);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.sortBy) queryParams.append("sortBy", params.sortBy);
+    if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+    const response = await fetch(
+      `${API_BASE_URL}/documents/admin/all?${queryParams.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get all documents error:", error);
+    throw error;
+  }
+};
+
+// Get all document statistics for admin
+export const getAllDocumentStats = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/admin/stats`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get all document stats error:", error);
+    throw error;
+  }
+};
+
+// Admin delete any document
+export const adminDeleteDocument = async (documentId) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/documents/admin/${documentId}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Admin delete document error:", error);
+    throw error;
+  }
+};
+
 // Get uploaded files (legacy support - now uses getUserDocuments)
 export const getUploadedFiles = async (params = {}) => {
   try {

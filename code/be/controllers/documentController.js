@@ -532,6 +532,213 @@ exports.deleteDocument = async (req, res) => {
   }
 };
 
+// Admin delete any document
+exports.adminDeleteDocument = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('Admin deleting document with ID:', id);
+    
+    const document = await Document.findById(id).populate('uploadedBy', 'name email');
+
+    if (!document) {
+      console.log('Document not found:', id);
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy tài liệu'
+      });
+    }
+
+    console.log('Found document:', document.title, 'owned by:', document.uploadedBy.name);
+
+    // Delete file from filesystem
+    try {
+      await fs.unlink(document.filePath);
+      console.log('File deleted from filesystem');
+    } catch (fileError) {
+      console.error('Error deleting file:', fileError);
+    }
+
+    // Remove document from AVL tree
+    try {
+      await documentAVLService.removeDocumentFromTree(document._id);
+      console.log(`Document "${document.title}" removed from AVL tree`);
+    } catch (avlError) {
+      console.error('Error removing document from AVL tree:', avlError);
+      // Continue with deletion even if AVL tree removal fails
+    }
+
+    // Delete document from database
+    console.log('Deleting document from database...');
+    await Document.findByIdAndDelete(document._id);
+    console.log('Document deleted from database');
+
+    // Log action
+    console.log('Logging action...');
+    logAction({
+      req,
+      action: 'admin_delete_document',
+      targetType: 'document',
+      targetId: String(document._id),
+      targetName: document.title,
+      metadata: { 
+        originalOwner: document.uploadedBy.name,
+        originalOwnerId: document.uploadedBy._id
+      }
+    });
+
+    console.log('Sending success response');
+    res.json({
+      success: true,
+      message: 'Xóa tài liệu thành công'
+    });
+    
+  } catch (error) {
+    console.error('Admin delete document error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi xóa tài liệu'
+    });
+  }
+};
+
+// Get all documents for admin with pagination and filters
+exports.getAllDocuments = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      search = '',
+      fileType = 'all',
+      status = 'all',
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build query
+    const query = {};
+    
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { originalFileName: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    if (fileType !== 'all') {
+      query.fileType = fileType;
+    }
+    
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    // Build sort object
+    const sort = {};
+    sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Get documents with pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const documents = await Document.find(query)
+      .populate('uploadedBy', 'name email')
+      .sort(sort)
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    const total = await Document.countDocuments(query);
+
+    const documentsWithDetails = documents.map(doc => ({
+      _id: doc._id,
+      title: doc.title,
+      author: doc.author,
+      fileName: doc.originalFileName,
+      fileType: doc.fileType,
+      fileSize: doc.fileSize,
+      uploadedAt: doc.createdAt,
+      checkCount: doc.checkCount,
+      lastChecked: doc.lastChecked,
+      downloadCount: doc.downloadCount,
+      status: doc.status,
+      description: doc.description,
+      tags: doc.tags,
+      isPublic: doc.isPublic,
+      uploadedBy: {
+        _id: doc.uploadedBy._id,
+        name: doc.uploadedBy.name,
+        email: doc.uploadedBy.email
+      }
+    }));
+
+    res.json({
+      success: true,
+      documents: documentsWithDetails,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalDocuments: total,
+        hasNext: page * limit < total,
+        hasPrev: page > 1
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get all documents error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy danh sách tài liệu'
+    });
+  }
+};
+
+// Get all document statistics for admin
+exports.getAllDocumentStats = async (req, res) => {
+  try {
+    // Get stats for all documents
+    const stats = await Document.aggregate([
+      {
+        $group: {
+          _id: '$fileType',
+          count: { $sum: 1 },
+          totalSize: { $sum: '$fileSize' },
+          avgSize: { $avg: '$fileSize' },
+          totalChecks: { $sum: '$checkCount' },
+          totalDownloads: { $sum: '$downloadCount' }
+        }
+      }
+    ]);
+
+    const totalDocuments = await Document.countDocuments({});
+    
+    // Calculate total storage used
+    const totalStorage = stats.reduce((sum, stat) => sum + stat.totalSize, 0);
+    
+    res.json({
+      success: true,
+      stats: {
+        totalDocuments,
+        totalStorage,
+        byFileType: stats.reduce((acc, stat) => {
+          acc[stat._id] = {
+            count: stat.count,
+            totalSize: stat.totalSize,
+            avgSize: Math.round(stat.avgSize),
+            totalChecks: stat.totalChecks,
+            totalDownloads: stat.totalDownloads
+          };
+          return acc;
+        }, {})
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get all document stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê tài liệu'
+    });
+  }
+};
+
 // Get document statistics
 exports.getDocumentStats = async (req, res) => {
   try {

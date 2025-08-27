@@ -13,6 +13,7 @@ import ForgotPassword from "./components/ForgotPassword";
 import TextChecker from "./components/TextChecker";
 import UploadChecker from "./components/UploadChecker";
 import DetailedComparison from "./components/DetailedComparison";
+import TextDetailedComparison from "./components/TextDetailedComparison";
 import AllDocumentsComparison from "./components/AllDocumentsComparison";
 import DocumentManagement from "./components/DocumentManagement";
 import AdminDashboard from "./components/AdminDashboard";
@@ -164,6 +165,14 @@ function App() {
               />
               <Route
                 path="/detailed-comparison/:checkId"
+                element={
+                  <ProtectedRoute>
+                    <TextDetailedComparison />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/detail-checker/:checkId"
                 element={
                   <ProtectedRoute>
                     <DetailedComparison />

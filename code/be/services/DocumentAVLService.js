@@ -1,6 +1,7 @@
 const { TreeAVL, TextHasher } = require("../utils/TreeAVL");
 const Document = require("../models/Document");
 const GlobalAVLTreeUnified = require("../models/GlobalAVLTreeUnified");
+const TokenizedWord = require("../models/TokenizedWord");
 const vietnameseStopwordService = require("./VietnameseStopwordService");
 
 class DocumentAVLService {
@@ -581,21 +582,81 @@ class DocumentAVLService {
   // Remove document from tree (when document is deleted)
   async removeDocumentFromTree(documentId) {
     try {
-  // Theo yêu cầu: có thể rebuild lại từ database để loại bỏ dữ liệu đã xóa
-  console.log(`Rebuilding AVL index to remove document ${documentId}...`);
-  await this.refreshTree();
+      if (!this.initialized) {
+        console.warn('AVL tree not initialized, skipping document removal');
+        return;
+      }
+
+      console.log(`Removing document ${documentId} from AVL tree...`);
+      
+      // Remove document from all nodes and clean up empty nodes
+      const removedCount = this.documentTree.removeDocumentAndCleanup(documentId);
+      
+      // Remove document info from memory
+      this.docInfo.delete(String(documentId));
+      
+      // Remove tokenization samples for this document
+      this.tokenizationSamples = this.tokenizationSamples.filter(
+        sample => sample.documentId !== String(documentId)
+      );
+      
+      // Remove tokenized words from database
+      try {
+        const deletedTokens = await TokenizedWord.deleteMany({ 
+          documentId: String(documentId) 
+        });
+        console.log(`Removed ${deletedTokens.deletedCount} tokenized word records for document ${documentId}`);
+      } catch (tokenError) {
+        console.warn(`Failed to remove tokenized words for document ${documentId}:`, tokenError.message);
+      }
+      
+      console.log(`Removed document ${documentId} from ${removedCount} nodes in AVL tree`);
+      
+      // Report tree statistics after removal
+      const emptyNodes = this.documentTree.getEmptyNodesCount();
+      const totalNodes = this.documentTree.getSize();
+      if (emptyNodes > 0) {
+        console.log(`⚠️ Tree now has ${emptyNodes} empty nodes out of ${totalNodes} total nodes`);
+        
+        // Note: We don't auto-rebuild here because the document might still exist in database
+        // Auto-rebuild should be done manually or during maintenance
+        const emptyRatio = emptyNodes / totalNodes;
+        if (emptyRatio > 0.5) { // Only warn if more than 50% empty nodes
+          console.log(`⚠️ High ratio of empty nodes (${(emptyRatio * 100).toFixed(1)}%). Consider manual tree optimization.`);
+        }
+      }
+      
+      // Lưu cây đã cập nhật vào database
+      const saveResult = await this.saveToDatabase();
+      if (saveResult) {
+        console.log(`✅ AVL tree updated and saved after removing document ${documentId}`);
+      } else {
+        console.warn(`⚠️ Failed to save AVL tree after removing document ${documentId}`);
+      }
     } catch (error) {
       console.error(`Error removing document ${documentId} from tree:`, error);
+      
+      // Fallback: rebuild tree if direct removal fails
+      console.log('Falling back to full tree rebuild...');
+      try {
+        await this.refreshTree();
+        await this.saveToDatabase();
+        console.log('✅ Tree rebuilt successfully as fallback');
+      } catch (rebuildError) {
+        console.error('Failed to rebuild tree as fallback:', rebuildError);
+      }
     }
   }
 
   // Refresh tree (reload from database)
   async refreshTree() {
+    console.log('🔄 Refreshing AVL tree from database...');
     this.documentTree.clear();
     this.docInfo.clear();
     this.tokenizationSamples = [];
     this.initialized = false;
     await this.initialize();
+    console.log(`✅ AVL tree refreshed with ${this.documentTree.getSize()} entries`);
   }
 
   // Save Global AVL Tree to database

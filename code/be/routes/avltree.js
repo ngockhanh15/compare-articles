@@ -134,6 +134,91 @@ router.post('/reload', async (req, res) => {
   }
 });
 
+// Refresh AVL tree (rebuild from documents in database)
+router.post('/refresh', async (req, res) => {
+  try {
+    console.log('🔄 Refresh tree from documents requested via API');
+    
+    if (!documentAVLService.initialized) {
+      return res.status(400).json({
+        success: false,
+        error: 'DocumentAVLService not initialized'
+      });
+    }
+
+    const beforeStats = documentAVLService.getTreeStats();
+    
+    // Refresh tree (rebuild from documents)
+    await documentAVLService.refreshTree();
+    
+    const afterStats = documentAVLService.getTreeStats();
+    
+    res.json({
+      success: true,
+      message: 'AVL Tree refreshed from documents successfully',
+      before: {
+        totalDocuments: beforeStats.totalDocuments,
+        totalNodes: beforeStats.totalNodes,
+        treeHeight: beforeStats.treeHeight
+      },
+      after: {
+        totalDocuments: afterStats.totalDocuments,
+        totalNodes: afterStats.totalNodes,
+        treeHeight: afterStats.treeHeight
+      }
+    });
+  } catch (error) {
+    console.error('Error refreshing AVL tree:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Remove specific document from AVL tree
+router.delete('/document/:documentId', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    console.log(`🗑️ Remove document ${documentId} from tree requested via API`);
+    
+    if (!documentAVLService.initialized) {
+      return res.status(400).json({
+        success: false,
+        error: 'DocumentAVLService not initialized'
+      });
+    }
+
+    const beforeStats = documentAVLService.getTreeStats();
+    
+    // Remove document from tree
+    await documentAVLService.removeDocumentFromTree(documentId);
+    
+    const afterStats = documentAVLService.getTreeStats();
+    
+    res.json({
+      success: true,
+      message: `Document ${documentId} removed from AVL tree successfully`,
+      before: {
+        totalDocuments: beforeStats.totalDocuments,
+        totalNodes: beforeStats.totalNodes,
+        treeHeight: beforeStats.treeHeight
+      },
+      after: {
+        totalDocuments: afterStats.totalDocuments,
+        totalNodes: afterStats.totalNodes,
+        treeHeight: afterStats.treeHeight
+      }
+    });
+  } catch (error) {
+    console.error(`Error removing document from AVL tree:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get detailed tree data (for debugging)
 router.get('/debug', async (req, res) => {
   try {

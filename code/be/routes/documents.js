@@ -1,10 +1,16 @@
 const express = require('express');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const documentController = require('../controllers/documentController');
 const router = express.Router();
 
 // All routes require authentication
 router.use(protect);
+
+// ===== ADMIN ROUTES =====
+// Admin routes for managing all documents
+router.get('/admin/all', authorize('admin'), documentController.getAllDocuments);
+router.get('/admin/stats', authorize('admin'), documentController.getAllDocumentStats);
+router.delete('/admin/:id', authorize('admin'), documentController.adminDeleteDocument);
 
 // ===== DOCUMENT MANAGEMENT ROUTES =====
 

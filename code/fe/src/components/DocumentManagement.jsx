@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 import * as api from "../services/api";
 
 const DocumentManagement = () => {
+  const { user } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -18,11 +20,14 @@ const DocumentManagement = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
 
+  // Check if current user is admin
+  const isAdmin = user?.role === 'admin';
+
   useEffect(() => {
     fetchDocuments();
     fetchStats();
     fetchTreeStats();
-  }, [currentPage, searchTerm, filterType, filterStatus]);
+  }, [currentPage, searchTerm, filterType, filterStatus, isAdmin]);
 
   const fetchTreeStats = async () => {
     try {
@@ -38,15 +43,25 @@ const DocumentManagement = () => {
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = await api.getUserDocuments({
-        page: currentPage,
-        limit: documentsPerPage,
-        search: searchTerm,
-        fileType: filterType,
-        status: filterStatus,
-        sortBy: 'createdAt',
-        sortOrder: 'desc'
-      });
+      const response = isAdmin 
+        ? await api.getAllDocuments({
+            page: currentPage,
+            limit: documentsPerPage,
+            search: searchTerm,
+            fileType: filterType,
+            status: filterStatus,
+            sortBy: 'createdAt',
+            sortOrder: 'desc'
+          })
+        : await api.getUserDocuments({
+            page: currentPage,
+            limit: documentsPerPage,
+            search: searchTerm,
+            fileType: filterType,
+            status: filterStatus,
+            sortBy: 'createdAt',
+            sortOrder: 'desc'
+          });
       
       if (response.success) {
         setDocuments(response.documents);
@@ -63,7 +78,9 @@ const DocumentManagement = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await api.getDocumentStats();
+      const response = isAdmin 
+        ? await api.getAllDocumentStats()
+        : await api.getDocumentStats();
       if (response.success) {
         setStats(response.stats);
       }
@@ -72,13 +89,19 @@ const DocumentManagement = () => {
     }
   };
 
-  const handleDeleteDocument = async (documentId) => {
-    if (!window.confirm("Bạn có chắc chắn muốn xóa tài liệu này?")) {
+  const handleDeleteDocument = async (documentId, documentTitle, ownerName) => {
+    const confirmMessage = isAdmin && ownerName
+      ? `Bạn có chắc chắn muốn xóa tài liệu "${documentTitle}" của người dùng "${ownerName}"?`
+      : "Bạn có chắc chắn muốn xóa tài liệu này?";
+      
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     try {
-      const response = await api.deleteDocument(documentId);
+      const response = isAdmin 
+        ? await api.adminDeleteDocument(documentId)
+        : await api.deleteDocument(documentId);
       if (response.success) {
         setDocuments(documents.filter(doc => doc._id !== documentId));
         fetchStats(); // Refresh stats
@@ -203,10 +226,13 @@ const DocumentManagement = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-lg font-medium text-neutral-900">
-            Quản lý tài liệu
+            {isAdmin ? 'Quản lý tất cả tài liệu' : 'Quản lý tài liệu'}
           </h3>
           <p className="mt-1 text-sm text-neutral-600">
-            Tổng cộng {totalDocuments} tài liệu
+            {isAdmin 
+              ? `Tổng cộng ${totalDocuments} tài liệu trong hệ thống`
+              : `Tổng cộng ${totalDocuments} tài liệu của bạn`
+            }
           </p>
         </div>
         <button
@@ -305,6 +331,11 @@ const DocumentManagement = () => {
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
                   Tác giả
                 </th>
+                {isAdmin && (
+                  <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
+                    Người tải lên
+                  </th>
+                )}
                 <th className="px-6 py-3 text-xs font-medium tracking-wider text-left uppercase text-neutral-500">
                   Kích thước
                 </th>
@@ -339,6 +370,16 @@ const DocumentManagement = () => {
                       {document.author || 'Không có thông tin tác giả'}
                     </div>
                   </td>
+                  {isAdmin && (
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-neutral-900">
+                        {document.uploadedBy?.name || 'Không xác định'}
+                      </div>
+                      <div className="text-xs text-neutral-500">
+                        {document.uploadedBy?.email || ''}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-neutral-500">
                     {formatFileSize(document.fileSize)}
                   </td>
@@ -355,9 +396,9 @@ const DocumentManagement = () => {
                         📥 Tải
                       </button>
                       <button
-                        onClick={() => handleDeleteDocument(document._id)}
+                        onClick={() => handleDeleteDocument(document._id, document.title, document.uploadedBy?.name)}
                         className="px-3 py-1 text-xs font-medium text-red-700 transition-colors bg-red-100 rounded-lg hover:bg-red-200"
-                        title="Xóa tài liệu"
+                        title={isAdmin ? "Xóa tài liệu (Admin)" : "Xóa tài liệu"}
                       >
                         🗑️ Xóa
                       </button>

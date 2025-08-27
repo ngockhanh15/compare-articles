@@ -13,11 +13,12 @@ const {
 } = require('../controllers/authController');
 
 const { protect, optionalAuth } = require('../middleware/auth');
-const { 
-  authLimiter, 
-  passwordResetLimiter
-  // emailVerificationLimiter // Không cần thiết nữa
-} = require('../middleware/rateLimiter');
+// Rate limiters disabled
+// const { 
+//   authLimiter, 
+//   passwordResetLimiter
+//   // emailVerificationLimiter // Không cần thiết nữa
+// } = require('../middleware/rateLimiter');
 
 const {
   validateRegister,
@@ -31,11 +32,11 @@ const {
 
 const router = express.Router();
 
-// Public routes (allow optional auth to attribute admin-created accounts)
-router.post('/register', authLimiter, optionalAuth, validateRegister, register);
-router.post('/login', authLimiter, validateLogin, login);
-router.post('/forgotpassword', passwordResetLimiter, validateForgotPassword, forgotPassword);
-router.put('/resetpassword/:resettoken', authLimiter, validateResetPassword, resetPassword);
+// Public routes (allow optional auth to attribute admin-created accounts) - RATE LIMITING DISABLED
+router.post('/register', optionalAuth, validateRegister, register);
+router.post('/login', validateLogin, login);
+router.post('/forgotpassword', validateForgotPassword, forgotPassword);
+router.put('/resetpassword/:resettoken', validateResetPassword, resetPassword);
 // router.get('/verify-email/:token', verifyEmail); // Không cần thiết nữa
 // router.post('/resend-verification', emailVerificationLimiter, validateResendVerification, resendEmailVerification); // Không cần thiết nữa
 
