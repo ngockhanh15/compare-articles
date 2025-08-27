@@ -504,7 +504,7 @@ const UploadChecker = () => {
           </h3>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-              <div className="mb-2 text-2xl">�</div>
+              <div className="mb-2 text-2xl"></div>
               <h4 className="mb-2 font-medium text-neutral-800">Cách 1: Upload file</h4>
               <p className="text-sm text-neutral-600">
                 Chọn file TXT, PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX để kiểm tra nội dung trùng lặp
@@ -512,7 +512,7 @@ const UploadChecker = () => {
             </div>
 
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-              <div className="mb-2 text-2xl">�</div>
+              <div className="mb-2 text-2xl"></div>
               <h4 className="mb-2 font-medium text-neutral-800">Cách 2: Chọn tài liệu đã upload</h4>
               <p className="text-sm text-neutral-600">
                 Chọn một tài liệu đã xử lý trong hệ thống để kiểm tra trùng lặp
@@ -520,7 +520,7 @@ const UploadChecker = () => {
             </div>
 
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-              <div className="mb-2 text-2xl">🔍</div>
+              <div className="mb-2 text-2xl"></div>
               <h4 className="mb-2 font-medium text-neutral-800">Bước 2</h4>
               <p className="text-sm text-neutral-600">
                 Nhấn nút "Kiểm tra" để phân tích trùng lặp với cơ sở dữ liệu
@@ -528,7 +528,7 @@ const UploadChecker = () => {
             </div>
 
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
-              <div className="mb-2 text-2xl">📊</div>
+              <div className="mb-2 text-2xl"></div>
               <h4 className="mb-2 font-medium text-neutral-800">Bước 3</h4>
               <p className="text-sm text-neutral-600">
                 Xem tỷ lệ trùng lặp và các nguồn tương tự được tìm thấy

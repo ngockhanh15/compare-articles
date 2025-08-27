@@ -113,7 +113,7 @@ const Home = () => {
                 to="/upload-checker"
                 className="inline-flex items-center gap-2 px-8 py-3 font-semibold transition-all duration-200 transform bg-white shadow-lg text-primary-600 rounded-xl hover:bg-primary-50 hover:shadow-xl hover:-translate-y-1"
               >
-                <span>�</span>
+                <span></span>
                 Tải văn bản
               </Link>
               <Link

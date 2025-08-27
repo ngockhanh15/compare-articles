@@ -611,19 +611,6 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
                 placeholder="Nhập tags, cách nhau bằng dấu phẩy..."
               />
             </div>
-
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="isPublic"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded border-neutral-300 focus:ring-blue-500"
-              />
-              <label htmlFor="isPublic" className="ml-2 text-sm text-neutral-700">
-                Cho phép người khác xem tài liệu này
-              </label>
-            </div>
           </div>
 
           {/* Upload Progress */}

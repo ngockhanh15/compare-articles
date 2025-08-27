@@ -521,7 +521,7 @@ export const uploadDocument = async (file, metadata = {}) => {
       formData.append("description", metadata.description);
     if (metadata.tags) formData.append("tags", metadata.tags);
     if (metadata.isPublic !== undefined)
-      formData.append("isPublic", metadata.isPublic);
+      formData.append("isPublic", true);
 
     const response = await fetch(`${API_BASE_URL}/documents/upload`, {
       method: "POST",
