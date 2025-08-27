@@ -180,8 +180,22 @@ const UploadChecker = () => {
 
       const duplicateSentencesCount = duplicateSentencesFromText.size;
       
-      // Tính dtotal chính xác
-      const calculatedDtotal = totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0;
+      // Tính dtotal chính xác - sử dụng similarity từ document giống nhất
+      const resultMatches = result.matches || [];
+      let correctDtotal = 0;
+      
+      if (resultMatches.length > 0) {
+        // Sắp xếp matches theo similarity giảm dần và lấy document giống nhất
+        const sortedMatches = [...resultMatches].sort((a, b) => {
+          const simA = a.similarity || 0;
+          const simB = b.similarity || 0;
+          return simB - simA;
+        });
+        correctDtotal = sortedMatches[0].similarity || 0;
+      } else {
+        // Fallback: sử dụng giá trị từ backend hoặc tính toán local
+        correctDtotal = result.dtotal || (totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0);
+      }
 
       setResults({
         checkId: similarityResult.checkId,
@@ -199,7 +213,7 @@ const UploadChecker = () => {
         totalMatches: result.totalMatches || 0,
         checkedDocuments: result.checkedDocuments || 0,
         totalDocumentsInSystem: result.totalDocumentsInSystem || 0,
-        dtotal: result.dtotal || calculatedDtotal, // Ưu tiên giá trị từ backend, fallback về tính toán local
+        dtotal: correctDtotal, // Sử dụng dtotal chính xác
         dtotalRaw: duplicateSentencesCount, // Số câu trùng thực tế (tính toán local)
         totalSentences: totalSentencesInText, // Tổng số câu trong văn bản kiểm tra (tính toán local)
         dab: result.dab || 0,
