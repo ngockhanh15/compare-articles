@@ -1,32 +1,29 @@
 const axios = require('axios');
 
 async function testDuplicateContentAPI() {
-  console.log('🔍 Testing Duplicate Content API...\n');
-
-  const baseURL = 'http://127.0.0.1:3000/api';
+  console.log('🧪 Testing Duplicate Content API with specific text...');
   
-  // Test text with known duplicates
-  const testText = "Tôi là Khánh, tôi ưa thích thể thao, đặc biệt là đá bóng";
+  // Test với text có 2 câu trùng lặp ở 2 documents khác nhau
+  const testText = "Tôi là khánh. 10 giờ sáng nay, tâm bão số 3 (Wipha) ở vào khoảng 21,2 độ vĩ bắc và 109,6 độ kinh đông, cách Quảng Ninh khoảng 190 km, cách Hải Phòng 310 km.";
   
   try {
-    console.log('📝 Testing text:', testText);
-    console.log('Making API request to check duplicate content...\n');
-    
-    const response = await axios.post(`${baseURL}/test-document-similarity`, {
-      text: testText,
-      options: {
-        minSimilarity: 30,
-        chunkSize: 50,
-        maxResults: 20
+    const response = await axios.post('http://localhost:3000/api/test-document-similarity', {
+      text: testText
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
       }
     });
 
     const result = response.data;
-    console.log('✅ API Response received:');
+    
+    console.log('\n📊 API Response Summary:');
     console.log('- Success:', result.success);
-    console.log('- Duplicate Percentage:', result.duplicatePercentage);
-    console.log('- Total Matches:', result.matches?.length || 0);
-    console.log('- Total Input Sentences:', result.totalInputSentences);
+    console.log('- Check ID:', result.checkId);
+    console.log('- Overall Similarity:', result.overallSimilarity + '%');
+    console.log('- Dtotal:', result.dtotal + '%');
+    console.log('- Total Matches:', result.totalMatches);
+    console.log('- Checked Documents:', result.checkedDocuments);
     console.log('- Total Duplicated Sentences:', result.totalDuplicatedSentences);
 
     if (result.matches && result.matches.length > 0) {
@@ -34,20 +31,24 @@ async function testDuplicateContentAPI() {
       result.matches.forEach((match, index) => {
         console.log(`\nMatch ${index + 1}:`);
         console.log(`- Document: ${match.title || match.source}`);
+        console.log(`- Document ID: ${match.documentId}`);
         console.log(`- Similarity: ${match.similarity}%`);
         console.log(`- Duplicate Sentences: ${match.duplicateSentences || 0}`);
         
         if (match.duplicateSentencesDetails && match.duplicateSentencesDetails.length > 0) {
           console.log('- Duplicate Content Details:');
-          match.duplicateSentencesDetails.slice(0, 2).forEach((detail, idx) => {
+          match.duplicateSentencesDetails.forEach((detail, idx) => {
             console.log(`  ${idx + 1}. Input: "${detail.inputSentence || 'N/A'}"`);
-            console.log(`     Source: "${detail.sourceSentence || 'N/A'}"`);
+            console.log(`     Source: "${detail.sourceSentence || detail.docSentence || 'N/A'}"`);
             console.log(`     Similarity: ${detail.similarity || 0}%`);
+            console.log(`     Input Index: ${detail.inputSentenceIndex || 'N/A'}`);
           });
         } else {
           console.log('- No duplicate sentence details available');
         }
       });
+    } else {
+      console.log('\n❌ No matches found');
     }
 
     console.log('\n🎯 Test completed successfully!');

@@ -54,17 +54,16 @@ export default function DetailedComparison() {
   const matches = useMemo(() => {
     const rawMatches = data?.detailedMatches || [];
     
-    // Chỉ lấy document giống nhất (có similarity cao nhất)
+    // Hiển thị tất cả documents có trùng lặp, sắp xếp theo similarity giảm dần
     if (rawMatches.length > 0) {
-      // Sắp xếp theo similarity giảm dần và lấy document đầu tiên
       const sortedMatches = [...rawMatches].sort((a, b) => {
         const simA = a.similarity || 0;
         const simB = b.similarity || 0;
         return simB - simA;
       });
       
-      console.log(`Selected most similar document with similarity: ${sortedMatches[0]?.similarity || 0}%`);
-      return [sortedMatches[0]];
+      console.log(`Found ${sortedMatches.length} documents with matches`);
+      return sortedMatches;
     }
     
     return [];
@@ -338,15 +337,15 @@ export default function DetailedComparison() {
           <div className="lg:col-span-1 p-6 bg-white shadow-xl rounded-2xl">
             <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
               <span className="mr-2">📋</span>
-              Document trùng lặp giống nhất
+              Tất cả Documents trùng lặp ({matches.length} documents)
             </h2>
             {matches.length === 0 ? (
               <div className="py-8 text-center text-neutral-600">Không tìm thấy documents trùng lặp</div>
             ) : (
               <div className="space-y-3">
-                                 {matches.map((m, idx) => {
-                   const rate = m.dab || m.similarity || 0;
-                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
+                {matches.map((m, idx) => {
+                  const rate = m.dab || m.similarity || 0;
+                  const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
                   // Tạo unique key từ documentId và index để tránh trùng lặp
                   const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
@@ -378,6 +377,27 @@ export default function DetailedComparison() {
                             </div>
                           </div>
                           <div className="text-xs text-neutral-600">Câu trùng: {docDuplicate}</div>
+                          
+                          {/* Preview các câu trùng lặp */}
+                          {m.duplicateSentencesDetails && m.duplicateSentencesDetails.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-xs text-gray-500 mb-1">Preview câu trùng:</div>
+                              <div className="space-y-1">
+                                {m.duplicateSentencesDetails.slice(0, 2).map((detail, detailIdx) => (
+                                  <div key={detailIdx} className="text-xs p-1 bg-gray-50 rounded border-l border-blue-300">
+                                    <div className="text-gray-600 truncate">
+                                      {detail.inputSentence || detail.docSentence || "Nội dung..."}
+                                    </div>
+                                  </div>
+                                ))}
+                                {m.duplicateSentencesDetails.length > 2 && (
+                                  <div className="text-xs text-gray-400 italic">
+                                    +{m.duplicateSentencesDetails.length - 2} câu khác
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <div className="ml-3 shrink-0">
                           <button
