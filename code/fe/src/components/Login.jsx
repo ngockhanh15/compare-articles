@@ -51,7 +51,7 @@ const Login = () => {
           navigate("/admin", { replace: true });
         } else {
           // Redirect to the page user was trying to access, or to text checker
-          const from = location.state?.from?.pathname || "/text-checker";
+          const from = "/";
           navigate(from, { replace: true });
         }
       }

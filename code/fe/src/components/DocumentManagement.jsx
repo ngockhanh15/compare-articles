@@ -243,34 +243,6 @@ const DocumentManagement = () => {
         </button>
       </div>
 
-      {/* Statistics */}
-      {stats && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className="p-4 bg-white border border-neutral-200 rounded-xl">
-            <div className="text-2xl font-bold text-blue-600">{stats.totalDocuments}</div>
-            <div className="text-sm text-neutral-600">Tổng tài liệu</div>
-          </div>
-          <div className="p-4 bg-white border border-neutral-200 rounded-xl">
-            <div className="text-2xl font-bold text-green-600">
-              {formatFileSize(stats.totalStorage)}
-            </div>
-            <div className="text-sm text-neutral-600">Dung lượng sử dụng</div>
-          </div>
-          <div className="p-4 bg-white border border-neutral-200 rounded-xl">
-            <div className="text-2xl font-bold text-purple-600">
-              {Object.values(stats.byFileType).reduce((sum, type) => sum + type.totalChecks, 0)}
-            </div>
-            <div className="text-sm text-neutral-600">Tổng lần kiểm tra</div>
-          </div>
-          <div className="p-4 bg-white border border-neutral-200 rounded-xl">
-            <div className="text-2xl font-bold text-orange-600">
-              {Object.values(stats.byFileType).reduce((sum, type) => sum + type.totalDownloads, 0)}
-            </div>
-            <div className="text-sm text-neutral-600">Tổng lượt tải</div>
-          </div>
-        </div>
-      )}
-
       {/* Error Message */}
       {error && (
         <div className="p-4 border border-red-200 bg-red-50 rounded-xl">
@@ -520,20 +492,21 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="w-full max-w-2xl p-6 mx-4 bg-white rounded-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-neutral-900">Upload tài liệu</h2>
-          <button
-            onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600"
-            disabled={isUploading}
-          >
-            ✕
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+      <div className="w-full max-w-2xl bg-white rounded-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-neutral-900">Upload tài liệu</h2>
+            <button
+              onClick={onClose}
+              className="text-neutral-400 hover:text-neutral-600"
+              disabled={isUploading}
+            >
+              ✕
+            </button>
+          </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
           {/* File Upload Area */}
           <div
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
@@ -687,7 +660,8 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
               {isUploading ? 'Đang upload...' : 'Upload'}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -25,7 +25,8 @@ const TextChecker = () => {
   const [treeStats, setTreeStats] = useState(null);
   // Helper to render percentage regardless of whether backend returns 0-1 or 0-100
   const formatPercent = (value) => {
-    if (value === undefined || value === null || isNaN(Number(value))) return "0%";
+    if (value === undefined || value === null || isNaN(Number(value)))
+      return "0%";
     let v = Number(value);
     // If value looks like ratio (<=1), convert to %
     if (v <= 1) v = v * 100;
@@ -59,8 +60,6 @@ const TextChecker = () => {
       console.error("Error loading tree stats:", error);
     }
   };
-
-
 
   const loadUserDocuments = async () => {
     try {
@@ -189,7 +188,10 @@ const TextChecker = () => {
 
       // Duyệt qua tất cả matches để tìm câu chứa nội dung trùng lặp
       matches.forEach((match) => {
-        if (match.duplicateSentencesDetails && Array.isArray(match.duplicateSentencesDetails)) {
+        if (
+          match.duplicateSentencesDetails &&
+          Array.isArray(match.duplicateSentencesDetails)
+        ) {
           // Sử dụng duplicateSentencesDetails từ backend nếu có
           match.duplicateSentencesDetails.forEach((detail) => {
             if (detail.inputSentenceIndex !== undefined) {
@@ -211,9 +213,12 @@ const TextChecker = () => {
 
       // Số câu trùng lặp thực tế
       const duplicateSentencesCount = duplicateSentencesFromText.size;
-      
+
       // Tính dtotal chính xác
-      const calculatedDtotal = totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0;
+      const calculatedDtotal =
+        totalSentencesInText > 0
+          ? (duplicateSentencesCount / totalSentencesInText) * 100
+          : 0;
 
       setResults({
         checkId: similarityResult.checkId,
@@ -338,9 +343,7 @@ const TextChecker = () => {
               <div className="flex items-center gap-3">
                 <div className="text-sm text-neutral-500">
                   {inputText.length} ký tự •{" "}
-                  {inputText.trim()
-                    ? inputText.trim().split(/\s+/).length
-                    : 0}{" "}
+                  {inputText.trim() ? inputText.trim().split(/\s+/).length : 0}{" "}
                   từ
                   {inputText.trim() && (
                     <span className="ml-2">
@@ -427,9 +430,7 @@ const TextChecker = () => {
                       <span className="text-sm font-medium text-blue-700">
                         Nguồn:
                       </span>
-                      <p className="text-sm text-blue-600">
-                        Văn bản nhập tay
-                      </p>
+                      <p className="text-sm text-blue-600">Văn bản nhập tay</p>
                     </div>
                     <div>
                       <span className="text-sm font-medium text-blue-700">
@@ -490,7 +491,9 @@ const TextChecker = () => {
                   {/* Số câu trùng */}
                   <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
                     <div className="text-2xl font-bold text-primary-600">
-                      {results.dtotalRaw ?? results.totalDuplicateSentences ?? 0}
+                      {results.dtotalRaw ??
+                        results.totalDuplicateSentences ??
+                        0}
                     </div>
                     <div className="text-sm text-neutral-600">Câu trùng</div>
                   </div>
@@ -500,7 +503,9 @@ const TextChecker = () => {
                     <div className="text-2xl font-bold text-primary-600">
                       {results.totalSentences ?? 0}
                     </div>
-                    <div className="text-sm text-neutral-600">Câu trong input</div>
+                    <div className="text-sm text-neutral-600">
+                      Câu trong input
+                    </div>
                   </div>
 
                   {/* % Dtotal */}
@@ -550,23 +555,30 @@ const TextChecker = () => {
                 Bước 1: Nhập văn bản
               </h4>
               <p className="text-sm text-neutral-600">
-                Nhập hoặc dán văn bản cần kiểm tra trùng lặp vào ô textarea, hoặc chọn từ tài liệu đã upload
+                Nhập hoặc dán văn bản cần kiểm tra trùng lặp vào ô textarea,
+                hoặc chọn từ tài liệu đã upload
               </p>
             </div>
 
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
               <div className="mb-2 text-2xl">🔍</div>
-              <h4 className="mb-2 font-medium text-neutral-800">Bước 2: Kiểm tra</h4>
+              <h4 className="mb-2 font-medium text-neutral-800">
+                Bước 2: Kiểm tra
+              </h4>
               <p className="text-sm text-neutral-600">
-                Nhấn nút "Kiểm tra ngay" để phân tích trùng lặp với cơ sở dữ liệu documents
+                Nhấn nút "Kiểm tra ngay" để phân tích trùng lặp với cơ sở dữ
+                liệu documents
               </p>
             </div>
 
             <div className="p-4 border border-neutral-200 rounded-xl bg-neutral-50">
               <div className="mb-2 text-2xl">📊</div>
-              <h4 className="mb-2 font-medium text-neutral-800">Bước 3: Xem kết quả</h4>
+              <h4 className="mb-2 font-medium text-neutral-800">
+                Bước 3: Xem kết quả
+              </h4>
               <p className="text-sm text-neutral-600">
-                Xem tỷ lệ trùng lặp và các nguồn tương tự được tìm thấy trong hệ thống
+                Xem tỷ lệ trùng lặp và các nguồn tương tự được tìm thấy trong hệ
+                thống
               </p>
             </div>
           </div>
@@ -627,81 +639,84 @@ const DocumentSelectorModal = ({ documents, onClose, onSelect, loading }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-4xl p-6 mx-4 bg-white rounded-2xl max-h-[80vh] overflow-hidden">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-neutral-900">
-            Chọn tài liệu đã upload
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-neutral-400 hover:text-neutral-600"
-          >
-            ✕
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 border-b-2 rounded-full border-primary-500 animate-spin"></div>
-              <span className="text-neutral-600">Đang tải...</span>
-            </div>
-          </div>
-        ) : documents.length === 0 ? (
-          <div className="py-12 text-center">
-            <div className="mb-4 text-4xl">📄</div>
-            <p className="mb-4 text-neutral-600">
-              Bạn chưa có tài liệu nào đã upload
-            </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="w-full max-w-4xl bg-white rounded-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-neutral-900">
+              Chọn tài liệu đã upload
+            </h2>
             <button
               onClick={onClose}
-              className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              className="text-neutral-400 hover:text-neutral-600"
             >
-              Đóng
+              ✕
             </button>
           </div>
-        ) : (
-          <div className="overflow-y-auto max-h-96">
-            <div className="grid gap-3">
-              {documents.map((document) => (
-                <div
-                  key={document._id}
-                  onClick={() => onSelect(document._id)}
-                  className="flex items-center p-4 transition-colors border cursor-pointer border-neutral-200 rounded-xl hover:bg-neutral-50"
-                >
-                  <div className="mr-4 text-2xl">
-                    {getFileIcon(document.fileType)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-medium text-neutral-900">
-                      {document.title}
-                    </div>
-                    <div className="text-sm text-neutral-500">
-                      {document.fileName} • {formatFileSize(document.fileSize)}
-                    </div>
-                    <div className="text-xs text-neutral-400">
-                      Upload: {formatDate(document.uploadedAt)}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-medium text-blue-600">
-                      Chọn
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-          >
-            Hủy
-          </button>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 border-b-2 rounded-full border-primary-500 animate-spin"></div>
+                <span className="text-neutral-600">Đang tải...</span>
+              </div>
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="py-12 text-center">
+              <div className="mb-4 text-4xl">📄</div>
+              <p className="mb-4 text-neutral-600">
+                Bạn chưa có tài liệu nào đã upload
+              </p>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
+                Đóng
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="grid gap-3">
+                {documents.map((document) => (
+                  <div
+                    key={document._id}
+                    onClick={() => onSelect(document._id)}
+                    className="flex items-center p-4 transition-colors border cursor-pointer border-neutral-200 rounded-xl hover:bg-neutral-50"
+                  >
+                    <div className="mr-4 text-2xl">
+                      {getFileIcon(document.fileType)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-neutral-900">
+                        {document.title}
+                      </div>
+                      <div className="text-sm text-neutral-500">
+                        {document.fileName} •{" "}
+                        {formatFileSize(document.fileSize)}
+                      </div>
+                      <div className="text-xs text-neutral-400">
+                        Upload: {formatDate(document.uploadedAt)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-medium text-blue-600">
+                        Chọn
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end mt-6">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+            >
+              Hủy
+            </button>
+          </div>
         </div>
       </div>
     </div>

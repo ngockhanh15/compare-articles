@@ -35,8 +35,8 @@ const Home = () => {
         const response = await api.getForHome();
         console.log("Home data:", response);
         setStats({
-          totalDocuments: response.totalUsers,
-          totalUsers: response.totalDocuments,
+          totalDocuments: response.totalDocuments,
+          totalUsers: response.totalUsers,
           totalChecks: response.totalTree,
         });
       } catch (error) {

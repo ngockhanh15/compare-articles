@@ -10,7 +10,7 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [usersPerPage] = useState(10);
+  const [usersPerPage] = useState(5);
   const [pagination, setPagination] = useState({
     totalUsers: 0,
     totalPages: 0,
@@ -107,6 +107,12 @@ const UserManagement = () => {
       if (response.success) {
         // Cập nhật state local
         setUsers(users.filter(user => user._id !== userId));
+        
+        // Cập nhật pagination
+        setPagination(prev => ({
+          ...prev,
+          totalUsers: prev.totalUsers - 1
+        }));
         
         // Hiển thị thông báo thành công
         console.log(response.message);
@@ -278,7 +284,7 @@ const UserManagement = () => {
                         value={user.role}
                         onChange={(e) => handleChangeUserRole(user._id, e.target.value, user.role)}
                         disabled={!!roleUpdating[user._id] || String(authUser?.id || authUser?._id) === String(user._id)}
-                        className="px-2 py-1 text-xs border rounded-lg border-neutral-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="px-2 py-1 text-xs bg-white border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="user">Người dùng</option>
                         <option value="admin">Quản trị viên</option>
@@ -367,18 +373,19 @@ const UserManagement = () => {
 
       {/* Add User Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md p-6 mx-4 bg-white rounded-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="text-lg font-semibold text-neutral-900">Thêm tài khoản</h4>
-              <button onClick={() => setShowAddModal(false)} className="text-neutral-400 hover:text-neutral-600">✕</button>
-            </div>
-            {error && (
-              <div className="p-3 mb-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">
-                {error}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-md bg-white rounded-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-semibold text-neutral-900">Thêm tài khoản</h4>
+                <button onClick={() => setShowAddModal(false)} className="text-neutral-400 hover:text-neutral-600">✕</button>
               </div>
-            )}
-            <div className="space-y-3">
+              {error && (
+                <div className="p-3 mb-3 text-sm text-red-700 border border-red-200 rounded-lg bg-red-50">
+                  {error}
+                </div>
+              )}
+              <div className="space-y-3">
               <div>
                 <label className="block mb-1 text-sm text-neutral-700">Họ tên</label>
                 <input
@@ -498,6 +505,7 @@ const UserManagement = () => {
               >
                 {creating ? "Đang tạo..." : "Thêm"}
               </button>
+              </div>
             </div>
           </div>
         </div>
