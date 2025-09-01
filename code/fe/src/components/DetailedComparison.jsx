@@ -249,7 +249,11 @@ export default function DetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{((matches[selectedIndex].dab || matches[selectedIndex].similarity || 0)).toFixed(1)}%</span>
+                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{(() => {
+                  const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
+                  const totalInputSentences = data.totalInputSentences || 1;
+                  return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
+                })()}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -343,11 +347,11 @@ export default function DetailedComparison() {
             ) : (
               <div className="space-y-3">
                 {matches.map((m, idx) => {
-                  console.log("Rendering match:", matches.totalInputSentences);
+                  console.log("Rendering match:", m);
                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
-                  const inputSentences = data.totalDuplicateSentences || data.duplicateContentSummary?.totalDuplicateSentences || 0;
-                  const rate = (docDuplicate / inputSentences) * 100;
+                  const totalInputSentences = data.totalInputSentences || 1; // Tổng số câu trong input
+                  const rate = (docDuplicate / totalInputSentences) * 100; // D A/B = số câu trùng / tổng câu input
                   // Tạo unique key từ documentId và index để tránh trùng lặp
                   const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
                   return (

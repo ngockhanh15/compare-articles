@@ -253,7 +253,11 @@ export default function TextDetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · Dtotal: <span className="font-bold">{(matches[selectedIndex].similarity || 0).toFixed(1)}%</span>
+                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{(() => {
+                  const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
+                  const totalInputSentences = data.totalInputSentences || 1;
+                  return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
+                })()}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -357,6 +361,42 @@ export default function TextDetailedComparison() {
                               Đang xem
                             </span>
                           )}
+                        </div>
+
+                        {/* Hiển thị D A/B */}
+                        <div className="mb-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-neutral-600">D A/B:</span>
+                            <span className={`text-xs font-medium ${(() => {
+                              const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
+                              const totalInputSentences = data.totalInputSentences || 1;
+                              const rate = (docDuplicate / totalInputSentences) * 100;
+                              return rate >= 50 ? "text-red-600" : rate >= 25 ? "text-orange-600" : "text-green-600";
+                            })()}`}>
+                              {(() => {
+                                const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
+                                const totalInputSentences = data.totalInputSentences || 1;
+                                return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
+                              })()}%
+                            </span>
+                          </div>
+                          <div className="w-full h-2 mt-1 bg-gray-200 rounded-full">
+                            <div className={`${(() => {
+                              const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
+                              const totalInputSentences = data.totalInputSentences || 1;
+                              const rate = (docDuplicate / totalInputSentences) * 100;
+                              return rate >= 50 ? "bg-red-500" : rate >= 25 ? "bg-orange-500" : "bg-green-500";
+                            })()} h-2 rounded-full`} style={{ 
+                              width: `${Math.min((() => {
+                                const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
+                                const totalInputSentences = data.totalInputSentences || 1;
+                                return (docDuplicate / totalInputSentences) * 100;
+                              })(), 100)}%`
+                            }} />
+                          </div>
+                        </div>
+                        <div className="text-xs text-neutral-600 mb-2">
+                          Câu trùng: {match.duplicateSentences || match.duplicateSentencesDetails?.length || 0}
                         </div>
 
                         {/* So sánh chi tiết các câu trùng lặp */}
