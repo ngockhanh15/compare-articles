@@ -67,18 +67,6 @@ export default function DetailedComparison() {
 
     return [];
   }, [data]);
-  // Lấy Dtotal từ document giống nhất
-  const dtotalPercent = useMemo(() => {
-    // Nếu có matches và có document đầu tiên (giống nhất)
-    if (matches.length > 0 && matches[0]) {
-      return Math.round(matches[0].similarity || 0);
-    }
-    // Fallback: sử dụng giá trị cũ
-    return Math.round(
-      typeof data?.dtotal === "number" ? data.dtotal : data?.overallSimilarity || 0
-    );
-  }, [matches, data]);
-
 
   const leftHtml = useMemo(() => {
     // Lấy input text từ data
@@ -119,45 +107,57 @@ export default function DetailedComparison() {
     const selected = matches[selectedIndex];
     if (!selected) return "";
 
+    // Lấy toàn bộ nội dung văn bản từ document được chọn
+    // Ưu tiên các nguồn khác nhau của nội dung đầy đủ
+    const fullDocumentContent = 
+      // Từ document được chọn
+      selected.fullContent ||
+      selected.content ||
+      selected.text ||
+      // Từ mostSimilarDocument trong response
+      data?.mostSimilarDocument?.fullContent ||
+      data?.mostSimilarDocument?.content ||
+      data?.mostSimilarDocument?.matchedText ||
+      // Fallback cuối
+      selected.matchedText || "";
+
+    if (!fullDocumentContent) {
+      return "<div>Không có nội dung để hiển thị</div>";
+    }
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
-      // Only render the details path if at least one entry has usable text
-      const itemsWithText = details.filter(
-        (d) => (d && (d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || d.inputSentence))
-      );
-      if (itemsWithText.length > 0) {
-        return itemsWithText
-          .map((d, i) => {
-            // Backend provides inputSentence in details; use that when doc sentence isn't available
-            const text = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || d.inputSentence || "";
-            const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
-            const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-            return `<p style="margin:6px 0; line-height:1.6"><span style="background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px" data-idx="${i}" title="${sim}%">${text}</span></p>`;
-          })
-          .join("");
-      }
-    }
+      // Tạo highlighted text từ toàn bộ nội dung document
+      let highlightedText = fullDocumentContent;
 
-    // Fallback: hiển thị toàn bộ nội dung từ mostSimilarDocument
-    // Ưu tiên fullContent, sau đó content, cuối cùng matchedText
-    const fullDocumentContent = data?.mostSimilarDocument?.fullContent ||
-      data?.mostSimilarDocument?.content ||
-      data?.mostSimilarDocument?.matchedText;
+      // Highlight các câu trùng lặp trong toàn bộ nội dung
+      details.forEach((d) => {
+        const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
+        if (docSentence && highlightedText.includes(docSentence)) {
+          const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
+          const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
+          const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
 
-    if (fullDocumentContent) {
-      console.log("Using fallback content:", {
-        hasFullContent: !!data?.mostSimilarDocument?.fullContent,
-        hasContent: !!data?.mostSimilarDocument?.content,
-        hasMatchedText: !!data?.mostSimilarDocument?.matchedText,
-        contentLength: fullDocumentContent.length
+          // Highlight câu trùng lặp trong toàn bộ nội dung
+          // Sử dụng regex để tránh highlight nhiều lần cùng một câu
+          const regex = new RegExp(docSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          highlightedText = highlightedText.replace(regex, `<span style="${highlightStyle}" title="${sim}%">${docSentence}</span>`);
+        }
       });
-      return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
+
+      return `<div style="white-space:pre-wrap; line-height:1.6">${highlightedText.replace(/\n/g, "<br/>")}</div>`;
     }
 
-    // Fallback cuối: sử dụng matchedText
-    const block = selected.matchedText || selected.text || "";
-    if (!block) return "";
-    return `<div style="white-space:pre-wrap; line-height:1.6">${block.replace(/\n/g, "<br/>")}</div>`;
+    // Nếu không có details, hiển thị toàn bộ nội dung không có highlight
+    console.log("Displaying full document content without highlights:", {
+      hasFullContent: !!selected.fullContent,
+      hasContent: !!selected.content,
+      hasText: !!selected.text,
+      hasMostSimilarDocument: !!data?.mostSimilarDocument,
+      contentLength: fullDocumentContent.length
+    });
+    
+    return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
   }, [matches, selectedIndex, data]);
 
   if (loading) {
