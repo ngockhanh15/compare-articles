@@ -211,7 +211,7 @@ const TextChecker = () => {
       // Tính dtotal chính xác - sử dụng similarity từ document giống nhất
       const resultMatches = result.matches || [];
       let correctDtotal = 0;
-      
+
       if (resultMatches.length > 0) {
         // Sắp xếp matches theo similarity giảm dần và lấy document giống nhất
         const sortedMatches = [...resultMatches].sort((a, b) => {
@@ -252,6 +252,7 @@ const TextChecker = () => {
         treeStats: treeStats,
         totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
         maxDuplicateSentences: result.maxDuplicateSentences || 0,
+        totalInputSentences: result.totalInputSentences || 0, // Thêm totalInputSentences từ backend
         documentWithMostDuplicates: result.documentWithMostDuplicates || null,
         totalDuplicateSentences: result.totalDuplicateSentences || 0,
         totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
@@ -457,36 +458,36 @@ const TextChecker = () => {
                       {/* Thông tin về tài liệu trùng lặp nhiều nhất */}
                       {(results.nameDocumentWithMostDuplicates ||
                         results.maxDuplicateSentences > 0) && (
-                        <div className="p-4 mt-4 rounded-lg bg-green-50">
-                          <h4 className="mb-2 font-medium text-green-800">
-                            Tài liệu trùng lặp nhiều nhất
-                          </h4>
-                          <p className="text-sm text-neutral-600">
-                            {results.nameDocumentWithMostDuplicates ? (
-                              <>
-                                Tài liệu "{" "}
-                                <span className="font-medium text-green-700">
-                                  {results.nameDocumentWithMostDuplicates}
-                                </span>
-                                " có{" "}
-                                <span className="font-medium text-green-700">
-                                  {results.totalDuplicateSentences}
-                                </span>{" "}
-                                câu trùng lặp với văn bản của bạn.
-                              </>
-                            ) : (
-                              <>
-                                Có{" "}
-                                <span className="font-medium text-green-700">
-                                  {results.maxDuplicateSentences}
-                                </span>{" "}
-                                câu trùng lặp được tìm thấy với một tài liệu
-                                trong hệ thống.
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      )}
+                          <div className="p-4 mt-4 rounded-lg bg-green-50">
+                            <h4 className="mb-2 font-medium text-green-800">
+                              Tài liệu trùng lặp nhiều nhất
+                            </h4>
+                            <p className="text-sm text-neutral-600">
+                              {results.nameDocumentWithMostDuplicates ? (
+                                <>
+                                  Tài liệu "{" "}
+                                  <span className="font-medium text-green-700">
+                                    {results.nameDocumentWithMostDuplicates}
+                                  </span>
+                                  " có{" "}
+                                  <span className="font-medium text-green-700">
+                                    {results.totalDuplicateSentences}
+                                  </span>{" "}
+                                  câu trùng lặp với văn bản của bạn.
+                                </>
+                              ) : (
+                                <>
+                                  Có{" "}
+                                  <span className="font-medium text-green-700">
+                                    {results.maxDuplicateSentences}
+                                  </span>{" "}
+                                  câu trùng lặp được tìm thấy với một tài liệu
+                                  trong hệ thống.
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -509,14 +510,14 @@ const TextChecker = () => {
                       {results.totalSentences ?? 0}
                     </div>
                     <div className="text-sm text-neutral-600">
-                      Câu trong input
+                      Tổng câu
                     </div>
                   </div>
 
                   {/* % Dtotal */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
                     <div className="text-2xl font-bold text-purple-600">
-                      {formatPercent(results.dtotal || 0)}
+                      {Math.round((results.dtotalRaw / results.totalInputSentences) * 100) || 0}%
                     </div>
                     <div className="text-sm text-purple-600">% Dtotal</div>
                     <div className="mt-1 text-xs text-purple-500">
