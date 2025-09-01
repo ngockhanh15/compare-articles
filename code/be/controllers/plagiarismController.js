@@ -885,9 +885,6 @@ exports.getDetailedComparison = async (req, res) => {
       }
     }
 
-    // Tạo detailed matches từ kết quả DocumentAVLService với toàn bộ nội dung document
-    console.log("Creating detailed matches from DocumentAVLService results...");
-
     const Document = require("../models/Document"); // Import Document model
 
     for (let index = 0; index < result.matches.length; index++) {

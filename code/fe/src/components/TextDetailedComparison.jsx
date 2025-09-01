@@ -54,7 +54,7 @@ export default function TextDetailedComparison() {
 
   const matches = useMemo(() => {
     const rawMatches = data?.detailedMatches || [];
-    
+
     // Hiển thị tất cả documents có trùng lặp, sắp xếp theo similarity giảm dần
     if (rawMatches.length > 0) {
       const sortedMatches = [...rawMatches].sort((a, b) => {
@@ -62,11 +62,11 @@ export default function TextDetailedComparison() {
         const simB = b.similarity || 0;
         return simB - simA;
       });
-      
+
       console.log(`Found ${sortedMatches.length} documents with matches`);
       return sortedMatches;
     }
-    
+
     return [];
   }, [data]);
 
@@ -86,7 +86,7 @@ export default function TextDetailedComparison() {
   const duplicateSentences = useMemo(() => {
     const selected = matches[selectedIndex];
     if (!selected) return [];
-    
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       return details.map((detail, index) => ({
@@ -96,7 +96,7 @@ export default function TextDetailedComparison() {
         similarity: typeof detail.similarity === "number" ? detail.similarity : selected.similarity || 0
       }));
     }
-    
+
     return [];
   }, [matches, selectedIndex]);
 
@@ -104,23 +104,23 @@ export default function TextDetailedComparison() {
     // Lấy input text từ data
     const inputText = data?.inputText || data?.currentDocument?.content || "";
     if (!inputText) return "";
-    
+
     const selected = matches[selectedIndex];
     if (!selected) {
       return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       // Tạo highlighted text từ input text
       let highlightedText = inputText;
-      
+
       details.forEach((d) => {
         if (d.inputSentence) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
           const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
           const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
-          
+
           // Highlight câu trùng lặp trong input text
           highlightedText = highlightedText.replace(
             d.inputSentence,
@@ -128,17 +128,17 @@ export default function TextDetailedComparison() {
           );
         }
       });
-      
+
       return `<div style="white-space:pre-wrap; line-height:1.6">${highlightedText.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
   }, [data, matches, selectedIndex]);
 
   const rightHtml = useMemo(() => {
     const selected = matches[selectedIndex];
     if (!selected) return "";
-    
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       // Only render the details path if at least one entry has usable text
@@ -157,13 +157,13 @@ export default function TextDetailedComparison() {
           .join("");
       }
     }
-    
+
     // Fallback: hiển thị toàn bộ nội dung từ mostSimilarDocument
     // Ưu tiên fullContent, sau đó content, cuối cùng matchedText
-    const fullDocumentContent = data?.mostSimilarDocument?.fullContent || 
-                               data?.mostSimilarDocument?.content || 
-                               data?.mostSimilarDocument?.matchedText;
-    
+    const fullDocumentContent = data?.mostSimilarDocument?.fullContent ||
+      data?.mostSimilarDocument?.content ||
+      data?.mostSimilarDocument?.matchedText;
+
     if (fullDocumentContent) {
       console.log("Using fallback content:", {
         hasFullContent: !!data?.mostSimilarDocument?.fullContent,
@@ -173,7 +173,7 @@ export default function TextDetailedComparison() {
       });
       return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     // Fallback cuối: sử dụng matchedText
     const block = selected.matchedText || selected.text || "";
     if (!block) return "";
@@ -331,7 +331,9 @@ export default function TextDetailedComparison() {
             </div>
             <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
               <div className="text-lg font-bold text-purple-600">
-                {dtotalPercent}%
+                {data.totalDuplicatedSentences > 0
+                  ? Math.round((data.totalInputSentences / data.totalDuplicatedSentences) * 100) + "%"
+                  : "0%"}
               </div>
               <div className="mt-1 text-xs text-purple-600">Dtotal</div>
             </div>
@@ -345,21 +347,21 @@ export default function TextDetailedComparison() {
               <span className="mr-2">📋</span>
               Tất cả Documents có trùng lặp ({matches.length} documents)
             </h2>
-            
+
             <div className="space-y-4">
               {matches.map((match, idx) => {
+                console.log("Rendering match:", matches);
                 const similarity = match.similarity || 0;
                 const duplicateCount = match.duplicateSentencesDetails?.length || 0;
                 const isSelected = idx === selectedIndex;
-                
+
                 return (
                   <div
                     key={`${match.documentId}_${idx}`}
-                    className={`p-4 border rounded-lg transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'border-blue-500 bg-blue-50 shadow-md' 
+                    className={`p-4 border rounded-lg transition-all cursor-pointer ${isSelected
+                        ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
-                    }`}
+                      }`}
                     onClick={() => setSelectedIndex(idx)}
                   >
                     <div className="flex items-start justify-between">
@@ -375,7 +377,7 @@ export default function TextDetailedComparison() {
                             </span>
                           )}
                         </div>
-                        
+
                         {/* So sánh chi tiết các câu trùng lặp */}
                         {match.duplicateSentencesDetails && match.duplicateSentencesDetails.length > 0 && (
                           <div className="mt-3">
@@ -386,7 +388,7 @@ export default function TextDetailedComparison() {
                                 const color = sentenceSimilarity >= 80 ? "#ef4444" : sentenceSimilarity >= 60 ? "#f59e0b" : "#22c55e";
                                 const bgColor = sentenceSimilarity >= 80 ? "bg-red-50" : sentenceSimilarity >= 60 ? "bg-yellow-50" : "bg-green-50";
                                 const borderColor = sentenceSimilarity >= 80 ? "border-red-200" : sentenceSimilarity >= 60 ? "border-yellow-200" : "border-green-200";
-                                
+
                                 return (
                                   <div key={detailIdx} className={`text-xs p-3 rounded-lg border w-full ${bgColor} ${borderColor}`}>
                                     {/* Header với số thứ tự và mức độ trùng lặp */}
@@ -394,15 +396,15 @@ export default function TextDetailedComparison() {
                                       <span className="font-medium text-gray-700">Cặp câu #{detailIdx + 1}</span>
                                       <div className="flex items-center">
                                         <div className="w-16 h-1.5 bg-gray-200 rounded-full mr-2">
-                                          <div 
-                                            className="h-1.5 rounded-full" 
-                                            style={{ 
+                                          <div
+                                            className="h-1.5 rounded-full"
+                                            style={{
                                               width: `${Math.min(sentenceSimilarity, 100)}%`,
                                               backgroundColor: color
                                             }}
                                           />
                                         </div>
-                                        <span 
+                                        <span
                                           className="text-xs font-bold"
                                           style={{ color: color }}
                                         >
@@ -410,7 +412,7 @@ export default function TextDetailedComparison() {
                                         </span>
                                       </div>
                                     </div>
-                                    
+
                                     {/* So sánh 2 câu */}
                                     <div className="grid grid-cols-2 gap-2">
                                       {/* Câu từ văn bản người dùng */}
@@ -419,7 +421,7 @@ export default function TextDetailedComparison() {
                                           <span className="text-[10px] text-blue-600 font-medium mr-1">📄</span>
                                           <span className="text-[10px] text-blue-600 font-medium">Văn bản của bạn:</span>
                                         </div>
-                                        <div 
+                                        <div
                                           className="text-gray-800 leading-relaxed p-2 rounded"
                                           style={{
                                             borderLeft: `3px solid ${color}`,
@@ -427,19 +429,19 @@ export default function TextDetailedComparison() {
                                             fontSize: '11px'
                                           }}
                                         >
-                                          {(detail.inputSentence || "").length > 120 
-                                            ? `${detail.inputSentence?.substring(0, 120)}...` 
+                                          {(detail.inputSentence || "").length > 120
+                                            ? `${detail.inputSentence?.substring(0, 120)}...`
                                             : detail.inputSentence || "Không có nội dung"}
                                         </div>
                                       </div>
-                                      
+
                                       {/* Câu từ document trong database */}
                                       <div>
                                         <div className="flex items-center mb-1">
                                           <span className="text-[10px] text-orange-600 font-medium mr-1">📚</span>
                                           <span className="text-[10px] text-orange-600 font-medium">Document trong DB:</span>
                                         </div>
-                                        <div 
+                                        <div
                                           className="text-gray-800 leading-relaxed p-2 rounded"
                                           style={{
                                             borderLeft: `3px solid ${color}`,
@@ -449,8 +451,8 @@ export default function TextDetailedComparison() {
                                         >
                                           {(() => {
                                             const docText = detail.docSentence || detail.matched || detail.text || detail.sourceSentence || detail.matchedSentence || "";
-                                            return docText.length > 120 
-                                              ? `${docText.substring(0, 120)}...` 
+                                            return docText.length > 120
+                                              ? `${docText.substring(0, 120)}...`
                                               : docText || "Không có nội dung";
                                           })()}
                                         </div>
@@ -459,13 +461,6 @@ export default function TextDetailedComparison() {
                                   </div>
                                 );
                               })}
-                              {match.duplicateSentencesDetails.length > 2 && (
-                                <div className="text-xs text-gray-500 italic text-center py-2 border-t border-gray-200">
-                                  <span className="bg-gray-100 px-2 py-1 rounded">
-                                    +{match.duplicateSentencesDetails.length - 2} cặp câu trùng lặp khác
-                                  </span>
-                                </div>
-                              )}
                             </div>
                           </div>
                         )}

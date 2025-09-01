@@ -388,6 +388,8 @@ class DocumentAVLService {
 
       // Bước 3: Tính toán kết quả cho từng tài liệu và lấy nội dung câu trùng lặp
       const matches = [];
+      const actualDuplicatedSentenceIndices = new Set(); // Lưu index của các câu thực sự trùng lặp sau khi lọc
+      
       for (const [docId, data] of docMatches) {
         const meta = this.docInfo.get(String(docId)) || {};
         const totalSentencesInB = meta.sentenceCount || 1;
@@ -442,21 +444,37 @@ class DocumentAVLService {
             };
           }));
 
-          matches.push({
-            documentId: meta.documentId || docId,
-            title: meta.title || sourceDocument?.title || "Document",
-            fileType: meta.fileType,
-            createdAt: meta.createdAt,
-            similarity: similarityForSorting,
-            matchedHashes: undefined,
-            matchedWords: undefined,
-            duplicateSentences: data.matchedSentenceCount,
-            totalInputSentences: totalInputSentences,
-            duplicateSentencesDetails: enrichedDetails,
-            method: "global-avl-word-index",
-            dabPercent,
-            totalSentencesInSource: totalSentencesInB,
-          });
+          // Lọc bỏ các câu có matchedSentenceSimilarity < 50
+          const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity >= 50);
+
+          // Chỉ thêm vào matches nếu còn có câu trùng lặp sau khi lọc
+          if (filteredDetails.length > 0) {
+            // Thêm các câu trùng lặp thực sự vào set
+            filteredDetails.forEach(detail => {
+              actualDuplicatedSentenceIndices.add(detail.inputSentenceIndex);
+            });
+
+            // Tính lại similarity dựa trên các câu đã lọc
+            const filteredTotalMatchedTokens = filteredDetails.reduce((sum, detail) => sum + detail.matchedTokens, 0);
+            const filteredTotalInputTokens = filteredDetails.reduce((sum, detail) => sum + detail.totalTokens, 0);
+            const filteredSimilarityForSorting = filteredTotalInputTokens > 0 ? Math.round((filteredTotalMatchedTokens / filteredTotalInputTokens) * 100) : 0;
+
+            matches.push({
+              documentId: meta.documentId || docId,
+              title: meta.title || sourceDocument?.title || "Document",
+              fileType: meta.fileType,
+              createdAt: meta.createdAt,
+              similarity: filteredSimilarityForSorting,
+              matchedHashes: undefined,
+              matchedWords: undefined,
+              duplicateSentences: filteredDetails.length, // Sử dụng số câu sau khi lọc
+              totalInputSentences: totalInputSentences,
+              duplicateSentencesDetails: filteredDetails, // Sử dụng danh sách đã lọc
+              method: "global-avl-word-index",
+              dabPercent: Math.round((filteredDetails.length / totalSentencesInB) * 100), // Tính lại dabPercent
+              totalSentencesInSource: totalSentencesInB,
+            });
+          }
         }
       }
 
@@ -464,11 +482,12 @@ class DocumentAVLService {
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-      // Bước 5: Dtotal (phần trăm câu trùng trong A)
-      const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
+      // Bước 5: Dtotal (phần trăm câu trùng trong A) - sử dụng số câu thực sự trùng lặp sau khi lọc
+      const actualTotalDuplicatedSentences = actualDuplicatedSentenceIndices.size;
+      const dtotalPercent = totalInputSentences > 0 ? Math.round((actualTotalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
       // Xây dựng kết quả cuối
-      const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, totalDuplicatedSentences);
+      const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
       console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu phù hợp`);
       return result;
 
