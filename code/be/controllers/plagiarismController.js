@@ -823,12 +823,6 @@ exports.getDetailedComparison = async (req, res) => {
       });
     }
 
-    console.log("Starting detailed comparison using DocumentAVLService...");
-    console.log(
-      "Original text preview:",
-      plagiarismCheck.originalText?.substring(0, 100) + "..."
-    );
-
     // Sử dụng DocumentAVLService để kiểm tra giống như checkDocumentSimilarity
     const result = await documentAVLService.checkDuplicateContent(
       plagiarismCheck.originalText,
@@ -837,10 +831,6 @@ exports.getDetailedComparison = async (req, res) => {
         chunkSize: 50,
         maxResults: 20,
       }
-    );
-
-    console.log(
-      `DocumentAVLService found ${result.matches.length} matches with ${result.duplicatePercentage}% duplicate`
     );
 
     // Khởi tạo biến
@@ -856,12 +846,6 @@ exports.getDetailedComparison = async (req, res) => {
       );
 
       if (bestMatch) {
-        console.log(
-          `Best match found: ${bestMatch.title || "Unknown"} with ${
-            bestMatch.similarity
-          }% similarity`
-        );
-
         // Lấy toàn bộ nội dung document từ database
         try {
           const Document = require("../models/Document");

@@ -335,9 +335,7 @@ class DocumentAVLService {
 
   const { minSimilarity = 50, maxResults = null } = options;
 
-    try {
-      console.log(`🔍 Bắt đầu kiểm tra trùng lặp...`);
-      
+    try {      
       // Bước 1: Tách câu từ văn bản đầu vào
       const inputSentences = TextHasher.extractSentences(text);
       const totalInputSentences = inputSentences.length;
@@ -394,7 +392,11 @@ class DocumentAVLService {
         const meta = this.docInfo.get(String(docId)) || {};
         const totalSentencesInB = meta.sentenceCount || 1;
         const dabPercent = Math.round((data.matchedSentenceCount / totalSentencesInB) * 100);
-        const similarityForSorting = dabPercent; // dùng Da/b làm similarity
+        
+        // Tính similarityForSorting theo công thức: (tổng số từ trùng / tổng số từ trong input)
+        const totalMatchedTokens = data.details.reduce((sum, detail) => sum + detail.matchedTokens, 0);
+        const totalInputTokens = data.details.reduce((sum, detail) => sum + detail.totalTokens, 0);
+        const similarityForSorting = totalInputTokens > 0 ? Math.round((totalMatchedTokens / totalInputTokens) * 100) : 0;
         
         if (similarityForSorting >= minSimilarity) {
           // Lấy nội dung document để tìm câu trùng lặp

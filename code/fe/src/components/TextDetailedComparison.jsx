@@ -338,78 +338,6 @@ export default function TextDetailedComparison() {
           </div>
         </div>
 
-        {/* Chi tiết các câu trùng lặp */}
-        {duplicateSentences.length > 0 && (
-          <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
-            {/* Header */}
-            <div className="flex items-center mb-6">
-              <span className="text-gray-500 mr-3 text-xl">📎</span>
-              <h2 className="text-xl font-semibold text-gray-800">Chi tiết các câu trùng lặp</h2>
-            </div>
-
-            {/* Comparison Overview */}
-            <div className="p-6 mb-6 border border-gray-200 rounded-xl bg-gray-50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <span className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-full">
-                    Document #{selectedIndex + 1} / {matches.length}
-                  </span>
-                  <span className="px-4 py-2 text-sm font-medium text-white bg-pink-500 rounded-full">
-                    Tỷ lệ trùng lặp: {matches[selectedIndex]?.similarity?.toFixed(1) || 0}%
-                  </span>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Tổng cộng {matches.length} documents có trùng lặp</p>
-                  <p className="text-sm text-blue-600">Document: {matches[selectedIndex]?.source || matches[selectedIndex]?.title || "Unknown"}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Duplication Level Indicator */}
-            <div className="p-4 mb-6 border border-gray-200 rounded-xl bg-gray-50">
-              <p className="mb-2 text-sm font-medium text-gray-700">Mức độ trùng lặp với document này</p>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-red-500 h-2 rounded-full" 
-                  style={{ width: `${Math.min(matches[selectedIndex]?.similarity || 0, 100)}%` }}
-                ></div>
-              </div>
-              <div className="flex justify-end mt-1">
-                <span className="text-sm font-medium text-gray-700">{matches[selectedIndex]?.similarity?.toFixed(1) || 0}%</span>
-              </div>
-            </div>
-
-            {/* Sentence Comparison */}
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Left Panel - Your Document */}
-              <div>
-                <h3 className="flex items-center mb-4 text-lg font-semibold text-blue-600">
-                  <span className="mr-2">📄</span>
-                  CÂU TRONG DOCUMENT CỦA BẠN
-                </h3>
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-gray-800 leading-relaxed">
-                    {duplicateSentences[0]?.inputSentence || "Không có câu trùng lặp"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Right Panel - Selected Document */}
-              <div>
-                <h3 className="flex items-center mb-4 text-lg font-semibold text-red-600">
-                  <span className="mr-2">📄</span>
-                  CÂU TRÙNG LẬP TỪ DOCUMENT ĐƯỢC CHỌN
-                </h3>
-                <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
-                  <p className="text-sm text-gray-800 leading-relaxed">
-                    {duplicateSentences[0]?.docSentence || "Không có câu trùng lặp"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Danh sách tất cả documents trùng lặp */}
         {matches.length > 0 && (
           <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
@@ -448,77 +376,99 @@ export default function TextDetailedComparison() {
                           )}
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm text-gray-600">Tỷ lệ trùng lặp:</span>
-                              <span className={`text-sm font-bold ${
-                                similarity >= 80 ? "text-red-600" : 
-                                similarity >= 60 ? "text-orange-600" : 
-                                similarity >= 40 ? "text-yellow-600" : "text-green-600"
-                              }`}>
-                                {similarity.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div className="w-full h-2 bg-gray-200 rounded-full">
-                              <div 
-                                className={`h-2 rounded-full ${
-                                  similarity >= 80 ? "bg-red-500" : 
-                                  similarity >= 60 ? "bg-orange-500" : 
-                                  similarity >= 40 ? "bg-yellow-500" : "bg-green-500"
-                                }`} 
-                                style={{ width: `${Math.min(similarity, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-sm text-gray-600">
-                              Số câu trùng: <span className="font-medium text-blue-600">{duplicateCount}</span>
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              ID: {(match.documentId || '').toString().slice(-6)}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Hiển thị preview các câu trùng lặp */}
+                        {/* So sánh chi tiết các câu trùng lặp */}
                         {match.duplicateSentencesDetails && match.duplicateSentencesDetails.length > 0 && (
                           <div className="mt-3">
-                            <p className="text-xs text-gray-600 mb-2">Preview các câu trùng lặp:</p>
-                            <div className="space-y-1">
-                              {match.duplicateSentencesDetails.slice(0, 3).map((detail, detailIdx) => (
-                                <div key={detailIdx} className="text-xs p-2 bg-gray-100 rounded border-l-2 border-blue-400">
-                                  <div className="font-medium text-gray-700 mb-1">
-                                    Câu {detailIdx + 1} ({(detail.similarity || similarity).toFixed(1)}%)
+                            <p className="text-xs font-medium text-gray-700 mb-3">So sánh câu trùng lặp:</p>
+                            <div className="space-y-3">
+                              {match.duplicateSentencesDetails.slice(0, 2).map((detail, detailIdx) => {
+                                const sentenceSimilarity = typeof detail.similarity === "number" ? detail.similarity : similarity;
+                                const color = sentenceSimilarity >= 80 ? "#ef4444" : sentenceSimilarity >= 60 ? "#f59e0b" : "#22c55e";
+                                const bgColor = sentenceSimilarity >= 80 ? "bg-red-50" : sentenceSimilarity >= 60 ? "bg-yellow-50" : "bg-green-50";
+                                const borderColor = sentenceSimilarity >= 80 ? "border-red-200" : sentenceSimilarity >= 60 ? "border-yellow-200" : "border-green-200";
+                                
+                                return (
+                                  <div key={detailIdx} className={`text-xs p-3 rounded-lg border w-full ${bgColor} ${borderColor}`}>
+                                    {/* Header với số thứ tự và mức độ trùng lặp */}
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-medium text-gray-700">Cặp câu #{detailIdx + 1}</span>
+                                      <div className="flex items-center">
+                                        <div className="w-16 h-1.5 bg-gray-200 rounded-full mr-2">
+                                          <div 
+                                            className="h-1.5 rounded-full" 
+                                            style={{ 
+                                              width: `${Math.min(sentenceSimilarity, 100)}%`,
+                                              backgroundColor: color
+                                            }}
+                                          />
+                                        </div>
+                                        <span 
+                                          className="text-xs font-bold"
+                                          style={{ color: color }}
+                                        >
+                                          {sentenceSimilarity.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* So sánh 2 câu */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                      {/* Câu từ văn bản người dùng */}
+                                      <div>
+                                        <div className="flex items-center mb-1">
+                                          <span className="text-[10px] text-blue-600 font-medium mr-1">📄</span>
+                                          <span className="text-[10px] text-blue-600 font-medium">Văn bản của bạn:</span>
+                                        </div>
+                                        <div 
+                                          className="text-gray-800 leading-relaxed p-2 rounded"
+                                          style={{
+                                            borderLeft: `3px solid ${color}`,
+                                            backgroundColor: `${color}10`,
+                                            fontSize: '11px'
+                                          }}
+                                        >
+                                          {(detail.inputSentence || "").length > 120 
+                                            ? `${detail.inputSentence?.substring(0, 120)}...` 
+                                            : detail.inputSentence || "Không có nội dung"}
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Câu từ document trong database */}
+                                      <div>
+                                        <div className="flex items-center mb-1">
+                                          <span className="text-[10px] text-orange-600 font-medium mr-1">📚</span>
+                                          <span className="text-[10px] text-orange-600 font-medium">Document trong DB:</span>
+                                        </div>
+                                        <div 
+                                          className="text-gray-800 leading-relaxed p-2 rounded"
+                                          style={{
+                                            borderLeft: `3px solid ${color}`,
+                                            backgroundColor: `${color}10`,
+                                            fontSize: '11px'
+                                          }}
+                                        >
+                                          {(() => {
+                                            const docText = detail.docSentence || detail.matched || detail.text || detail.sourceSentence || detail.matchedSentence || "";
+                                            return docText.length > 120 
+                                              ? `${docText.substring(0, 120)}...` 
+                                              : docText || "Không có nội dung";
+                                          })()}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="text-gray-600 truncate">
-                                    {detail.inputSentence || detail.docSentence || "Nội dung câu..."}
-                                  </div>
-                                </div>
-                              ))}
-                              {match.duplicateSentencesDetails.length > 3 && (
-                                <div className="text-xs text-gray-500 italic">
-                                  ... và {match.duplicateSentencesDetails.length - 3} câu khác
+                                );
+                              })}
+                              {match.duplicateSentencesDetails.length > 2 && (
+                                <div className="text-xs text-gray-500 italic text-center py-2 border-t border-gray-200">
+                                  <span className="bg-gray-100 px-2 py-1 rounded">
+                                    +{match.duplicateSentencesDetails.length - 2} cặp câu trùng lặp khác
+                                  </span>
                                 </div>
                               )}
                             </div>
                           </div>
                         )}
-                      </div>
-                      
-                      <div className="ml-4 shrink-0">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedIndex(idx);
-                            setShowComparisonOnly(true);
-                            window.scrollTo({ top: 0, behavior: "auto" });
-                          }}
-                          className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-                        >
-                          Xem chi tiết
-                        </button>
                       </div>
                     </div>
                   </div>

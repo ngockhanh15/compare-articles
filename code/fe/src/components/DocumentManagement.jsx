@@ -11,7 +11,7 @@ const DocumentManagement = () => {
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const [documentsPerPage] = useState(10);
+  const [documentsPerPage, setDocumentsPerPage] = useState(5);
   const [totalPages, setTotalPages] = useState(1);
   const [totalDocuments, setTotalDocuments] = useState(0);
   const [stats, setStats] = useState(null);
@@ -27,7 +27,7 @@ const DocumentManagement = () => {
     fetchDocuments();
     fetchStats();
     fetchTreeStats();
-  }, [currentPage, searchTerm, filterType, filterStatus, isAdmin]);
+  }, [currentPage, documentsPerPage, searchTerm, filterType, filterStatus, isAdmin]);
 
   const fetchTreeStats = async () => {
     try {
@@ -104,6 +104,17 @@ const DocumentManagement = () => {
         : await api.deleteDocument(documentId);
       if (response.success) {
         setDocuments(documents.filter(doc => doc._id !== documentId));
+        setTotalDocuments(prev => {
+          const newTotal = prev - 1;
+          const newTotalPages = Math.ceil(newTotal / documentsPerPage);
+          // Update total pages based on new total
+          setTotalPages(newTotalPages);
+          // If current page is greater than new total pages, go to last page
+          if (currentPage > newTotalPages && newTotalPages > 0) {
+            setCurrentPage(newTotalPages);
+          }
+          return newTotal;
+        });
         fetchStats(); // Refresh stats
         fetchTreeStats(); // Refresh tree stats
         setError("");
@@ -149,6 +160,13 @@ const DocumentManagement = () => {
       
       if (response.success) {
         setShowUploadModal(false);
+        // Update total documents count
+        setTotalDocuments(prev => {
+          const newTotal = prev + 1;
+          const newTotalPages = Math.ceil(newTotal / documentsPerPage);
+          setTotalPages(newTotalPages);
+          return newTotal;
+        });
         fetchDocuments(); // Refresh documents list
         fetchStats(); // Refresh stats
         fetchTreeStats(); // Refresh tree stats
@@ -178,6 +196,11 @@ const DocumentManagement = () => {
   const handleFilterStatusChange = (value) => {
     setFilterStatus(value);
     setCurrentPage(1); // Reset to first page when filtering
+  };
+
+  const handleDocumentsPerPageChange = (value) => {
+    setDocumentsPerPage(parseInt(value));
+    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const formatFileSize = (bytes) => {

@@ -538,7 +538,11 @@ exports.adminDeleteDocument = async (req, res) => {
     const { id } = req.params;
     console.log('Admin deleting document with ID:', id);
     
-    const document = await Document.findById(id).populate('uploadedBy', 'name email');
+    const document = await Document.findById(id).populate({
+      path: 'uploadedBy',
+      select: 'name email',
+      options: { strictPopulate: false }
+    });
 
     if (!document) {
       console.log('Document not found:', id);
@@ -548,7 +552,7 @@ exports.adminDeleteDocument = async (req, res) => {
       });
     }
 
-    console.log('Found document:', document.title, 'owned by:', document.uploadedBy.name);
+    console.log('Found document:', document.title, 'owned by:', document.uploadedBy ? document.uploadedBy.name : 'Unknown user');
 
     // Delete file from filesystem
     try {
@@ -581,8 +585,8 @@ exports.adminDeleteDocument = async (req, res) => {
       targetId: String(document._id),
       targetName: document.title,
       metadata: { 
-        originalOwner: document.uploadedBy.name,
-        originalOwnerId: document.uploadedBy._id
+        originalOwner: document.uploadedBy ? document.uploadedBy.name : null,
+        originalOwnerId: document.uploadedBy ? document.uploadedBy._id : null
       }
     });
 
@@ -640,7 +644,11 @@ exports.getAllDocuments = async (req, res) => {
     // Get documents with pagination
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const documents = await Document.find(query)
-      .populate('uploadedBy', 'name email')
+      .populate({
+        path: 'uploadedBy',
+        select: 'name email',
+        options: { strictPopulate: false }
+      })
       .sort(sort)
       .skip(skip)
       .limit(parseInt(limit));
@@ -662,11 +670,11 @@ exports.getAllDocuments = async (req, res) => {
       description: doc.description,
       tags: doc.tags,
       isPublic: doc.isPublic,
-      uploadedBy: {
-        _id: doc.uploadedBy._id,
-        name: doc.uploadedBy.name,
-        email: doc.uploadedBy.email
-      }
+      uploadedBy: doc.uploadedBy ? {
+        _id: doc.uploadedBy._id || null,
+        name: doc.uploadedBy.name || null,
+        email: doc.uploadedBy.email || null
+      } : null
     }));
 
     res.json({

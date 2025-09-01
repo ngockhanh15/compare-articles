@@ -179,11 +179,11 @@ const UploadChecker = () => {
       });
 
       const duplicateSentencesCount = duplicateSentencesFromText.size;
-      
+
       // Tính dtotal chính xác - sử dụng similarity từ document giống nhất
       const resultMatches = result.matches || [];
       let correctDtotal = 0;
-      
+
       if (resultMatches.length > 0) {
         // Sắp xếp matches theo similarity giảm dần và lấy document giống nhất
         const sortedMatches = [...resultMatches].sort((a, b) => {
@@ -347,13 +347,13 @@ const UploadChecker = () => {
               )}
             </div>
 
-    {/* Guidance panel when no file selected */}
+            {/* Guidance panel when no file selected */}
             {!selectedFile ? (
               <div className="flex items-center justify-center h-64 border-2 border-dashed bg-neutral-50 border-neutral-300 rounded-xl">
                 <div className="text-center">
                   <div className="mb-3 text-4xl">📝</div>
-      <p className="font-medium text-neutral-700">Chỉ hỗ trợ kiểm tra qua file upload</p>
-      <p className="text-sm text-neutral-500">Vui lòng chọn file để bắt đầu</p>
+                  <p className="font-medium text-neutral-700">Chỉ hỗ trợ kiểm tra qua file upload</p>
+                  <p className="text-sm text-neutral-500">Vui lòng chọn file để bắt đầu</p>
                 </div>
               </div>
             ) : (
@@ -452,8 +452,6 @@ const UploadChecker = () => {
                       </p>
                     </div>
                   </div>
-
-                  {/* Thống kê chi tiết đã được ẩn theo yêu cầu */}
                 </div>
 
                 {/* Statistics */}
@@ -477,7 +475,7 @@ const UploadChecker = () => {
                   {/* Thông tin tỷ lệ trùng lặp mới */}
                   <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
                     <div className="text-lg font-bold text-purple-600">
-                      {Math.round(results.dtotal || 0)}%
+                      {(results.dtotalRaw/results.totalSentences)*100}%
                     </div>
                     <div className="text-sm text-purple-600">Dtotal</div>
                     <div className="mt-1 text-xs text-purple-500">
@@ -491,13 +489,13 @@ const UploadChecker = () => {
                 {/* Comparison Buttons replaced with a single details button */}
                 <div className="flex gap-3">
                   {results?.checkId && (
-                                         <Link
-                       to={`/detail-checker/${results.checkId}`}
-                       className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                     >
-                       <span className="mr-2">📄</span>
-                       Kết quả chi tiết
-                     </Link>
+                    <Link
+                      to={`/detail-checker/${results.checkId}`}
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <span className="mr-2">📄</span>
+                      Kết quả chi tiết
+                    </Link>
                   )}
                 </div>
 
@@ -551,7 +549,7 @@ const UploadChecker = () => {
           </div>
         </div>
 
-  {/* Document Selector removed */}
+        {/* Document Selector removed */}
       </div>
     </div>
   );

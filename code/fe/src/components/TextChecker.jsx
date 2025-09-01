@@ -117,12 +117,6 @@ const TextChecker = () => {
       return;
     }
 
-    // Validate text length
-    if (inputText.trim().length < 10) {
-      setError("Văn bản cần ít nhất 10 ký tự để có thể kiểm tra");
-      return;
-    }
-
     setIsChecking(true);
 
     try {
@@ -346,7 +340,7 @@ const TextChecker = () => {
             <textarea
               value={inputText}
               onChange={handleInputChange}
-              placeholder="Nhập hoặc dán văn bản của bạn vào đây... (tối thiểu 10 ký tự)"
+              placeholder="Nhập hoặc dán văn bản của bạn vào đây..."
               className="w-full h-64 p-4 transition-all duration-200 border resize-none bg-neutral-50 border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent focus:bg-white"
             />
 
