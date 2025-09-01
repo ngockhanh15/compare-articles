@@ -393,14 +393,19 @@ class DocumentAVLService {
       for (const [docId, data] of docMatches) {
         const meta = this.docInfo.get(String(docId)) || {};
         const totalSentencesInB = meta.sentenceCount || 1;
-        const dabPercent = Math.round((data.matchedSentenceCount / totalSentencesInB) * 100);
+        
+        // D A/B = (số câu trùng lặp từ A) / (tổng số câu trong A) × 100%
+        // data.matchedSentenceCount = số câu từ A trùng với document B này
+        // totalInputSentences = tổng số câu trong A
+        const dabPercent = Math.round((data.matchedSentenceCount / totalInputSentences) * 100);
 
         // Tính similarityForSorting theo công thức: (tổng số từ trùng / tổng số từ trong input)
         const totalMatchedTokens = data.details.reduce((sum, detail) => sum + detail.matchedTokens, 0);
         const totalInputTokens = data.details.reduce((sum, detail) => sum + detail.totalTokens, 0);
         const similarityForSorting = totalInputTokens > 0 ? Math.round((totalMatchedTokens / totalInputTokens) * 100) : 0;
 
-        if (similarityForSorting >= minSimilarity) {
+        // Áp dụng ngưỡng lọc: chỉ lấy document có D A/B >= 50%
+        if (similarityForSorting >= minSimilarity && dabPercent >= 50) {
           // Lấy nội dung document để tìm câu trùng lặp
           const sourceDocument = await Document.findById(docId).select('extractedText title');
           let sourceSentences = [];
@@ -449,31 +454,37 @@ class DocumentAVLService {
 
           // Chỉ thêm vào matches nếu còn có câu trùng lặp sau khi lọc
           if (filteredDetails.length > 0) {
-            // Thêm các câu trùng lặp thực sự vào set
-            filteredDetails.forEach(detail => {
-              actualDuplicatedSentenceIndices.add(detail.inputSentenceIndex);
-            });
-
             // Tính lại similarity dựa trên các câu đã lọc
             const filteredTotalMatchedTokens = filteredDetails.reduce((sum, detail) => sum + detail.matchedTokens, 0);
             const filteredTotalInputTokens = filteredDetails.reduce((sum, detail) => sum + detail.totalTokens, 0);
             const filteredSimilarityForSorting = filteredTotalInputTokens > 0 ? Math.round((filteredTotalMatchedTokens / filteredTotalInputTokens) * 100) : 0;
 
-            matches.push({
-              documentId: meta.documentId || docId,
-              title: meta.title || sourceDocument?.title || "Document",
-              fileType: meta.fileType,
-              createdAt: meta.createdAt,
-              similarity: filteredSimilarityForSorting,
-              matchedHashes: undefined,
-              matchedWords: undefined,
-              duplicateSentences: filteredDetails.length, // Sử dụng số câu sau khi lọc
-              totalInputSentences: totalInputSentences,
-              duplicateSentencesDetails: filteredDetails, // Sử dụng danh sách đã lọc
-              method: "global-avl-word-index",
-              dabPercent: Math.round((filteredDetails.length / totalSentencesInB) * 100), // Tính lại dabPercent
-              totalSentencesInSource: totalSentencesInB,
-            });
+            // Tính lại dabPercent sau khi lọc
+            // D A/B = (số câu trùng lặp từ A sau khi lọc) / (tổng số câu trong A) × 100%
+            const filteredDabPercent = Math.round((filteredDetails.length / totalInputSentences) * 100);
+
+            // Kiểm tra lại ngưỡng D A/B sau khi lọc câu
+            if (filteredDabPercent >= 50) {
+              filteredDetails.forEach(detail => {
+                actualDuplicatedSentenceIndices.add(detail.inputSentenceIndex);
+              });
+
+              matches.push({
+                documentId: meta.documentId || docId,
+                title: meta.title || sourceDocument?.title || "Document",
+                fileType: meta.fileType,
+                createdAt: meta.createdAt,
+                similarity: filteredSimilarityForSorting,
+                matchedHashes: undefined,
+                matchedWords: undefined,
+                duplicateSentences: filteredDetails.length, // Sử dụng số câu sau khi lọc
+                totalInputSentences: totalInputSentences,
+                duplicateSentencesDetails: filteredDetails, // Sử dụng danh sách đã lọc
+                method: "global-avl-word-index",
+                dabPercent: filteredDabPercent, // Sử dụng dabPercent đã tính lại
+                totalSentencesInSource: totalSentencesInB,
+              });
+            }
           }
         }
       }
@@ -482,13 +493,14 @@ class DocumentAVLService {
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-      // Bước 5: Dtotal (phần trăm câu trùng trong A) - sử dụng số câu thực sự trùng lặp sau khi lọc
+      // Bước 5: Dtotal (phần trăm câu trùng trong A) - chỉ tính từ các document có D A/B >= 50%
+      // actualDuplicatedSentenceIndices chỉ chứa các câu từ document có D A/B >= 50%
       const actualTotalDuplicatedSentences = actualDuplicatedSentenceIndices.size;
       const dtotalPercent = totalInputSentences > 0 ? Math.round((actualTotalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
       // Xây dựng kết quả cuối
       const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
-      console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu phù hợp`);
+      console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có D A/B >= 50%`);
       return result;
 
     } catch (error) {
