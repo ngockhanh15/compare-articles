@@ -62,7 +62,6 @@ export default function DetailedComparison() {
         return simB - simA;
       });
       
-      console.log(`Found ${sortedMatches.length} documents with matches`);
       return sortedMatches;
     }
     
@@ -344,9 +343,11 @@ export default function DetailedComparison() {
             ) : (
               <div className="space-y-3">
                 {matches.map((m, idx) => {
-                  const rate = m.dab || m.similarity || 0;
+                  console.log("Rendering match:", matches.totalInputSentences );
                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
+                  const inputSentences = data.totalDuplicateSentences || data.duplicateContentSummary?.totalDuplicateSentences || 0;
+                  const rate = docDuplicate / inputSentences * 100;
                   // Tạo unique key từ documentId và index để tránh trùng lặp
                   const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
                   return (

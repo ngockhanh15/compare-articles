@@ -79,8 +79,8 @@ const performDocumentCheck = async (text, options = {}) => {
         options.sensitivity === "high"
           ? 30
           : options.sensitivity === "low"
-          ? 70
-          : 50, // medium = 50
+            ? 70
+            : 50, // medium = 50
       chunkSize: 50,
     });
 
@@ -100,15 +100,15 @@ const performDocumentCheck = async (text, options = {}) => {
         method: "document-based",
         duplicateSentences: match.duplicateSentences || 0, // Số câu trùng lặp
         duplicateSentencesDetails: match.duplicateSentencesDetails || [], // Chi tiết các câu trùng
-  totalSentencesInSource: match.totalSentencesInSource || match.totalSentencesInB || match.totalSentences || 0,
+        totalSentencesInSource: match.totalSentencesInSource || match.totalSentencesInB || match.totalSentences || 0,
       })),
       sources: result.sources || [],
       confidence:
         result.duplicatePercentage > 70
           ? "high"
           : result.duplicatePercentage > 30
-          ? "medium"
-          : "low",
+            ? "medium"
+            : "low",
       processingTime: Date.now() - startTime,
       fromCache: false,
       totalMatches: result.totalMatches || 0,
@@ -117,8 +117,8 @@ const performDocumentCheck = async (text, options = {}) => {
       dtotal: result.dtotal || 0,
       dab: result.dab || 0,
       mostSimilarDocument: result.mostSimilarDocument || null,
-  totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
-  totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
+      totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+      totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
       // Tên document trùng nhất - ưu tiên document có nhiều câu trùng nhất
       mostSimilarDocumentName:
         result.documentWithMostDuplicates?.name ||
@@ -183,12 +183,12 @@ const performPlagiarismCheck = async (text, options = {}) => {
     // 2. Sử dụng DocumentAVLService (cây AVL lớn duy nhất) thay vì plagiarismDetectionService
     console.log("Performing plagiarism check using unified DocumentAVL tree...");
     const result = await documentAVLService.checkDuplicateContent(text, {
-      minSimilarity: 
+      minSimilarity:
         options.sensitivity === "high"
           ? 30
           : options.sensitivity === "low"
-          ? 70
-          : 50, // medium = 50
+            ? 70
+            : 50, // medium = 50
       maxResults: options.maxResults || null,
     });
 
@@ -364,8 +364,8 @@ exports.checkDocumentSimilarity = async (req, res) => {
         maxDuplicateSentences: result.maxDuplicateSentences,
         documentWithMostDuplicates: result.documentWithMostDuplicates,
         totalDuplicateSentences: result.totalDuplicateSentences,
-  totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
-  totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
+        totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+        totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
       });
     }
 
@@ -422,8 +422,8 @@ exports.checkDocumentSimilarity = async (req, res) => {
         maxDuplicateSentences: result.maxDuplicateSentences,
         documentWithMostDuplicates: result.documentWithMostDuplicates,
         totalDuplicateSentences: result.totalDuplicateSentences,
-  totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
-  totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
+        totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+        totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
       },
     });
   } catch (error) {
@@ -850,7 +850,7 @@ exports.getDetailedComparison = async (req, res) => {
         try {
           const Document = require("../models/Document");
           const fullDocument = await Document.findById(bestMatch.documentId);
-          
+
           mostSimilarDocument = {
             fileName:
               bestMatch.title ||
@@ -863,7 +863,7 @@ exports.getDetailedComparison = async (req, res) => {
               ? fullDocument.extractedText.split(/\s+/).filter((w) => w.length > 0).length
               : 0,
           };
-          
+
           // Sử dụng toàn bộ nội dung document thay vì chỉ matchedText
           mostSimilarContent = fullDocument?.extractedText || bestMatch.matchedText || "";
         } catch (docError) {
@@ -892,11 +892,11 @@ exports.getDetailedComparison = async (req, res) => {
 
     for (let index = 0; index < result.matches.length; index++) {
       const match = result.matches[index];
-      
+
       console.log(`Processing match ${index}: documentId=${match.documentId}, title=${match.title}, similarity=${match.similarity}%`);
-      
+
       const originalText = plagiarismCheck.originalText;
-      
+
       // Lấy toàn bộ nội dung document từ database
       let fullDocumentContent = "";
       try {
@@ -907,7 +907,7 @@ exports.getDetailedComparison = async (req, res) => {
         fullDocumentContent = match.matchedText || "";
       }
 
-      const matchText = fullDocumentContent.length > 0 
+      const matchText = fullDocumentContent.length > 0
         ? fullDocumentContent.substring(0, 500) + (fullDocumentContent.length > 500 ? "..." : "")
         : "Document content";
 
@@ -953,17 +953,6 @@ exports.getDetailedComparison = async (req, res) => {
 
     // Sắp xếp matches theo similarity (cao nhất trước)
     detailedMatches.sort((a, b) => b.similarity - a.similarity);
-
-    console.log("Preparing response:", {
-      currentDocumentLength: plagiarismCheck.originalText?.length,
-      mostSimilarDocumentFound: !!mostSimilarDocument,
-      mostSimilarContentLength: mostSimilarContent?.length,
-      detailedMatchesCount: detailedMatches.length,
-      overallSimilarity: overallSimilarity,
-      totalDuplicateSentences: result.totalDuplicateSentences,
-      totalSentencesWithInputWords: result.totalSentencesWithInputWords,
-      maxDuplicateSentences: result.maxDuplicateSentences,
-    });
 
     // Tạo highlighted text cho current document
     let currentHighlightedText = plagiarismCheck.originalText || "";
@@ -1099,14 +1088,14 @@ exports.getDetailedComparison = async (req, res) => {
       totalUniqueWordPairs: result.totalUniqueWordPairs || 0,
       totalUniqueWords: result.totalUniqueWords || 0,
       totalDuplicateSentences: result.totalDuplicateSentences || 0,
-  totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
-  totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
+      totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+      totalDuplicatedSentences: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
       // Thêm thông tin tổng hợp về câu trùng lặp
       duplicateContentSummary: {
         totalDuplicateSentences: result.totalDuplicateSentences || 0,
         totalInputSentences: result.totalInputSentences || 0,
         duplicatePercentage: result.duplicatePercentage || 0,
-        documentsWithDuplicates: detailedMatches.filter(match => 
+        documentsWithDuplicates: detailedMatches.filter(match =>
           match.duplicateSentences && match.duplicateSentences > 0
         ).length,
         sampleDuplicateContent: detailedMatches

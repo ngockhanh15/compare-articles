@@ -13,10 +13,10 @@ class DocumentAVLService {
     this.autoSave = true; // Tự động save vào database
     this.saveInterval = 5 * 60 * 1000; // Save mỗi 5 phút
     this.lastSaved = null;
-    
+
     // Inject this service into cache service để thống nhất cây AVL
     this.setupCacheService();
-    
+
     // Auto-save timer
     this.setupAutoSave();
   }
@@ -59,7 +59,7 @@ class DocumentAVLService {
 
       // Try to load from database first
       const loadedFromDB = await this.loadFromDatabase();
-      
+
       if (loadedFromDB) {
         console.log("✅ Loaded Global AVL Tree from database");
         this.initialized = true;
@@ -72,7 +72,7 @@ class DocumentAVLService {
 
       // Save initial tree to database
       await this.saveToDatabase();
-      
+
       this.initialized = true;
       console.log(
         `Document AVL Tree initialized with ${this.documentTree.getSize()} entries`
@@ -120,9 +120,9 @@ class DocumentAVLService {
         `Added document "${document.title}" to Global AVL Tree: ${sentenceCount} sentences, ${uniqueTokenCount} unique tokens`
       );
 
-      return { 
-        success: true, 
-        sentenceCount, 
+      return {
+        success: true,
+        sentenceCount,
         uniqueTokenCount,
         message: "Document added to Global AVL Tree successfully"
       };
@@ -156,11 +156,11 @@ class DocumentAVLService {
   async indexDocument(document) {
     const sentences = TextHasher.extractSentences(document.extractedText);
     let uniqueTokenCount = 0;
-    
+
     for (let i = 0; i < sentences.length; i++) {
       const tokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentences[i]);
       uniqueTokenCount += tokens.length;
-      
+
       // Lưu tokenization sample vào memory để sau này save vào database
       const tokenizationSample = {
         documentId: String(document._id),
@@ -176,13 +176,13 @@ class DocumentAVLService {
         })),
         createdAt: new Date()
       };
-      
+
       // Lưu sample để sau này add vào database
       if (!this.tokenizationSamples) {
         this.tokenizationSamples = [];
       }
       this.tokenizationSamples.push(tokenizationSample);
-      
+
       for (const token of tokens) {
         const hash = TextHasher.createMurmurHash(token);
         const tokenInfo = {
@@ -190,10 +190,10 @@ class DocumentAVLService {
           isPreservedPhrase: token.includes(' '),
           totalFrequency: 1
         };
-        
+
         this.documentTree.insertOccurrence(
-          hash, 
-          document._id, 
+          hash,
+          document._id,
           `${document._id}:${i}`,
           token, // originalWord
           tokenInfo
@@ -222,16 +222,16 @@ class DocumentAVLService {
       const tokenizedWords = [];
       let preservedPhrasesCount = 0;
       let filteredStopwordsCount = 0;
-      
+
       for (let i = 0; i < tokens.length; i++) {
         const token = tokens[i];
         const hash = TextHasher.createMurmurHash(token);
         const isPreservedPhrase = vietnameseStopwordService.preservedPhrases.has(token.toLowerCase());
         const isStopword = vietnameseStopwordService.stopwords.has(token.toLowerCase());
-        
+
         if (isPreservedPhrase) preservedPhrasesCount++;
         if (isStopword) filteredStopwordsCount++;
-        
+
         tokenizedWords.push({
           word: token,
           hash: hash,
@@ -262,9 +262,9 @@ class DocumentAVLService {
       });
 
       await tokenRecord.save();
-      
+
       console.log(`💾 Saved ${tokens.length} tokenized words for sentence ${sentenceIndex} of document "${document.title}"`);
-      
+
     } catch (error) {
       console.error('Error saving tokenized words:', error);
     }
@@ -333,9 +333,9 @@ class DocumentAVLService {
       await vietnameseStopwordService.initialize();
     }
 
-  const { minSimilarity = 50, maxResults = null } = options;
+    const { minSimilarity = 50, maxResults = null } = options;
 
-    try {      
+    try {
       // Bước 1: Tách câu từ văn bản đầu vào
       const inputSentences = TextHasher.extractSentences(text);
       const totalInputSentences = inputSentences.length;
@@ -392,12 +392,12 @@ class DocumentAVLService {
         const meta = this.docInfo.get(String(docId)) || {};
         const totalSentencesInB = meta.sentenceCount || 1;
         const dabPercent = Math.round((data.matchedSentenceCount / totalSentencesInB) * 100);
-        
+
         // Tính similarityForSorting theo công thức: (tổng số từ trùng / tổng số từ trong input)
         const totalMatchedTokens = data.details.reduce((sum, detail) => sum + detail.matchedTokens, 0);
         const totalInputTokens = data.details.reduce((sum, detail) => sum + detail.totalTokens, 0);
         const similarityForSorting = totalInputTokens > 0 ? Math.round((totalMatchedTokens / totalInputTokens) * 100) : 0;
-        
+
         if (similarityForSorting >= minSimilarity) {
           // Lấy nội dung document để tìm câu trùng lặp
           const sourceDocument = await Document.findById(docId).select('extractedText title');
@@ -405,31 +405,31 @@ class DocumentAVLService {
           if (sourceDocument && sourceDocument.extractedText) {
             sourceSentences = TextHasher.extractSentences(sourceDocument.extractedText);
           }
-          
+
           // Tìm câu trùng lặp tốt nhất cho mỗi detail
           const enrichedDetails = await Promise.all(data.details.map(async (detail) => {
             let bestMatchSentence = "";
             let bestMatchSimilarity = 0;
-            
+
             // Tìm câu tương tự nhất trong source document
             for (let i = 0; i < sourceSentences.length; i++) {
               const sourceSentence = sourceSentences[i];
               const sourceTokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sourceSentence);
               const inputTokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(detail.inputSentence);
-              
+
               // Tính độ tương tự giữa 2 câu
-              const commonTokens = inputTokens.filter(token => 
+              const commonTokens = inputTokens.filter(token =>
                 sourceTokens.some(srcToken => srcToken.toLowerCase() === token.toLowerCase())
               ).length;
-              
+
               const similarity = sourceTokens.length > 0 ? (commonTokens / Math.max(inputTokens.length, sourceTokens.length)) * 100 : 0;
-              
+
               if (similarity > bestMatchSimilarity) {
                 bestMatchSimilarity = similarity;
                 bestMatchSentence = sourceSentence;
               }
             }
-            
+
             return {
               ...detail,
               sourceSentence: bestMatchSentence || detail.inputSentence, // Fallback to input sentence if no match found
@@ -438,10 +438,10 @@ class DocumentAVLService {
               text: bestMatchSentence || detail.inputSentence, // Add text field for frontend
               similarity: Math.round(bestMatchSimilarity),
               matchedSentence: bestMatchSentence || detail.inputSentence, // Giữ cả hai để backward compatibility
-              matchedSentenceSimilarity: Math.round(bestMatchSimilarity)
+              matchedSentenceSimilarity: Math.round(bestMatchSimilarity),
             };
           }));
-          
+
           matches.push({
             documentId: meta.documentId || docId,
             title: meta.title || sourceDocument?.title || "Document",
@@ -451,6 +451,7 @@ class DocumentAVLService {
             matchedHashes: undefined,
             matchedWords: undefined,
             duplicateSentences: data.matchedSentenceCount,
+            totalInputSentences: totalInputSentences,
             duplicateSentencesDetails: enrichedDetails,
             method: "global-avl-word-index",
             dabPercent,
@@ -463,11 +464,11 @@ class DocumentAVLService {
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-  // Bước 5: Dtotal (phần trăm câu trùng trong A)
-  const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
+      // Bước 5: Dtotal (phần trăm câu trùng trong A)
+      const dtotalPercent = totalInputSentences > 0 ? Math.round((totalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
-  // Xây dựng kết quả cuối
-  const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, totalDuplicatedSentences);
+      // Xây dựng kết quả cuối
+      const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, totalDuplicatedSentences);
       console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu phù hợp`);
       return result;
 
@@ -504,7 +505,7 @@ class DocumentAVLService {
   // Tính tỷ lệ trùng lặp tổng thể
   calculatePlagiarismRatio(totalInputHashes, matches) {
     if (matches.length === 0 || totalInputHashes === 0) return 0;
-    
+
     // Lấy độ tương đồng cao nhất
     const highestSimilarity = matches[0]?.similarity || 0;
     console.log(`🎯 Tỷ lệ trùng lặp tổng thể: ${highestSimilarity}%`);
@@ -590,36 +591,36 @@ class DocumentAVLService {
       }
 
       console.log(`Removing document ${documentId} from AVL tree...`);
-      
+
       // Remove document from all nodes and clean up empty nodes
       const removedCount = this.documentTree.removeDocumentAndCleanup(documentId);
-      
+
       // Remove document info from memory
       this.docInfo.delete(String(documentId));
-      
+
       // Remove tokenization samples for this document
       this.tokenizationSamples = this.tokenizationSamples.filter(
         sample => sample.documentId !== String(documentId)
       );
-      
+
       // Remove tokenized words from database
       try {
-        const deletedTokens = await TokenizedWord.deleteMany({ 
-          documentId: String(documentId) 
+        const deletedTokens = await TokenizedWord.deleteMany({
+          documentId: String(documentId)
         });
         console.log(`Removed ${deletedTokens.deletedCount} tokenized word records for document ${documentId}`);
       } catch (tokenError) {
         console.warn(`Failed to remove tokenized words for document ${documentId}:`, tokenError.message);
       }
-      
+
       console.log(`Removed document ${documentId} from ${removedCount} nodes in AVL tree`);
-      
+
       // Report tree statistics after removal
       const emptyNodes = this.documentTree.getEmptyNodesCount();
       const totalNodes = this.documentTree.getSize();
       if (emptyNodes > 0) {
         console.log(`⚠️ Tree now has ${emptyNodes} empty nodes out of ${totalNodes} total nodes`);
-        
+
         // Note: We don't auto-rebuild here because the document might still exist in database
         // Auto-rebuild should be done manually or during maintenance
         const emptyRatio = emptyNodes / totalNodes;
@@ -627,7 +628,7 @@ class DocumentAVLService {
           console.log(`⚠️ High ratio of empty nodes (${(emptyRatio * 100).toFixed(1)}%). Consider manual tree optimization.`);
         }
       }
-      
+
       // Lưu cây đã cập nhật vào database
       const saveResult = await this.saveToDatabase();
       if (saveResult) {
@@ -637,7 +638,7 @@ class DocumentAVLService {
       }
     } catch (error) {
       console.error(`Error removing document ${documentId} from tree:`, error);
-      
+
       // Fallback: rebuild tree if direct removal fails
       console.log('Falling back to full tree rebuild...');
       try {
@@ -670,18 +671,18 @@ class DocumentAVLService {
       }
 
       console.log('Saving Global AVL Tree to database...');
-      
+
       // Serialize tree
       const serializedTree = this.documentTree.serialize();
-      
+
       // Calculate token statistics
       const tokenStats = this.calculateTokenStats();
-      
+
       // Prepare document info với tokenization stats
       const documentInfo = Array.from(this.docInfo.entries()).map(([docId, info]) => {
         const docSamples = this.tokenizationSamples.filter(s => s.documentId === docId);
         const docTokenStats = this.calculateDocumentTokenStats(docSamples);
-        
+
         return {
           documentId: docId,
           title: info.title,
@@ -713,7 +714,7 @@ class DocumentAVLService {
 
       // Check if tree exists
       const existingTree = await GlobalAVLTreeUnified.getLatest();
-      
+
       if (existingTree) {
         await existingTree.updateTree(treeData);
         console.log('✅ Global AVL Tree updated in database');
@@ -734,7 +735,7 @@ class DocumentAVLService {
   async loadFromDatabase() {
     try {
       console.log('Loading Global AVL Tree from database...');
-      
+
       const savedTree = await GlobalAVLTreeUnified.getLatest();
       if (!savedTree) {
         console.log('No saved tree found in database');
@@ -749,7 +750,7 @@ class DocumentAVLService {
       };
 
       this.documentTree = TreeAVL.deserialize(serializedData);
-      
+
       // Restore document info
       this.docInfo.clear();
       if (savedTree.documentInfo) {
