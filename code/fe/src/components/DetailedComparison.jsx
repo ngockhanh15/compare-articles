@@ -53,7 +53,7 @@ export default function DetailedComparison() {
 
   const matches = useMemo(() => {
     const rawMatches = data?.detailedMatches || [];
-    
+
     // Hiển thị tất cả documents có trùng lặp, sắp xếp theo similarity giảm dần
     if (rawMatches.length > 0) {
       const sortedMatches = [...rawMatches].sort((a, b) => {
@@ -61,10 +61,10 @@ export default function DetailedComparison() {
         const simB = b.similarity || 0;
         return simB - simA;
       });
-      
+
       return sortedMatches;
     }
-    
+
     return [];
   }, [data]);
   // Lấy Dtotal từ document giống nhất
@@ -84,23 +84,23 @@ export default function DetailedComparison() {
     // Lấy input text từ data
     const inputText = data?.inputText || data?.currentDocument?.content || "";
     if (!inputText) return "";
-    
+
     const selected = matches[selectedIndex];
     if (!selected) {
       return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       // Tạo highlighted text từ input text
       let highlightedText = inputText;
-      
+
       details.forEach((d) => {
         if (d.inputSentence) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
           const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
           const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
-          
+
           // Highlight câu trùng lặp trong input text
           highlightedText = highlightedText.replace(
             d.inputSentence,
@@ -108,17 +108,17 @@ export default function DetailedComparison() {
           );
         }
       });
-      
+
       return `<div style="white-space:pre-wrap; line-height:1.6">${highlightedText.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
   }, [data, matches, selectedIndex]);
 
   const rightHtml = useMemo(() => {
     const selected = matches[selectedIndex];
     if (!selected) return "";
-    
+
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
       // Only render the details path if at least one entry has usable text
@@ -137,13 +137,13 @@ export default function DetailedComparison() {
           .join("");
       }
     }
-    
+
     // Fallback: hiển thị toàn bộ nội dung từ mostSimilarDocument
     // Ưu tiên fullContent, sau đó content, cuối cùng matchedText
-    const fullDocumentContent = data?.mostSimilarDocument?.fullContent || 
-                               data?.mostSimilarDocument?.content || 
-                               data?.mostSimilarDocument?.matchedText;
-    
+    const fullDocumentContent = data?.mostSimilarDocument?.fullContent ||
+      data?.mostSimilarDocument?.content ||
+      data?.mostSimilarDocument?.matchedText;
+
     if (fullDocumentContent) {
       console.log("Using fallback content:", {
         hasFullContent: !!data?.mostSimilarDocument?.fullContent,
@@ -153,7 +153,7 @@ export default function DetailedComparison() {
       });
       return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
     }
-    
+
     // Fallback cuối: sử dụng matchedText
     const block = selected.matchedText || selected.text || "";
     if (!block) return "";
@@ -307,12 +307,12 @@ export default function DetailedComparison() {
               <div className="text-2xl font-bold text-primary-600">{formatFileSize(data.currentDocument?.fileSize || 0)}</div>
               <div className="text-sm text-neutral-600">Kích thước</div>
             </div>
-                         <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-               <div className="text-lg font-bold text-purple-600">
-                 {dtotalPercent}%
-               </div>
-               <div className="mt-1 text-xs text-purple-600">Dtotal</div>
-             </div>
+            <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+              <div className="text-lg font-bold text-purple-600">
+                {Math.round((data.totalInputSentences / data.totalDuplicatedSentences) * 100)}%
+              </div>
+              <div className="mt-1 text-xs text-purple-600">Dtotal</div>
+            </div>
           </div>
         </div>
 
@@ -343,11 +343,11 @@ export default function DetailedComparison() {
             ) : (
               <div className="space-y-3">
                 {matches.map((m, idx) => {
-                  console.log("Rendering match:", matches.totalInputSentences );
+                  console.log("Rendering match:", matches.totalInputSentences);
                   const docDuplicate = m.duplicateSentences || m.duplicateSentencesDetails?.length || 0;
                   const active = idx === selectedIndex;
                   const inputSentences = data.totalDuplicateSentences || data.duplicateContentSummary?.totalDuplicateSentences || 0;
-                  const rate = docDuplicate / inputSentences * 100;
+                  const rate = (docDuplicate / inputSentences) * 100;
                   // Tạo unique key từ documentId và index để tránh trùng lặp
                   const uniqueKey = `${m.documentId || 'doc'}_${idx}`;
                   return (
@@ -378,7 +378,7 @@ export default function DetailedComparison() {
                             </div>
                           </div>
                           <div className="text-xs text-neutral-600">Câu trùng: {docDuplicate}</div>
-                          
+
                           {/* Preview các câu trùng lặp */}
                           {m.duplicateSentencesDetails && m.duplicateSentencesDetails.length > 0 && (
                             <div className="mt-2">
