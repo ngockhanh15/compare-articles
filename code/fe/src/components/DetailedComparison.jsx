@@ -309,7 +309,7 @@ export default function DetailedComparison() {
             </div>
             <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
               <div className="text-lg font-bold text-purple-600">
-                {Math.round((data.totalInputSentences / data.totalDuplicatedSentences) * 100)}%
+                {Math.round((data.totalDuplicatedSentences / data.totalInputSentences) * 100)}%
               </div>
               <div className="mt-1 text-xs text-purple-600">Dtotal</div>
             </div>
