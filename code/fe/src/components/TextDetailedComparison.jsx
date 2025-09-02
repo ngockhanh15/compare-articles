@@ -336,7 +336,6 @@ export default function TextDetailedComparison() {
 
             <div className="space-y-4">
               {matches.map((match, idx) => {
-                console.log("Rendering match:", matches);
                 const isSelected = idx === selectedIndex;
 
                 return (
@@ -430,7 +429,7 @@ export default function TextDetailedComparison() {
                                               
                                               highlightedText = highlightedText.replace(
                                                 d.inputSentence,
-                                                `<span style="${highlightStyle}" title="${sim}%">${d.inputSentence}</span>`
+                                                `<span style="${highlightStyle}">${d.inputSentence}</span>`
                                               );
                                             }
                                           });
