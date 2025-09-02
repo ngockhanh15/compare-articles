@@ -429,7 +429,8 @@ class DocumentAVLService {
                 sourceTokens.some(srcToken => srcToken.toLowerCase() === token.toLowerCase())
               ).length;
 
-              const similarity = sourceTokens.length > 0 ? (commonTokens / Math.max(inputTokens.length, sourceTokens.length)) * 100 : 0;
+              // Công thức mới: số từ trùng / số từ trong câu đang xét (input sentence)
+              const similarity = inputTokens.length > 0 ? (commonTokens / inputTokens.length) * 100 : 0;
 
               if (similarity > bestMatchSimilarity) {
                 bestMatchSimilarity = similarity;

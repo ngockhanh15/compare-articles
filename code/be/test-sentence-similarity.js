@@ -31,12 +31,11 @@ console.log("Input tokens count:", inputTokens.length);
 console.log("Source tokens count:", sourceTokens.length);
 console.log();
 
-// Tính similarity theo công thức hiện tại
-const similarity = sourceTokens.length > 0 ? (commonTokens.length / Math.max(inputTokens.length, sourceTokens.length)) * 100 : 0;
+// Tính similarity theo công thức mới: số từ trùng / số từ trong câu đang xét
+const similarity = inputTokens.length > 0 ? (commonTokens.length / inputTokens.length) * 100 : 0;
 
 console.log("=== Similarity Calculation ===");
-console.log(`Similarity = (${commonTokens.length} / max(${inputTokens.length}, ${sourceTokens.length})) * 100`);
-console.log(`Similarity = (${commonTokens.length} / ${Math.max(inputTokens.length, sourceTokens.length)}) * 100`);
+console.log(`Similarity = (${commonTokens.length} / ${inputTokens.length}) * 100`);
 console.log(`Similarity = ${similarity.toFixed(2)}%`);
 console.log();
 

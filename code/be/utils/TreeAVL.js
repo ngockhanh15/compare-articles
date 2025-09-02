@@ -527,8 +527,8 @@ static createMurmurHash(text) {
 
     const intersection = [...set1].filter((x) => set2.has(x));
 
-    // Plagiarism Ratio: số cụm từ trùng lặp / tổng số cụm từ trong văn bản kiểm tra * 100%
-    const plagiarismRatio = (intersection.length / set1.size) * 100;
+    // Công thức mới: số cụm từ trùng lặp / tổng số cụm từ trong câu đang xét (text1) * 100%
+    const plagiarismRatio = set1.size > 0 ? (intersection.length / set1.size) * 100 : 0;
 
     return plagiarismRatio;
   }
@@ -543,8 +543,8 @@ static createMurmurHash(text) {
 
     const intersection = [...set1].filter((x) => set2.has(x));
 
-    // Plagiarism Ratio = số từ trùng lặp / tổng số từ trong văn bản kiểm tra * 100%
-    return (intersection.length / set2.size) * 100;
+    // Công thức mới: số từ trùng lặp / tổng số từ trong câu đang xét (text1) * 100%
+    return set1.size > 0 ? (intersection.length / set1.size) * 100 : 0;
   }
 
   // Tách văn bản thành các câu hoàn chỉnh
