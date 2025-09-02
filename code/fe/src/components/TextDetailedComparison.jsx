@@ -406,96 +406,74 @@ export default function TextDetailedComparison() {
                           <div className="p-4 border border-gray-200 rounded-lg bg-gray-50">
                             <p className="text-sm font-medium text-gray-700 mb-4">So sánh toàn bộ nội dung:</p>
                             <div className="grid grid-cols-2 gap-4">
-                              {/* Văn bản của người dùng với highlight */}
+                              {/* Văn bản của người dùng - chỉ hiển thị câu trùng */}
                               <div>
                                 <div className="flex items-center mb-2">
                                   <span className="text-sm text-blue-600 font-medium mr-1">📄</span>
-                                  <span className="text-sm text-blue-600 font-medium">Văn bản của bạn (tô đậm chỗ trùng):</span>
+                                  <span className="text-sm text-blue-600 font-medium">Câu trùng trong văn bản của bạn:</span>
                                 </div>
                                 <div className="p-3 border rounded-lg border-blue-200 bg-blue-50 max-h-64 overflow-auto">
-                                  <div
-                                    className="text-xs leading-relaxed whitespace-pre-wrap text-gray-800"
-                                    dangerouslySetInnerHTML={{
-                                      __html: (() => {
-                                        // Tạo highlighted text từ input text với match hiện tại
-                                        const inputText = data?.inputText || data?.currentDocument?.content || "";
-                                        if (!inputText) return "Không có nội dung";
-                                        
-                                        const details = match.duplicateSentencesDetails || [];
-                                        if (Array.isArray(details) && details.length > 0) {
-                                          let highlightedText = inputText;
-                                          
-                                          details.forEach((d) => {
-                                            if (d.inputSentence) {
-                                              const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
-                                              const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-                                              const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
-                                              
-                                              highlightedText = highlightedText.replace(
-                                                d.inputSentence,
-                                                `<span style="${highlightStyle}">${d.inputSentence}</span>`
-                                              );
-                                            }
-                                          });
-                                          
-                                          return highlightedText.replace(/\n/g, "<br/>");
-                                        }
-                                        
-                                        return inputText.replace(/\n/g, "<br/>");
-                                      })()
-                                    }}
-                                  />
+                                  <div className="text-xs leading-relaxed text-gray-800">
+                                    {(() => {
+                                      const details = match.duplicateSentencesDetails || [];
+                                      if (Array.isArray(details) && details.length > 0) {
+                                        return details.map((d, idx) => {
+                                          if (d.inputSentence) {
+                                            const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
+                                            const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
+                                            
+                                            return (
+                                              <div key={idx} className="mb-2 p-2 rounded" style={{
+                                                backgroundColor: `${color}20`,
+                                                borderLeft: `3px solid ${color}`
+                                              }}>
+                                                <div className="text-xs text-gray-500 mb-1">Câu {idx + 1} ({sim.toFixed(1)}% trùng):</div>
+                                                <div>{d.inputSentence}</div>
+                                              </div>
+                                            );
+                                          }
+                                          return null;
+                                        });
+                                      }
+                                      return <div className="text-gray-500">Không có câu trùng</div>;
+                                    })()}
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Document trong database với highlight */}
+                              {/* Document trong database - chỉ hiển thị câu trùng */}
                               <div>
                                 <div className="flex items-center mb-2">
                                   <span className="text-sm text-orange-600 font-medium mr-1">📚</span>
-                                  <span className="text-sm text-orange-600 font-medium">Document trong DB (tô đậm chỗ trùng):</span>
+                                  <span className="text-sm text-orange-600 font-medium">Câu trùng trong document DB:</span>
                                 </div>
                                 <div className="p-3 border rounded-lg border-orange-200 bg-orange-50 max-h-64 overflow-auto">
-                                  <div
-                                    className="text-xs leading-relaxed whitespace-pre-wrap text-gray-800"
-                                    dangerouslySetInnerHTML={{
-                                      __html: (() => {
-                                        // Lấy toàn bộ nội dung document
-                                        const fullDocumentContent = 
-                                          match.fullContent ||
-                                          match.content ||
-                                          match.text ||
-                                          data?.mostSimilarDocument?.fullContent ||
-                                          data?.mostSimilarDocument?.content ||
-                                          data?.mostSimilarDocument?.matchedText ||
-                                          match.matchedText || "";
-                                        
-                                        if (!fullDocumentContent) {
-                                          return "Không có nội dung để hiển thị";
-                                        }
-                                        
-                                        const details = match.duplicateSentencesDetails || [];
-                                        if (Array.isArray(details) && details.length > 0) {
-                                          let highlightedText = fullDocumentContent;
-                                          
-                                          details.forEach((d) => {
-                                            const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
-                                            if (docSentence && highlightedText.includes(docSentence)) {
-                                              const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
-                                              const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-                                              const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
-                                              
-                                              const regex = new RegExp(docSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                                              highlightedText = highlightedText.replace(regex, `<span style="${highlightStyle}" title="${sim}%">${docSentence}</span>`);
-                                            }
-                                          });
-                                          
-                                          return highlightedText.replace(/\n/g, "<br/>");
-                                        }
-                                        
-                                        return fullDocumentContent.replace(/\n/g, "<br/>");
-                                      })()
-                                    }}
-                                  />
+                                  <div className="text-xs leading-relaxed text-gray-800">
+                                    {(() => {
+                                      const details = match.duplicateSentencesDetails || [];
+                                      if (Array.isArray(details) && details.length > 0) {
+                                        return details.map((d, idx) => {
+                                          const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
+                                          if (docSentence) {
+                                            const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
+                                            const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
+                                            
+                                            return (
+                                              <div key={idx} className="mb-2 p-2 rounded" style={{
+                                                backgroundColor: `${color}20`,
+                                                borderLeft: `3px solid ${color}`
+                                              }}>
+                                                <div className="text-xs text-gray-500 mb-1">Câu {idx + 1} ({sim.toFixed(1)}% trùng):</div>
+                                                <div>{docSentence}</div>
+                                              </div>
+                                            );
+                                          }
+                                          return null;
+                                        });
+                                      }
+                                      return <div className="text-gray-500">Không có câu trùng</div>;
+                                    })()}
+                                  </div>
                                 </div>
                               </div>
                             </div>

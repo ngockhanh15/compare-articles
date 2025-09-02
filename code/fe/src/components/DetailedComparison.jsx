@@ -232,15 +232,37 @@ export default function DetailedComparison() {
             <div className="p-6 bg-white shadow-xl rounded-2xl">
               <h3 className="flex items-center mb-4 text-lg font-semibold text-neutral-800">
                 <span className="mr-2">📄</span>
-                Tài liệu của bạn (đã tô đậm chỗ trùng)
+                Câu trùng trong văn bản của bạn
               </h3>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
-                <div
-                  className="text-sm leading-relaxed whitespace-pre-wrap text-neutral-800"
-                  dangerouslySetInnerHTML={{
-                    __html: leftHtml
-                  }}
-                />
+                <div className="text-sm leading-relaxed text-neutral-800">
+                  {(() => {
+                    const selected = matches[selectedIndex];
+                    if (!selected) return <div className="text-gray-500">Không có dữ liệu</div>;
+                    
+                    const details = selected.duplicateSentencesDetails || [];
+                    if (Array.isArray(details) && details.length > 0) {
+                      return details.map((d, idx) => {
+                        if (d.inputSentence) {
+                          const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
+                          const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
+                          
+                          return (
+                            <div key={idx} className="mb-2 p-2 rounded" style={{
+                              backgroundColor: `${color}20`,
+                              borderLeft: `3px solid ${color}`
+                            }}>
+                              <div className="text-xs text-gray-500 mb-1">Câu {idx + 1} ({sim.toFixed(1)}% trùng):</div>
+                              <div>{d.inputSentence}</div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      });
+                    }
+                    return <div className="text-gray-500">Không có câu trùng</div>;
+                  })()}
+                </div>
               </div>
             </div>
             <div className="p-6 bg-white shadow-xl rounded-2xl">
