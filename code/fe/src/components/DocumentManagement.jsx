@@ -43,26 +43,26 @@ const DocumentManagement = () => {
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      const response = isAdmin 
+      const response = isAdmin
         ? await api.getAllDocuments({
-            page: currentPage,
-            limit: documentsPerPage,
-            search: searchTerm,
-            fileType: filterType,
-            status: filterStatus,
-            sortBy: 'createdAt',
-            sortOrder: 'desc'
-          })
+          page: currentPage,
+          limit: documentsPerPage,
+          search: searchTerm,
+          fileType: filterType,
+          status: filterStatus,
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        })
         : await api.getUserDocuments({
-            page: currentPage,
-            limit: documentsPerPage,
-            search: searchTerm,
-            fileType: filterType,
-            status: filterStatus,
-            sortBy: 'createdAt',
-            sortOrder: 'desc'
-          });
-      
+          page: currentPage,
+          limit: documentsPerPage,
+          search: searchTerm,
+          fileType: filterType,
+          status: filterStatus,
+          sortBy: 'createdAt',
+          sortOrder: 'desc'
+        });
+
       if (response.success) {
         setDocuments(response.documents);
         setTotalPages(response.pagination.totalPages);
@@ -78,7 +78,7 @@ const DocumentManagement = () => {
 
   const fetchStats = async () => {
     try {
-      const response = isAdmin 
+      const response = isAdmin
         ? await api.getAllDocumentStats()
         : await api.getDocumentStats();
       if (response.success) {
@@ -93,13 +93,13 @@ const DocumentManagement = () => {
     const confirmMessage = isAdmin && ownerName
       ? `Bạn có chắc chắn muốn xóa tài liệu "${documentTitle}" của người dùng "${ownerName}"?`
       : "Bạn có chắc chắn muốn xóa tài liệu này?";
-      
+
     if (!window.confirm(confirmMessage)) {
       return;
     }
 
     try {
-      const response = isAdmin 
+      const response = isAdmin
         ? await api.adminDeleteDocument(documentId)
         : await api.deleteDocument(documentId);
       if (response.success) {
@@ -113,6 +113,7 @@ const DocumentManagement = () => {
           if (currentPage > newTotalPages && newTotalPages > 0) {
             setCurrentPage(newTotalPages);
           }
+          window.location.reload();
           return newTotal;
         });
         fetchStats(); // Refresh stats
@@ -128,22 +129,22 @@ const DocumentManagement = () => {
   const handleDownloadDocument = async (documentId, fileName) => {
     try {
       const response = await api.downloadDocument(documentId);
-      
+
       // Create blob from response
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-      
+
       // Create download link
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      
+
       setError("");
     } catch (error) {
       setError("Không thể tải xuống tài liệu: " + error.message);
@@ -155,9 +156,9 @@ const DocumentManagement = () => {
     try {
       setIsUploading(true);
       setUploadProgress(0);
-      
+
       const response = await api.uploadDocument(file, metadata);
-      
+
       if (response.success) {
         setShowUploadModal(false);
         // Update total documents count
@@ -252,7 +253,7 @@ const DocumentManagement = () => {
             {isAdmin ? 'Quản lý tất cả tài liệu' : 'Quản lý tài liệu'}
           </h3>
           <p className="mt-1 text-sm text-neutral-600">
-            {isAdmin 
+            {isAdmin
               ? `Tổng cộng ${totalDocuments} tài liệu trong hệ thống`
               : `Tổng cộng ${totalDocuments} tài liệu của bạn`
             }
@@ -471,7 +472,7 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const droppedFile = e.dataTransfer.files[0];
       setFile(droppedFile);
@@ -530,146 +531,145 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-          {/* File Upload Area */}
-          <div
-            className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-              dragActive 
-                ? 'border-blue-400 bg-blue-50' 
-                : 'border-neutral-300 hover:border-neutral-400'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            {file ? (
-              <div className="space-y-2">
-                <div className="text-2xl">📄</div>
-                <div className="font-medium text-neutral-900">{file.name}</div>
-                <div className="text-sm text-neutral-500">{formatFileSize(file.size)}</div>
-                <button
-                  type="button"
-                  onClick={() => setFile(null)}
-                  className="text-sm text-red-600 hover:text-red-700"
-                >
-                  Xóa file
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <div className="text-4xl">📤</div>
-                <div className="font-medium text-neutral-900">
-                  Kéo thả file vào đây hoặc click để chọn
+            {/* File Upload Area */}
+            <div
+              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-neutral-300 hover:border-neutral-400'
+                }`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              {file ? (
+                <div className="space-y-2">
+                  <div className="text-2xl">📄</div>
+                  <div className="font-medium text-neutral-900">{file.name}</div>
+                  <div className="text-sm text-neutral-500">{formatFileSize(file.size)}</div>
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="text-sm text-red-600 hover:text-red-700"
+                  >
+                    Xóa file
+                  </button>
                 </div>
-                <div className="text-sm text-neutral-500">
-                  Hỗ trợ: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX (tối đa 50MB)
+              ) : (
+                <div className="space-y-2">
+                  <div className="text-4xl">📤</div>
+                  <div className="font-medium text-neutral-900">
+                    Kéo thả file vào đây hoặc click để chọn
+                  </div>
+                  <div className="text-sm text-neutral-500">
+                    Hỗ trợ: PDF, DOC, DOCX, TXT, XLS, XLSX, PPT, PPTX (tối đa 50MB)
+                  </div>
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx"
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="inline-block px-4 py-2 text-sm font-medium text-blue-600 bg-blue-100 rounded-lg cursor-pointer hover:bg-blue-200"
+                  >
+                    Chọn file
+                  </label>
                 </div>
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx"
-                  className="hidden"
-                  id="file-upload"
-                />
-                <label
-                  htmlFor="file-upload"
-                  className="inline-block px-4 py-2 text-sm font-medium text-blue-600 bg-blue-100 rounded-lg cursor-pointer hover:bg-blue-200"
-                >
-                  Chọn file
+              )}
+            </div>
+
+            {/* Metadata Fields */}
+            <div className="space-y-4">
+              <div>
+                <label className="block mb-2 text-sm font-medium text-neutral-700">
+                  Tiêu đề tài liệu
                 </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập tiêu đề tài liệu..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-neutral-700">
+                  Tác giả
+                </label>
+                <input
+                  type="text"
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập tên tác giả..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-neutral-700">
+                  Mô tả (tùy chọn)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Mô tả ngắn về tài liệu..."
+                />
+              </div>
+
+              <div>
+                <label className="block mb-2 text-sm font-medium text-neutral-700">
+                  Tags (tùy chọn)
+                </label>
+                <input
+                  type="text"
+                  value={tags}
+                  onChange={(e) => setTags(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Nhập tags, cách nhau bằng dấu phẩy..."
+                />
+              </div>
+            </div>
+
+            {/* Upload Progress */}
+            {isUploading && uploadProgress > 0 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Đang upload...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-neutral-200">
+                  <div
+                    className="h-2 transition-all duration-300 bg-blue-600 rounded-full"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
               </div>
             )}
-          </div>
 
-          {/* Metadata Fields */}
-          <div className="space-y-4">
-            <div>
-              <label className="block mb-2 text-sm font-medium text-neutral-700">
-                Tiêu đề tài liệu
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Nhập tiêu đề tài liệu..."
-              />
+            {/* Actions */}
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isUploading}
+                className="px-4 py-2 text-sm font-medium border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={!file || isUploading}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isUploading ? 'Đang upload...' : 'Upload'}
+              </button>
             </div>
-
-            <div>
-              <label className="block mb-2 text-sm font-medium text-neutral-700">
-                Tác giả
-              </label>
-              <input
-                type="text"
-                value={author}
-                onChange={(e) => setAuthor(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Nhập tên tác giả..."
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-sm font-medium text-neutral-700">
-                Mô tả (tùy chọn)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Mô tả ngắn về tài liệu..."
-              />
-            </div>
-
-            <div>
-              <label className="block mb-2 text-sm font-medium text-neutral-700">
-                Tags (tùy chọn)
-              </label>
-              <input
-                type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Nhập tags, cách nhau bằng dấu phẩy..."
-              />
-            </div>
-          </div>
-
-          {/* Upload Progress */}
-          {isUploading && uploadProgress > 0 && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Đang upload...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <div className="w-full h-2 rounded-full bg-neutral-200">
-                <div 
-                  className="h-2 transition-all duration-300 bg-blue-600 rounded-full"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isUploading}
-              className="px-4 py-2 text-sm font-medium border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={!file || isUploading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isUploading ? 'Đang upload...' : 'Upload'}
-            </button>
-          </div>
           </form>
         </div>
       </div>

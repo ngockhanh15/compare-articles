@@ -105,17 +105,11 @@ const UserManagement = () => {
       const response = await api.deleteUser(userId);
       
       if (response.success) {
-        // Cập nhật state local
-        setUsers(users.filter(user => user._id !== userId));
-        
-        // Cập nhật pagination
-        setPagination(prev => ({
-          ...prev,
-          totalUsers: prev.totalUsers - 1
-        }));
-        
         // Hiển thị thông báo thành công
         console.log(response.message);
+        
+        // Reload trang sau khi xóa thành công
+        window.location.reload();
       } else {
         throw new Error(response.error || "Không thể xóa người dùng");
       }
@@ -490,9 +484,9 @@ const UserManagement = () => {
                     // Clean and refresh list
                     setShowAddModal(false);
                     setNewUser({ name: "", email: "", password: "", confirmPassword: "", role: "user" });
-                    // Reload first page to see newest
-                    setCurrentPage(1);
-                    await fetchUsers();
+                    
+                    // Reload trang sau khi thêm thành công
+                    window.location.reload();
                   } catch (e) {
                     console.error(e);
                     setError(e.message || "Không thể tạo tài khoản");
