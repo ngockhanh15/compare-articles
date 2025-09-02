@@ -362,11 +362,11 @@ class DocumentAVLService {
           }
         }
 
-        // Xét ngưỡng cho từng doc
+        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity > 50%
         let sentenceMarkedDuplicate = false;
         for (const [docId, matchedCount] of perDocTokenMatches) {
           const percent = (matchedCount / tokenCount) * 100;
-          if (percent >= 50) {
+          if (percent > 50) {
             sentenceMarkedDuplicate = true;
             if (!docMatches.has(docId)) {
               docMatches.set(docId, { matchedSentenceCount: 0, details: [] });
@@ -449,8 +449,9 @@ class DocumentAVLService {
             };
           }));
 
-          // Lọc bỏ các câu có matchedSentenceSimilarity < 50
-          const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity >= 50);
+          // Lọc bỏ các câu có độ tương tự giữa 2 câu <= 50%
+          // Chỉ giữ lại những câu có độ tương tự > 50%
+          const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity > 50);
 
           // Chỉ thêm vào matches nếu còn có câu trùng lặp sau khi lọc
           if (filteredDetails.length > 0) {
