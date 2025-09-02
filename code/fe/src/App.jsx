@@ -10,6 +10,7 @@ import Home from "./components/Home";
 import Login from "./components/Login";
 import Register from "./components/Register";
 import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 import TextChecker from "./components/TextChecker";
 import UploadChecker from "./components/UploadChecker";
 import DetailedComparison from "./components/DetailedComparison";
@@ -32,7 +33,7 @@ const Layout = ({ children }) => {
     "/forgot-password",
     "/admin",
     "/system-stats",
-  ].includes(location.pathname);
+  ].includes(location.pathname) || location.pathname.startsWith("/reset-password");
 
   if (hideHeaderFooter) {
     return children;

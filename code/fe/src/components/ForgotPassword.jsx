@@ -1,21 +1,30 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { forgotPassword } from "../services/api";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
+    setError("");
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log("Reset password email sent to:", email);
+    try {
+      const result = await forgotPassword(email);
+      
+      if (result.success) {
+        setIsEmailSent(true);
+      }
+    } catch (error) {
+      console.error("Forgot password error:", error);
+      setError(error.message || "Đã xảy ra lỗi khi gửi email đặt lại mật khẩu");
+    } finally {
       setIsLoading(false);
-      setIsEmailSent(true);
-    }, 1500);
+    }
   };
 
   if (isEmailSent) {
@@ -48,13 +57,33 @@ const ForgotPassword = () => {
                     Quay lại đăng nhập
                   </Link>
                   <button
-                    onClick={() => {
-                      setIsEmailSent(false);
-                      setEmail("");
+                    onClick={async () => {
+                      setIsLoading(true);
+                      setError("");
+                      try {
+                        const result = await forgotPassword(email);
+                        if (result.success) {
+                          // Email sent again successfully, stay on success page
+                        }
+                      } catch (error) {
+                        console.error("Resend email error:", error);
+                        setError(error.message || "Đã xảy ra lỗi khi gửi lại email");
+                        setIsEmailSent(false); // Go back to form to show error
+                      } finally {
+                        setIsLoading(false);
+                      }
                     }}
-                    className="flex justify-center w-full px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-neutral-300 rounded-xl text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                    disabled={isLoading}
+                    className="flex justify-center w-full px-4 py-3 text-sm font-medium transition-all duration-200 bg-white border border-neutral-300 rounded-xl text-neutral-700 hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Gửi lại email
+                    {isLoading ? (
+                      <div className="flex items-center">
+                        <div className="w-4 h-4 mr-2 border-b-2 border-neutral-600 rounded-full animate-spin"></div>
+                        Đang gửi...
+                      </div>
+                    ) : (
+                      "Gửi lại email"
+                    )}
                   </button>
                 </div>
               </div>
@@ -85,6 +114,16 @@ const ForgotPassword = () => {
 
         {/* Forgot Password Form */}
         <div className="p-8 bg-white border shadow-xl rounded-2xl border-neutral-100">
+          {/* Error Message */}
+          {error && (
+            <div className="p-4 mb-6 border border-red-200 bg-red-50 rounded-xl">
+              <div className="flex items-center">
+                <span className="mr-2 text-red-500">❌</span>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             {/* Email Field */}
             <div>
@@ -101,7 +140,11 @@ const ForgotPassword = () => {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    // Clear error when user starts typing
+                    if (error) setError("");
+                  }}
                   className="block w-full py-3 pl-10 pr-3 transition-all duration-200 border border-neutral-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-neutral-50 focus:bg-white"
                   placeholder="Nhập email của bạn"
                 />
