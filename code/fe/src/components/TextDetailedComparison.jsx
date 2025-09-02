@@ -348,7 +348,7 @@ export default function TextDetailedComparison() {
                     onClick={() => setSelectedIndex(idx)}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                      <div className="flex-1 w-full">
                         <div className="flex items-center mb-2">
                           <span className="mr-2 text-lg">📄</span>
                           <h3 className="font-medium text-neutral-800">
