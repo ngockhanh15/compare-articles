@@ -176,7 +176,10 @@ export const resetPassword = async (resetToken, password) => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ 
+          password,
+          confirmPassword: password // Gửi confirmPassword giống với password
+        }),
       }
     );
 

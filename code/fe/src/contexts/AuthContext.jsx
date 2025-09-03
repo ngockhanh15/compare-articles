@@ -10,6 +10,11 @@ export const AuthProvider = ({ children }) => {
   // Check if user is logged in on app start
   useEffect(() => {
     const initializeAuth = async () => {
+      // Kiểm tra nếu đang ở trang public không cần authentication
+      const currentPath = window.location.pathname;
+      const publicPaths = ['/login', '/register', '/forgot-password', '/reset-password'];
+      const isPublicPath = publicPaths.some(path => currentPath.startsWith(path));
+      
       const savedUser = localStorage.getItem('user');
       const token = localStorage.getItem('token');
       
@@ -29,20 +34,36 @@ export const AuthProvider = ({ children }) => {
               return; // Đã tìm thấy user hợp lệ, không cần kiểm tra Google session
             }
           } catch (error) {
-            // Token is invalid, clear storage và tiếp tục kiểm tra Google session
+            // Token is invalid, clear storage
             console.error('Token validation failed:', error);
             localStorage.removeItem('user');
             localStorage.removeItem('token');
             setUser(null);
+            
+            // Nếu đang ở trang public, không cần kiểm tra Google session
+            if (isPublicPath) {
+              setIsLoading(false);
+              return;
+            }
           }
         } catch (error) {
           console.error('Error parsing saved user:', error);
           localStorage.removeItem('user');
           localStorage.removeItem('token');
+          
+          // Nếu đang ở trang public, không cần kiểm tra Google session
+          if (isPublicPath) {
+            setIsLoading(false);
+            return;
+          }
         }
+      } else if (isPublicPath) {
+        // Nếu đang ở trang public và không có token, không cần kiểm tra Google session
+        setIsLoading(false);
+        return;
       }
       
-      // Nếu không có localStorage hợp lệ, kiểm tra Google OAuth session
+      // Chỉ kiểm tra Google OAuth session nếu không phải trang public
       try {
         const googleSessionResponse = await fetch('http://localhost:3000/auth/google/status', {
           method: 'GET',
