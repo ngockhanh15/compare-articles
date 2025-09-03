@@ -404,8 +404,8 @@ class DocumentAVLService {
         const totalInputTokens = data.details.reduce((sum, detail) => sum + detail.totalTokens, 0);
         const similarityForSorting = totalInputTokens > 0 ? Math.round((totalMatchedTokens / totalInputTokens) * 100) : 0;
 
-        // Áp dụng ngưỡng lọc: chỉ lấy document có D A/B >= 50%
-        if (similarityForSorting >= minSimilarity && dabPercent >= 50) {
+        // Áp dụng ngưỡng lọc: chỉ lấy document có ít nhất 1 câu trùng
+        if (similarityForSorting >= minSimilarity && dabPercent > 0) {
           // Lấy nội dung document để tìm câu trùng lặp
           const sourceDocument = await Document.findById(docId).select('extractedText title');
           let sourceSentences = [];
@@ -466,7 +466,8 @@ class DocumentAVLService {
             const filteredDabPercent = Math.round((filteredDetails.length / totalInputSentences) * 100);
 
             // Kiểm tra lại ngưỡng D A/B sau khi lọc câu
-            if (filteredDabPercent >= 50) {
+            // Giảm ngưỡng để capture documents có ít câu trùng
+            if (filteredDabPercent > 0) { // Chỉ cần có ít nhất 1 câu trùng lặp
               filteredDetails.forEach(detail => {
                 actualDuplicatedSentenceIndices.add(detail.inputSentenceIndex);
               });
