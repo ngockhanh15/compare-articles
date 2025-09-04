@@ -362,11 +362,11 @@ class DocumentAVLService {
           }
         }
 
-        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity > 50%
+        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity >= 50%
         let sentenceMarkedDuplicate = false;
         for (const [docId, matchedCount] of perDocTokenMatches) {
           const percent = (matchedCount / tokenCount) * 100;
-          if (percent > 50) {
+          if (percent >= 50) {
             sentenceMarkedDuplicate = true;
             if (!docMatches.has(docId)) {
               docMatches.set(docId, { matchedSentenceCount: 0, details: [] });
@@ -424,15 +424,20 @@ class DocumentAVLService {
               const sourceTokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sourceSentence);
               const inputTokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(detail.inputSentence);
 
-              // Tính độ tương tự giữa 2 câu
+              // Bỏ qua nếu một trong hai câu không có token
+              if (inputTokens.length === 0 || sourceTokens.length === 0) continue;
+
+              // Tính độ tương tự giữa 2 câu - cải thiện logic
               const commonTokens = inputTokens.filter(token =>
                 sourceTokens.some(srcToken => srcToken.toLowerCase() === token.toLowerCase())
               ).length;
 
-              // Công thức mới: số từ trùng / số từ trong câu đang xét (input sentence)
-              const similarity = inputTokens.length > 0 ? (commonTokens / inputTokens.length) * 100 : 0;
+              // Sử dụng công thức Jaccard similarity cải tiến:
+              // similarity = (số từ chung) / (số từ trong câu input) * 100
+              // Đảm bảo rằng câu được coi là trùng lặp khi >= 50% từ trong câu input có trong câu source
+              const similarity = (commonTokens / inputTokens.length) * 100;
 
-              if (similarity > bestMatchSimilarity) {
+              if (similarity >= bestMatchSimilarity) {
                 bestMatchSimilarity = similarity;
                 bestMatchSentence = sourceSentence;
               }
@@ -450,9 +455,9 @@ class DocumentAVLService {
             };
           }));
 
-          // Lọc bỏ các câu có độ tương tự giữa 2 câu <= 50%
-          // Chỉ giữ lại những câu có độ tương tự > 50%
-          const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity > 50);
+          // Lọc bỏ các câu có độ tương tự giữa 2 câu < 50%
+          // Chỉ giữ lại những câu có độ tương tự >= 50%
+          const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity >= 50);
 
           // Chỉ thêm vào matches nếu còn có câu trùng lặp sau khi lọc
           if (filteredDetails.length > 0) {
@@ -465,9 +470,9 @@ class DocumentAVLService {
             // D A/B = (số câu trùng lặp từ A sau khi lọc) / (tổng số câu trong A) × 100%
             const filteredDabPercent = Math.round((filteredDetails.length / totalInputSentences) * 100);
 
-            // Kiểm tra lại ngưỡng D A/B sau khi lọc câu
-            // Giảm ngưỡng để capture documents có ít câu trùng
-            if (filteredDabPercent > 0) { // Chỉ cần có ít nhất 1 câu trùng lặp
+            // Kiểm tra lại ngưỡng D A/B sau khi lọc câu có similarity >= 50%
+            // Chỉ giữ lại documents có ít nhất 1 câu trùng lặp với độ tương tự >= 50%
+            if (filteredDabPercent > 0) { // Chỉ cần có ít nhất 1 câu có độ tương tự >= 50%
               filteredDetails.forEach(detail => {
                 actualDuplicatedSentenceIndices.add(detail.inputSentenceIndex);
               });
@@ -496,14 +501,14 @@ class DocumentAVLService {
       matches.sort((a, b) => b.similarity - a.similarity);
       const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
-      // Bước 5: Dtotal (phần trăm câu trùng trong A) - chỉ tính từ các document có D A/B >= 50%
-      // actualDuplicatedSentenceIndices chỉ chứa các câu từ document có D A/B >= 50%
+      // Bước 5: Dtotal (phần trăm câu trùng trong A) - chỉ tính từ các document có similarity >= 50%
+      // actualDuplicatedSentenceIndices chỉ chứa các câu có độ tương tự >= 50% với câu trong tài liệu nguồn
       const actualTotalDuplicatedSentences = actualDuplicatedSentenceIndices.size;
       const dtotalPercent = totalInputSentences > 0 ? Math.round((actualTotalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
       // Xây dựng kết quả cuối
       const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
-      console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có D A/B >= 50%`);
+      console.log(`📊 Kết quả: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có câu trùng lặp >= 50%`);
       return result;
 
     } catch (error) {
@@ -525,7 +530,7 @@ class DocumentAVLService {
       checkedDocuments: this.docInfo.size,
       totalDocumentsInSystem: this.docInfo.size,
       sources: matches.map((m) => m.title),
-      confidence: duplicatePercentage >= 70 ? "high" : duplicatePercentage >= 30 ? "medium" : "low",
+      confidence: duplicatePercentage >= 70 ? "high" : duplicatePercentage >= 50 ? "medium" : "low", // Thay đổi từ 30% lên 50%
       mostSimilarDocument,
       dtotal: duplicatePercentage,
       dab,
