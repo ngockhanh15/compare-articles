@@ -34,13 +34,13 @@ const Header = () => {
               <span>🏠</span>
               <span>Trang chủ</span>
             </Link>
-            <a
-              href="#"
+            <Link
+              to="/user-guide"
               className="flex items-center gap-2 px-4 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
             >
               <span>📚</span>
               <span>Hướng dẫn</span>
-            </a>
+            </Link>
           </nav>
 
           {/* User Authentication */}

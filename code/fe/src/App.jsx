@@ -3,6 +3,7 @@ import {
   Routes,
   Route,
   useLocation,
+  Link,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import Header from "./components/Header";
@@ -21,6 +22,7 @@ import AdminDashboard from "./components/AdminDashboard";
 import SystemStats from "./components/SystemStats";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
+import UserGuide from "./components/UserGuide";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import AuthCallback from "./components/AuthCallback";
 
@@ -65,28 +67,28 @@ const Layout = ({ children }) => {
               </h4>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    to="/"
                     className="transition-colors text-neutral-300 hover:text-white"
                   >
                     Trang chủ
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    to="/text-checker"
                     className="transition-colors text-neutral-300 hover:text-white"
                   >
                     Kiểm tra văn bản
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="#"
+                  <Link
+                    to="/user-guide"
                     className="transition-colors text-neutral-300 hover:text-white"
                   >
                     Hướng dẫn sử dụng
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
@@ -144,6 +146,7 @@ function App() {
           <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
+              <Route path="/user-guide" element={<UserGuide />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
