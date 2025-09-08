@@ -277,7 +277,7 @@ export default function DetailedComparison() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
               <button
-                onClick={() => navigate("/text-checker")}
+                onClick={() => navigate("/upload-checker")}
                 className="flex items-center px-3 py-2 mr-4 text-sm text-neutral-600 hover:text-neutral-800"
               >
                 <span className="mr-1">←</span>
