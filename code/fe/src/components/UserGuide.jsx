@@ -170,6 +170,10 @@ const UserGuide = () => {
                 </p>
               </div>
             </div>
+            {/* Ảnh */}
+            <div className="mt-4">
+              <img src="/images/Access.jpg" alt="Upload Guide" className="max-w-full h-auto rounded-md shadow-md" />
+            </div>
 
             <div className="flex items-start space-x-4 p-4 bg-white rounded-lg border border-gray-200">
               <div className="flex-shrink-0 w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center font-semibold">
@@ -182,6 +186,10 @@ const UserGuide = () => {
                 </p>
               </div>
             </div>
+            {/* Ảnh */}
+            <div className="mt-4">
+              <img src="/images/Compare.jpg" alt="Upload Guide" className="max-w-full h-auto rounded-md shadow-md" />
+            </div>
 
             <div className="flex items-start space-x-4 p-4 bg-white rounded-lg border border-gray-200">
               <div className="flex-shrink-0 w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center font-semibold">
@@ -193,6 +201,11 @@ const UserGuide = () => {
                   File sẽ được tải lên và hệ thống tự động trích xuất nội dung để phân tích.
                 </p>
               </div>
+            </div>
+
+            {/* Ảnh */}
+            <div className="mt-4">
+              <img src="/images/Detail.jpg" alt="Upload Guide" className="max-w-full h-auto rounded-md shadow-md" />
             </div>
 
             <div className="flex items-start space-x-4 p-4 bg-white rounded-lg border border-gray-200">
@@ -261,7 +274,7 @@ const UserGuide = () => {
                 <span className="mr-2">📋</span>
                 Danh sách tài liệu
               </h4>
-              
+
               <div className="space-y-3">
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Xem danh sách</h5>
@@ -269,14 +282,14 @@ const UserGuide = () => {
                     Tất cả tài liệu đã kiểm tra được hiển thị với thông tin: tên file, ngày kiểm tra, tỷ lệ trùng lặp.
                   </p>
                 </div>
-                
+
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Tìm kiếm & Lọc</h5>
                   <p className="text-sm text-gray-600 mt-1">
                     Sử dụng thanh tìm kiếm để tìm tài liệu theo tên hoặc lọc theo ngày tháng.
                   </p>
                 </div>
-                
+
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Sắp xếp</h5>
                   <p className="text-sm text-gray-600 mt-1">
@@ -291,7 +304,7 @@ const UserGuide = () => {
                 <span className="mr-2">⚙️</span>
                 Thao tác với tài liệu
               </h4>
-              
+
               <div className="space-y-3">
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Xem chi tiết</h5>
@@ -299,14 +312,14 @@ const UserGuide = () => {
                     Nhấp vào tài liệu để xem báo cáo chi tiết với các đoạn trùng lặp được đánh dấu.
                   </p>
                 </div>
-                
+
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Tải xuống báo cáo</h5>
                   <p className="text-sm text-gray-600 mt-1">
                     Xuất báo cáo so sánh dưới dạng PDF hoặc Word để lưu trữ.
                   </p>
                 </div>
-                
+
                 <div className="p-3 bg-white rounded border border-gray-200">
                   <h5 className="font-medium text-gray-800">Xóa tài liệu</h5>
                   <p className="text-sm text-gray-600 mt-1">
@@ -382,7 +395,7 @@ const UserGuide = () => {
 
           <div className="space-y-4">
             <h4 className="text-lg font-semibold text-gray-800">📋 Các thành phần trong báo cáo:</h4>
-            
+
             <div className="space-y-3">
               <div className="p-4 bg-white rounded-lg border border-gray-200">
                 <h5 className="font-medium text-gray-800 mb-2">1. Tỷ lệ trùng lặp tổng thể</h5>
@@ -550,11 +563,10 @@ const UserGuide = () => {
                   <button
                     key={section.id}
                     onClick={() => setActiveSection(section.id)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center space-x-3 ${
-                      activeSection === section.id
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center space-x-3 ${activeSection === section.id
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                   >
                     <span className="text-lg">{section.icon}</span>
                     <span className="text-sm font-medium">{section.title}</span>
@@ -591,7 +603,7 @@ const UserGuide = () => {
               <div className="text-4xl mb-4">📝</div>
               <h4 className="font-semibold text-gray-800 mb-2">Kiểm tra văn bản</h4>
               <p className="text-sm text-gray-600 mb-4">Nhập trực tiếp văn bản để kiểm tra</p>
-              <Link 
+              <Link
                 to="/text-checker"
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors inline-block"
               >
@@ -603,7 +615,7 @@ const UserGuide = () => {
               <div className="text-4xl mb-4">📄</div>
               <h4 className="font-semibold text-gray-800 mb-2">Upload file</h4>
               <p className="text-sm text-gray-600 mb-4">Tải lên file tài liệu để phân tích</p>
-              <Link 
+              <Link
                 to="/upload-checker"
                 className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors inline-block"
               >
@@ -615,7 +627,7 @@ const UserGuide = () => {
               <div className="text-4xl mb-4">📚</div>
               <h4 className="font-semibold text-gray-800 mb-2">Quản lý tài liệu</h4>
               <p className="text-sm text-gray-600 mb-4">Xem lịch sử và quản lý kết quả</p>
-              <Link 
+              <Link
                 to="/documents"
                 className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors inline-block"
               >

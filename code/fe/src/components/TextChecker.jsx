@@ -447,49 +447,6 @@ const TextChecker = () => {
                       </p>
                     </div>
                   </div>
-
-                  {/* Thêm vào phần hiển thị kết quả */}
-                  {results.nameDocumentWithMostDuplicates && (
-                    <div className="p-6 mt-6 mb-3 bg-white shadow-lg rounded-xl">
-                      <h3 className="mb-4 text-xl font-semibold text-neutral-800">
-                        Thống kê chi tiết
-                      </h3>
-
-                      {/* Thông tin về tài liệu trùng lặp nhiều nhất */}
-                      {(results.nameDocumentWithMostDuplicates ||
-                        results.maxDuplicateSentences > 0) && (
-                          <div className="p-4 mt-4 rounded-lg bg-green-50">
-                            <h4 className="mb-2 font-medium text-green-800">
-                              Tài liệu trùng lặp nhiều nhất
-                            </h4>
-                            <p className="text-sm text-neutral-600">
-                              {results.nameDocumentWithMostDuplicates ? (
-                                <>
-                                  Tài liệu "{" "}
-                                  <span className="font-medium text-green-700">
-                                    {results.nameDocumentWithMostDuplicates}
-                                  </span>
-                                  " có{" "}
-                                  <span className="font-medium text-green-700">
-                                    {results.totalDuplicateSentences}
-                                  </span>{" "}
-                                  câu trùng lặp với văn bản của bạn.
-                                </>
-                              ) : (
-                                <>
-                                  Có{" "}
-                                  <span className="font-medium text-green-700">
-                                    {results.maxDuplicateSentences}
-                                  </span>{" "}
-                                  câu trùng lặp được tìm thấy với một tài liệu
-                                  trong hệ thống.
-                                </>
-                              )}
-                            </p>
-                          </div>
-                        )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Statistics */}
