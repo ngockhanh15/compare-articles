@@ -597,12 +597,19 @@ const UserGuide = () => {
 
         {/* Quick Access Cards */}
         <div className="mt-12">
-          <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">Truy cập nhanh</h3>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center">
+          <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+            Truy cập nhanh
+          </h3>
+
+
+          {/* Dùng flex để căn giữa */}
+          <div className="flex flex-col md:flex-row justify-center gap-6">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center max-w-sm">
               <div className="text-4xl mb-4">📝</div>
               <h4 className="font-semibold text-gray-800 mb-2">Kiểm tra văn bản</h4>
-              <p className="text-sm text-gray-600 mb-4">Nhập trực tiếp văn bản để kiểm tra</p>
+              <p className="text-sm text-gray-600 mb-4">
+                Nhập trực tiếp văn bản để kiểm tra
+              </p>
               <Link
                 to="/text-checker"
                 className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors inline-block"
@@ -611,27 +618,17 @@ const UserGuide = () => {
               </Link>
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center">
+            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center max-w-sm">
               <div className="text-4xl mb-4">📄</div>
               <h4 className="font-semibold text-gray-800 mb-2">Upload file</h4>
-              <p className="text-sm text-gray-600 mb-4">Tải lên file tài liệu để phân tích</p>
+              <p className="text-sm text-gray-600 mb-4">
+                Tải lên file tài liệu để phân tích
+              </p>
               <Link
                 to="/upload-checker"
                 className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors inline-block"
               >
                 Chọn file
-              </Link>
-            </div>
-
-            <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 text-center">
-              <div className="text-4xl mb-4">📚</div>
-              <h4 className="font-semibold text-gray-800 mb-2">Quản lý tài liệu</h4>
-              <p className="text-sm text-gray-600 mb-4">Xem lịch sử và quản lý kết quả</p>
-              <Link
-                to="/documents"
-                className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors inline-block"
-              >
-                Xem tài liệu
               </Link>
             </div>
           </div>
