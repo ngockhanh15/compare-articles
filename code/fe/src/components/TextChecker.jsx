@@ -296,6 +296,16 @@ const TextChecker = () => {
     setInputText("");
     setResults(null);
     setError("");
+    setIsChecking(false);
+    setShowDocumentSelector(false);
+    setDetailedStats({
+      totalSentencesWithInputWords: 0,
+      maxDuplicateSentences: 0,
+      documentWithMostDuplicates: null,
+      totalDuplicateSentences: 0,
+      totalUniqueWordPairs: 0,
+      totalUniqueWords: 0,
+    });
   };
 
   return (

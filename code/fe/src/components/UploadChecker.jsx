@@ -75,7 +75,10 @@ const UploadChecker = () => {
 
   const handleRemoveFile = () => {
     setSelectedFile(null);
+    setResults(null);
     setError("");
+    setIsChecking(false);
+    setIsUploading(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
