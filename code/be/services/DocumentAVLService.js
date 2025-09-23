@@ -2,6 +2,7 @@ const { TreeAVL, TextHasher } = require("../utils/TreeAVL");
 const Document = require("../models/Document");
 const GlobalAVLTreeUnified = require("../models/GlobalAVLTreeUnified");
 const TokenizedWord = require("../models/TokenizedWord");
+const Threshold = require("../models/Threshold");
 const vietnameseStopwordService = require("./VietnameseStopwordService");
 
 class DocumentAVLService {
@@ -325,7 +326,19 @@ class DocumentAVLService {
     return weights[fileType] || 9;
   }
 
-  // Kiểm tra nội dung trùng lặp sử dụng cây AVL - phiên bản tối ưu
+  // Get current sentence threshold from database
+  async getCurrentSentenceThreshold() {
+    try {
+      const thresholds = await Threshold.getThresholdValues();
+      console.log(`🚀 Current sentence threshold: ${thresholds.sentenceThreshold}%`);
+      return thresholds;
+    } catch (error) {
+      console.error("Error getting sentence threshold, using default:", error);
+      return 50; // Fallback to default
+    }
+  }
+
+  // Kiểm tra nội dung trùng lặp sử dụng cây AVL - phiên bản tối ưu performance
   async checkDuplicateContent(text, options = {}) {
     // Khởi tạo các service cần thiết
     if (!this.initialized) await this.initialize();
@@ -333,12 +346,26 @@ class DocumentAVLService {
       await vietnameseStopwordService.initialize();
     }
 
-    const { minSimilarity = 50, maxResults = null } = options;
+    // Lấy ngưỡng câu từ database, fallback về options hoặc default
+    const threhold = await this.getCurrentSentenceThreshold();
+    const sentenceThreshold = threhold.sentenceThreshold;
+    const { minSimilarity = sentenceThreshold, maxResults = null } = options;
+    
+    console.log(`🎯 Using sentence threshold: ${sentenceThreshold}% (from database)`);
+    console.log(`📊 Using minSimilarity: ${minSimilarity}% (for result filtering)`);
+    
+    // Sử dụng sentenceThreshold cho việc đánh dấu câu trùng lặp
+    const duplicateThreshold = sentenceThreshold;
 
     try {
       // Bước 1: Tách câu và tokenize trước - tránh tokenize lại nhiều lần
       const inputSentences = TextHasher.extractSentences(text);
       const totalInputSentences = inputSentences.length;
+      
+      // Early return nếu không có câu nào để xử lý
+      if (totalInputSentences === 0) {
+        return this.buildFinalResult([], 0, 0, 0);
+      }
       
       // Cache tokenization kết quả để tái sử dụng
       const sentenceTokenCache = new Map(); // sentenceIndex -> tokens
@@ -384,12 +411,12 @@ class DocumentAVLService {
           }
         }
 
-        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity >= 50%
+        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity >= duplicateThreshold
         let sentenceMarkedDuplicate = false;
         for (const [docId, matchedTokenSet] of perDocTokenMatches) {
           const matchedCount = matchedTokenSet.size;
           const percent = (matchedCount / tokenCount) * 100;
-          if (percent >= 50) {
+          if (percent >= duplicateThreshold) {
             sentenceMarkedDuplicate = true;
             if (!docMatches.has(docId)) {
               docMatches.set(docId, { matchedSentenceCount: 0, details: [] });
@@ -500,9 +527,16 @@ class DocumentAVLService {
                   
                   if (!sourceTokens || sourceTokens.length === 0) continue;
 
-                  // Tối ưu việc tính common tokens bằng Set intersection
+                  // Tối ưu việc tính common tokens bằng Set intersection hiệu quả hơn
                   const sourceTokenSet = new Set(sourceTokens.map(t => t.toLowerCase()));
-                  const commonTokensCount = [...inputTokenSet].filter(token => sourceTokenSet.has(token)).length;
+                  
+                  // Sử dụng vòng lặp thay vì filter để tối ưu performance
+                  let commonTokensCount = 0;
+                  for (const token of inputTokenSet) {
+                    if (sourceTokenSet.has(token)) {
+                      commonTokensCount++;
+                    }
+                  }
 
                   const similarity = (commonTokensCount / inputTokens.length) * 100;
 
@@ -524,18 +558,26 @@ class DocumentAVLService {
                 };
               });
 
-              // Lọc bỏ các câu có độ tương tự < 50%
-              const filteredDetails = enrichedDetails.filter(detail => detail.matchedSentenceSimilarity >= 50);
+              // Lọc bỏ các câu có độ tương tự < 50% và tính toán trong một lần duyệt
+              const filteredDetails = [];
+              const duplicatedIndices = [];
+              let filteredTotalMatchedTokens = 0;
+              let filteredTotalInputTokens = 0;
+
+              for (const detail of enrichedDetails) {
+                if (detail.matchedSentenceSimilarity >= threhold.documentComparisonThreshold) {
+                  filteredDetails.push(detail);
+                  duplicatedIndices.push(detail.inputSentenceIndex);
+                  filteredTotalMatchedTokens += detail.matchedTokens;
+                  filteredTotalInputTokens += detail.totalTokens;
+                }
+              }
 
               if (filteredDetails.length > 0) {
-                const filteredTotalMatchedTokens = filteredDetails.reduce((sum, detail) => sum + detail.matchedTokens, 0);
-                const filteredTotalInputTokens = filteredDetails.reduce((sum, detail) => sum + detail.totalTokens, 0);
                 const filteredSimilarityForSorting = filteredTotalInputTokens > 0 ? Math.round((filteredTotalMatchedTokens / filteredTotalInputTokens) * 100) : 0;
                 const filteredDabPercent = Math.round((filteredDetails.length / totalInputSentences) * 100);
 
                 if (filteredDabPercent > 0) {
-                  // Collect duplicated sentence indices
-                  const duplicatedIndices = filteredDetails.map(detail => detail.inputSentenceIndex);
                   
                   batchMatches.push({
                     match: {
@@ -571,8 +613,10 @@ class DocumentAVLService {
           }
         }
 
-        // Bước 5: Sắp xếp và giới hạn kết quả
-        matches.sort((a, b) => b.similarity - a.similarity);
+        // Bước 5: Sắp xếp và giới hạn kết quả (tối ưu cho trường hợp ít kết quả)
+        if (matches.length > 1) {
+          matches.sort((a, b) => b.similarity - a.similarity);
+        }
         const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
 
         // Bước 6: Tính toán kết quả cuối
@@ -580,7 +624,7 @@ class DocumentAVLService {
         const dtotalPercent = totalInputSentences > 0 ? Math.round((actualTotalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
         const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
-        console.log(`📊 Kết quả tối ưu: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có câu trùng lặp >= 50%`);
+        console.log(`📊 Kết quả tối ưu: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có câu trùng lặp >= ${duplicateThreshold}%`);
         return result;
       }
 

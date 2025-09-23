@@ -10,12 +10,16 @@ router.use(protect);
 // Admin routes for managing all documents
 router.get('/admin/all', authorize('admin'), documentController.getAllDocuments);
 router.get('/admin/stats', authorize('admin'), documentController.getAllDocumentStats);
+router.get('/admin/stats/document-uploads', authorize('admin'), documentController.getDocumentUploadStats);
 router.delete('/admin/:id', authorize('admin'), documentController.adminDeleteDocument);
 
 // ===== DOCUMENT MANAGEMENT ROUTES =====
 
 // Upload document
 router.post('/upload', documentController.uploadDocument);
+
+// Bulk upload documents from ZIP file
+router.post('/bulk-upload', documentController.bulkUploadDocuments);
 
 // Get user documents with pagination and filters
 router.get('/', documentController.getUserDocuments);

@@ -75,10 +75,10 @@ class PlagiarismCacheService {
         return [];
       }
 
-      // Sử dụng checkDuplicateContent với threshold thấp để tìm similar
+      // Sử dụng checkDuplicateContent để tìm similar
+      // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
       try {
         const result = await this.documentAVLService.checkDuplicateContent(text, {
-          minSimilarity: threshold * 100,
           maxResults: 10
         });
         

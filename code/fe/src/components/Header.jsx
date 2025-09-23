@@ -4,11 +4,13 @@ import { useAuth } from "../contexts/AuthContext";
 
 const Header = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
 
   const handleLogout = () => {
     logout();
     setShowUserMenu(false);
+    setShowMobileMenu(false);
   };
 
   return (
@@ -41,6 +43,15 @@ const Header = () => {
               <span>📚</span>
               <span>Hướng dẫn</span>
             </Link>
+            {isAuthenticated && (
+              <Link
+                to="/history"
+                className="flex items-center gap-2 px-4 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
+              >
+                <span>📋</span>
+                <span>Lịch sử</span>
+              </Link>
+            )}
           </nav>
 
           {/* User Authentication */}
@@ -110,6 +121,15 @@ const Header = () => {
                       )}
                     </div>
 
+                    <Link
+                      to="/profile"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
+                    >
+                      <span className="text-lg">👤</span>
+                      <span>Thông tin cá nhân</span>
+                    </Link>
+
                     {user?.role === 'admin' && (
                       <>
                         <Link
@@ -136,7 +156,10 @@ const Header = () => {
           </div>
 
           {/* Mobile menu button */}
-          <button className="p-2 transition-colors rounded-lg md:hidden hover:bg-white/10">
+          <button 
+            onClick={() => setShowMobileMenu(!showMobileMenu)}
+            className="p-2 transition-colors rounded-lg md:hidden hover:bg-white/10"
+          >
             <svg
               className="w-6 h-6"
               fill="none"
@@ -147,11 +170,108 @@ const Header = () => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
+                d={showMobileMenu ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
               />
             </svg>
           </button>
         </div>
+
+        {/* Mobile Menu */}
+        {showMobileMenu && (
+          <div className="md:hidden">
+            <div className="px-4 py-3 space-y-1 border-t border-primary-600/20">
+              <Link
+                to="/"
+                onClick={() => setShowMobileMenu(false)}
+                className="flex items-center gap-2 px-3 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
+              >
+                <span>🏠</span>
+                <span>Trang chủ</span>
+              </Link>
+              <Link
+                to="/user-guide"
+                onClick={() => setShowMobileMenu(false)}
+                className="flex items-center gap-2 px-3 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
+              >
+                <span>📚</span>
+                <span>Hướng dẫn</span>
+              </Link>
+              {isAuthenticated && (
+                <Link
+                  to="/history"
+                  onClick={() => setShowMobileMenu(false)}
+                  className="flex items-center gap-2 px-3 py-2 transition-all duration-200 rounded-lg hover:bg-white/10"
+                >
+                  <span>📋</span>
+                  <span>Lịch sử</span>
+                </Link>
+              )}
+              
+              {/* Mobile Auth Section */}
+              <div className="pt-3 mt-3 border-t border-primary-600/20">
+                {!isAuthenticated ? (
+                  <div className="space-y-2">
+                    <Link
+                      to="/login"
+                      onClick={() => setShowMobileMenu(false)}
+                      className="flex items-center justify-center gap-2 px-4 py-2 text-primary-600 bg-white rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium"
+                    >
+                      <span>🔐</span>
+                      <span>Đăng nhập</span>
+                    </Link>
+                    <Link
+                      to="/register"
+                      onClick={() => setShowMobileMenu(false)}
+                      className="flex items-center justify-center gap-2 px-4 py-2 border-2 border-white/30 rounded-lg hover:bg-white/10 hover:border-white/50 transition-all duration-200 font-medium"
+                    >
+                      <span>Đăng ký</span>
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3 px-3 py-2">
+                      <div className="flex items-center justify-center rounded-full shadow-sm w-8 h-8 bg-gradient-to-br from-accent-400 to-accent-600">
+                        <span className="text-sm font-bold text-white">{user?.avatar || 'U'}</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{user?.name || 'Người dùng'}</p>
+                        <p className="text-xs text-primary-100">{user?.email || ''}</p>
+                      </div>
+                    </div>
+                    
+                    <Link
+                      to="/profile"
+                      onClick={() => setShowMobileMenu(false)}
+                      className="flex items-center gap-3 px-3 py-2 transition-colors rounded-lg hover:bg-white/10"
+                    >
+                      <span>👤</span>
+                      <span>Thông tin cá nhân</span>
+                    </Link>
+                    
+                    {user?.role === 'admin' && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2 transition-colors rounded-lg hover:bg-white/10"
+                      >
+                        <span>🛠️</span>
+                        <span>Bảng điều khiển Admin</span>
+                      </Link>
+                    )}
+                    
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full gap-3 px-3 py-2 transition-colors rounded-lg text-red-200 hover:bg-red-500/20"
+                    >
+                      <span>🚪</span>
+                      <span>Đăng xuất</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </header>
   );

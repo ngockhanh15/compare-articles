@@ -6,6 +6,7 @@ import {
   Link,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import Header from "./components/Header";
 import Home from "./components/Home";
 import Login from "./components/Login";
@@ -20,9 +21,11 @@ import AllDocumentsComparison from "./components/AllDocumentsComparison";
 import DocumentManagement from "./components/DocumentManagement";
 import AdminDashboard from "./components/AdminDashboard";
 import SystemStats from "./components/SystemStats";
+import HistoryPage from "./components/HistoryPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import UserGuide from "./components/UserGuide";
+import Profile from "./components/Profile";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import AuthCallback from "./components/AuthCallback";
 
@@ -90,6 +93,14 @@ const Layout = ({ children }) => {
                     Hướng dẫn sử dụng
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    to="/history"
+                    className="transition-colors text-neutral-300 hover:text-white"
+                  >
+                    Lịch sử kiểm tra
+                  </Link>
+                </li>
               </ul>
             </div>
 
@@ -142,8 +153,9 @@ function App() {
   return (
     <GoogleOAuthProvider clientId={import.meta.env.VITE_APP_GOOGLE_CLIENT_ID}>
       <AuthProvider>
-        <Router>
-          <Layout>
+        <NotificationProvider>
+          <Router>
+            <Layout>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/user-guide" element={<UserGuide />} />
@@ -201,6 +213,22 @@ function App() {
                 }
               />
               <Route
+                path="/history"
+                element={
+                  <ProtectedRoute>
+                    <HistoryPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/admin"
                 element={
                   <AdminRoute>
@@ -217,8 +245,9 @@ function App() {
                 }
               />
             </Routes>
-          </Layout>
-        </Router>
+            </Layout>
+          </Router>
+        </NotificationProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   );

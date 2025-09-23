@@ -11,6 +11,8 @@ const getAllUsers = async (req, res) => {
       limit = 10,
       search = '',
       role = 'all',
+      dateFrom = '',
+      dateTo = '',
       sortBy = 'createdAt',
       sortOrder = 'desc'
     } = req.query;
@@ -29,6 +31,20 @@ const getAllUsers = async (req, res) => {
     // Role filter
     if (role !== 'all') {
       query.role = role;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) {
+        query.createdAt.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        // Add 1 day to include the entire end date
+        const endDate = new Date(dateTo);
+        endDate.setDate(endDate.getDate() + 1);
+        query.createdAt.$lt = endDate;
+      }
     }
 
     // Sort options

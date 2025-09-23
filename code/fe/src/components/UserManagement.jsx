@@ -1,14 +1,37 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import * as api from "../services/api";
+import * as XLSX from "xlsx";
+
+// Custom debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 
 const UserManagement = () => {
   const { user: authUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [usersPerPage] = useState(5);
   const [pagination, setPagination] = useState({
@@ -27,6 +50,16 @@ const UserManagement = () => {
     role: "user",
   });
   const [roleUpdating, setRoleUpdating] = useState({}); // map of userId -> boolean
+  const [exporting, setExporting] = useState(false);
+
+  // Debounced values to prevent excessive API calls
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // 500ms delay for search
+
+  // Track if user is actively typing/changing filters
+  useEffect(() => {
+    const isTyping = searchTerm !== debouncedSearchTerm;
+    setIsSearching(isTyping);
+  }, [searchTerm, debouncedSearchTerm]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -36,8 +69,10 @@ const UserManagement = () => {
       const params = {
         page: currentPage,
         limit: usersPerPage,
-        search: searchTerm,
+        search: debouncedSearchTerm,
         role: filterRole === "all" ? undefined : filterRole,
+        dateFrom: appliedDateFrom || undefined,
+        dateTo: appliedDateTo || undefined,
         sortBy: "createdAt",
         sortOrder: "desc"
       };
@@ -67,7 +102,7 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, filterRole, usersPerPage]);
+  }, [currentPage, debouncedSearchTerm, filterRole, appliedDateFrom, appliedDateTo, usersPerPage]);
 
   useEffect(() => {
     fetchUsers();
@@ -122,22 +157,60 @@ const UserManagement = () => {
   // Reset về trang 1 khi search hoặc filter thay đổi
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
-    setCurrentPage(1);
   };
 
   const handleRoleFilterChange = (e) => {
     setFilterRole(e.target.value);
+    setCurrentPage(1); // Role change is immediate, reset page
+  };
+
+  const handleDateFromChange = (e) => {
+    setDateFrom(e.target.value);
+  };
+
+  const handleDateToChange = (e) => {
+    setDateTo(e.target.value);
+  };
+
+  const handleDateKeyPress = (e) => {
+    if (e.key === 'Enter' && (dateFrom || dateTo)) {
+      applyDateFilters();
+    }
+  };
+
+  const applyDateFilters = () => {
+    setAppliedDateFrom(dateFrom);
+    setAppliedDateTo(dateTo);
     setCurrentPage(1);
   };
 
+  const clearDateFilters = () => {
+    setDateFrom("");
+    setDateTo("");
+    setAppliedDateFrom("");
+    setAppliedDateTo("");
+    setCurrentPage(1);
+  };
+
+  // Reset to page 1 when debounced search term changes (but not on initial load)
+  const [initialLoad, setInitialLoad] = useState(true);
+  useEffect(() => {
+    if (initialLoad) {
+      setInitialLoad(false);
+      return;
+    }
+    setCurrentPage(1);
+  }, [debouncedSearchTerm]);
+
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
   const handleChangeUserRole = async (userId, newRole, currentRole) => {
@@ -157,6 +230,76 @@ const UserManagement = () => {
       setError(e.message || "Không thể cập nhật vai trò");
     } finally {
       setRoleUpdating((m) => ({ ...m, [userId]: false }));
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      setError("");
+
+      // Lấy tất cả người dùng với filter hiện tại (không phân trang)
+      const params = {
+        search: debouncedSearchTerm,
+        role: filterRole === "all" ? undefined : filterRole,
+        dateFrom: appliedDateFrom || undefined,
+        dateTo: appliedDateTo || undefined,
+        sortBy: "createdAt",
+        sortOrder: "desc",
+        // Không giới hạn số lượng để lấy tất cả
+        limit: 10000
+      };
+
+      const response = await api.getAllUsers(params);
+      
+      if (!response.success) {
+        throw new Error(response.error || "Không thể lấy dữ liệu người dùng");
+      }
+
+      const exportData = response.data.users.map((user, index) => ({
+        "STT": index + 1,
+        "Họ tên": user.name,
+        "Email": user.email,
+        "Vai trò": user.role === "admin" ? "Quản trị viên" : "Người dùng",
+        "Trạng thái": user.isActive ? "Hoạt động" : "Bị khóa",
+        "Ngày tạo": formatDate(user.createdAt),
+        "Đăng nhập cuối": user.lastLogin ? formatDate(user.lastLogin) : "Chưa đăng nhập"
+      }));
+
+      // Tạo workbook và worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      // Thiết lập độ rộng cột
+      const colWidths = [
+        { wch: 5 },   // STT
+        { wch: 25 },  // Họ tên
+        { wch: 30 },  // Email
+        { wch: 15 },  // Vai trò
+        { wch: 12 },  // Trạng thái
+        { wch: 18 },  // Email đã xác thực
+        { wch: 20 },  // Ngày tạo
+        { wch: 20 }   // Đăng nhập cuối
+      ];
+      ws['!cols'] = colWidths;
+
+      // Thêm worksheet vào workbook
+      XLSX.utils.book_append_sheet(wb, ws, "Danh sách người dùng");
+
+      // Tạo tên file với timestamp
+      const now = new Date();
+      const timestamp = now.toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_');
+      const fileName = `danh_sach_nguoi_dung_${timestamp}.xlsx`;
+
+      // Xuất file
+      XLSX.writeFile(wb, fileName);
+
+      console.log(`Đã xuất ${exportData.length} người dùng ra file Excel`);
+    } catch (error) {
+      setError(error.message || "Không thể xuất file Excel");
+      console.error("Error exporting Excel:", error);
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -183,7 +326,24 @@ const UserManagement = () => {
             Tổng cộng {pagination.totalUsers} người dùng
           </p>
         </div>
-        <div className="mt-3 sm:mt-0">
+        <div className="flex gap-2 mt-3 sm:mt-0">
+          <button
+            onClick={handleExportExcel}
+            disabled={exporting || users.length === 0}
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exporting ? (
+              <>
+                <div className="w-4 h-4 mr-2 border-b-2 border-white rounded-full animate-spin"></div>
+                Đang xuất...
+              </>
+            ) : (
+              <>
+                <span className="mr-2">📊</span>
+                Xuất Excel
+              </>
+            )}
+          </button>
           <button
             onClick={() => setShowAddModal(true)}
             className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
@@ -205,29 +365,106 @@ const UserManagement = () => {
       )}
 
       {/* Filters */}
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Tìm kiếm theo tên hoặc email..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-            className="w-full px-4 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="Tìm kiếm theo tên hoặc email..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              className="w-full px-4 py-2 pr-10 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+            {isSearching && (
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                <div className="w-4 h-4 border-b-2 rounded-full border-primary-500 animate-spin"></div>
+              </div>
+            )}
+          </div>
+          <select
+            value={filterRole}
+            onChange={handleRoleFilterChange}
+            className="px-4 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          >
+            <option value="all">Tất cả vai trò</option>
+            <option value="user">Người dùng</option>
+            <option value="admin">Quản trị viên</option>
+          </select>
         </div>
-        <select
-          value={filterRole}
-          onChange={handleRoleFilterChange}
-          className="px-4 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-        >
-          <option value="all">Tất cả vai trò</option>
-          <option value="user">Người dùng</option>
-          <option value="admin">Quản trị viên</option>
-        </select>
+        
+        {/* Date Range Filter */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="text-sm font-medium text-neutral-700 whitespace-nowrap">
+              Lọc theo ngày tạo:
+            </label>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-neutral-600 whitespace-nowrap">Từ:</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={handleDateFromChange}
+                  onKeyPress={handleDateKeyPress}
+                  className="px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-neutral-600 whitespace-nowrap">Đến:</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={handleDateToChange}
+                  onKeyPress={handleDateKeyPress}
+                  className="px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                />
+              </div>
+              <div className="flex gap-2">
+                {(dateFrom || dateTo) && (
+                  <button
+                    onClick={applyDateFilters}
+                    className="px-3 py-2 text-sm font-medium text-white transition-colors bg-primary-600 border border-primary-600 rounded-lg hover:bg-primary-700"
+                  >
+                    Áp dụng lọc
+                  </button>
+                )}
+                {(appliedDateFrom || appliedDateTo) && (
+                  <button
+                    onClick={clearDateFilters}
+                    className="px-3 py-2 text-sm font-medium text-red-600 transition-colors bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
+                  >
+                    Xóa bộ lọc
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Applied Filters Indicator */}
+        {(appliedDateFrom || appliedDateTo) && (
+          <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <span className="text-sm font-medium text-blue-800">Bộ lọc đang áp dụng:</span>
+            <div className="flex gap-2">
+              {appliedDateFrom && (
+                <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">
+                  Từ: {new Date(appliedDateFrom).toLocaleDateString("vi-VN")}
+                </span>
+              )}
+              {appliedDateTo && (
+                <span className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">
+                  Đến: {new Date(appliedDateTo).toLocaleDateString("vi-VN")}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Users Table */}
-      <div className="overflow-hidden bg-white border border-neutral-200 rounded-xl">
+      <div className={`overflow-hidden bg-white border border-neutral-200 rounded-xl transition-opacity duration-200 ${
+        isSearching ? 'opacity-75' : 'opacity-100'
+      }`}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">

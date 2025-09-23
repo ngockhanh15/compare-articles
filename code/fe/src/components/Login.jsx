@@ -221,7 +221,7 @@ const Login = () => {
           <div className="flex justify-center">
             <button
               onClick={() => {
-                window.location.href = "http://localhost:3000/auth/google";
+                window.location.href = `${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"}/auth/google`;
               }}
               className="flex items-center justify-center w-full px-4 py-2 mt-4 transition border border-gray-300 rounded-lg hover:bg-gray-50"
             >

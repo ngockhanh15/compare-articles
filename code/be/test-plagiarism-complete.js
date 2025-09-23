@@ -27,8 +27,8 @@ async function testPlagiarismDetection() {
       console.log(`\n--- Testing: "${text}" ---`);
       
       try {
+        // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
         const result = await documentAVLService.checkDuplicateContent(text, {
-          minSimilarity: 10, // Lower threshold to catch more matches
           maxResults: 10
         });
         

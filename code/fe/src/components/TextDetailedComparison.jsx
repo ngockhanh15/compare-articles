@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { getDetailedComparison } from "../services/api";
+import { getDetailedComparison, getThresholds } from "../services/api";
 
 const formatFileSize = (size) => {
   if (!size && size !== 0) return "N/A";
@@ -21,14 +21,26 @@ export default function TextDetailedComparison() {
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [showComparisonOnly, setShowComparisonOnly] = useState(false);
+  const [thresholds, setThresholds] = useState({
+    sentenceThreshold: 50,
+    highDuplicationThreshold: 30,
+    documentComparisonThreshold: 20
+  });
 
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await getDetailedComparison(checkId);
+        // Load both data and thresholds
+        const [response, thresholdsResponse] = await Promise.all([
+          getDetailedComparison(checkId),
+          getThresholds()
+        ]);
         setData(response);
+        if (thresholdsResponse.thresholds) {
+          setThresholds(thresholdsResponse.thresholds);
+        }
       } catch (err) {
         console.error("Error fetching detailed comparison:", err);
         setError(err.message || "Lỗi khi tải dữ liệu so sánh");
@@ -55,20 +67,29 @@ export default function TextDetailedComparison() {
   const matches = useMemo(() => {
     const rawMatches = data?.detailedMatches || [];
 
-    // Hiển thị tất cả documents có trùng lặp, sắp xếp theo similarity giảm dần
     if (rawMatches.length > 0) {
-      const sortedMatches = [...rawMatches].sort((a, b) => {
+      // Lọc matches dựa trên documentComparisonThreshold
+      const filteredMatches = rawMatches.filter(match => {
+        const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
+        const totalInputSentences = data.totalInputSentences || 1;
+        const docComparisonPercentage = (docDuplicate / totalInputSentences) * 100;
+
+        return docComparisonPercentage >= thresholds.documentComparisonThreshold;
+      });
+
+      // Sắp xếp theo similarity giảm dần
+      const sortedMatches = [...filteredMatches].sort((a, b) => {
         const simA = a.similarity || 0;
         const simB = b.similarity || 0;
         return simB - simA;
       });
 
-      console.log(`Found ${sortedMatches.length} documents with matches`);
+      console.log(`Found ${sortedMatches.length} documents with matches above ${thresholds.documentComparisonThreshold}% threshold`);
       return sortedMatches;
     }
 
     return [];
-  }, [data]);
+  }, [data, thresholds]);
 
   const leftHtml = useMemo(() => {
     // Lấy input text từ data
@@ -85,7 +106,13 @@ export default function TextDetailedComparison() {
       // Tạo highlighted text từ input text
       let highlightedText = inputText;
 
-      details.forEach((d) => {
+      // Chỉ highlight các câu đạt sentenceThreshold
+      const filteredDetails = details.filter(d => {
+        const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
+        return sim >= thresholds.sentenceThreshold;
+      });
+
+      filteredDetails.forEach((d) => {
         if (d.inputSentence) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
           const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
@@ -111,7 +138,7 @@ export default function TextDetailedComparison() {
 
     // Lấy toàn bộ nội dung văn bản từ document được chọn
     // Ưu tiên các nguồn khác nhau của nội dung đầy đủ
-    const fullDocumentContent = 
+    const fullDocumentContent =
       // Từ document được chọn
       selected.fullContent ||
       selected.content ||
@@ -132,8 +159,14 @@ export default function TextDetailedComparison() {
       // Tạo highlighted text từ toàn bộ nội dung document
       let highlightedText = fullDocumentContent;
 
+      // Chỉ highlight các câu đạt sentenceThreshold
+      const filteredDetails = details.filter(d => {
+        const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
+        return sim >= thresholds.sentenceThreshold;
+      });
+
       // Highlight các câu trùng lặp trong toàn bộ nội dung
-      details.forEach((d) => {
+      filteredDetails.forEach((d) => {
         const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
         if (docSentence && highlightedText.includes(docSentence)) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
@@ -158,7 +191,7 @@ export default function TextDetailedComparison() {
       hasMostSimilarDocument: !!data?.mostSimilarDocument,
       contentLength: fullDocumentContent.length
     });
-    
+
     return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
   }, [matches, selectedIndex, data]);
 
@@ -315,14 +348,20 @@ export default function TextDetailedComparison() {
               <div className="text-2xl font-bold text-primary-600">{formatFileSize(data.currentDocument?.fileSize || 0)}</div>
               <div className="text-sm text-neutral-600">Kích thước</div>
             </div>
-            <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
-              <div className="text-lg font-bold text-purple-600">
-                {data.totalDuplicatedSentences > 0
-                  ? Math.round(( data.totalDuplicatedSentences / data.totalInputSentences) * 100) + "%"
-                  : "0%"}
-              </div>
-              <div className="mt-1 text-xs text-purple-600">Dtotal</div>
-            </div>
+            {(() => {
+              const dtotalPercentage = data.totalDuplicatedSentences > 0
+                ? Math.round((data.totalDuplicatedSentences / data.totalInputSentences) * 100)
+                : 0;
+
+              return (
+                <div className="p-4 border border-purple-200 rounded-xl bg-purple-50">
+                  <div className="text-lg font-bold text-purple-600">
+                    {dtotalPercentage}%
+                  </div>
+                  <div className="mt-1 text-xs text-purple-600">Dtotal</div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -343,8 +382,8 @@ export default function TextDetailedComparison() {
                   <div
                     key={`${match.documentId}_${idx}`}
                     className={`p-4 border rounded-lg transition-all cursor-pointer ${isSelected
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
                       }`}
                     onClick={() => setSelectedIndex(idx)}
                   >
@@ -385,7 +424,7 @@ export default function TextDetailedComparison() {
                               const totalInputSentences = data.totalInputSentences || 1;
                               const rate = (docDuplicate / totalInputSentences) * 100;
                               return rate >= 50 ? "bg-red-500" : rate >= 25 ? "bg-orange-500" : "bg-green-500";
-                            })()} h-2 rounded-full`} style={{ 
+                            })()} h-2 rounded-full`} style={{
                               width: `${Math.min((() => {
                                 const docDuplicate = match.duplicateSentences || match.duplicateSentencesDetails?.length || 0;
                                 const totalInputSentences = data.totalInputSentences || 1;
@@ -418,7 +457,7 @@ export default function TextDetailedComparison() {
                                           if (d.inputSentence) {
                                             const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
                                             const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-                                            
+
                                             return (
                                               <div key={idx} className="mb-2 p-2 rounded" style={{
                                                 backgroundColor: `${color}20`,
@@ -454,7 +493,7 @@ export default function TextDetailedComparison() {
                                           if (docSentence) {
                                             const sim = typeof d.similarity === "number" ? d.similarity : match.similarity || 0;
                                             const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-                                            
+
                                             return (
                                               <div key={idx} className="mb-2 p-2 rounded" style={{
                                                 backgroundColor: `${color}20`,

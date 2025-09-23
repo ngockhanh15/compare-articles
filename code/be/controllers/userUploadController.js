@@ -173,8 +173,8 @@ exports.uploadForCheck = [
       }
 
       // Get check options from request
+      // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
       const options = {
-        minSimilarity: parseInt(req.body.sensitivity === 'high' ? 60 : req.body.sensitivity === 'low' ? 80 : 50),
         chunkSize: 50,
         maxResults: 20
       };
@@ -198,6 +198,8 @@ exports.uploadForCheck = [
         originalText: extractedText.substring(0, 10000), // Store first 10k chars for reference
         textLength: extractedText.length,
         wordCount: extractedText.split(/\s+/).length,
+        sentenceCount: extractedText.split(/[.!?]+/).filter(s => s.trim().length > 10).length,
+        duplicateSentenceCount: 0, // For file upload, we don't have sentence-level analysis yet
         duplicatePercentage: duplicateResult.duplicatePercentage,
         matches: duplicateResult.matches.map(match => ({
           text: match.text ? match.text.substring(0, 500) : '', // Limit stored text
@@ -295,8 +297,8 @@ exports.checkTextContent = async (req, res) => {
     console.log(`Processing text for plagiarism check: ${text.length} characters`);
 
     // Get check options
+    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
     const checkOptions = {
-      minSimilarity: parseInt(options.sensitivity === 'high' ? 60 : options.sensitivity === 'low' ? 80 : 50),
       chunkSize: 50,
       maxResults: 20
     };
@@ -332,6 +334,8 @@ exports.checkTextContent = async (req, res) => {
       originalText: text, // Store full text for detailed comparison
       textLength: text.length,
       wordCount: text.split(/\s+/).filter(word => word.length > 0).length,
+      sentenceCount: text.split(/[.!?]+/).filter(s => s.trim().length > 10).length,
+      duplicateSentenceCount: 0, // For text comparison, we don't have sentence-level analysis yet
       duplicatePercentage: duplicateResult.duplicatePercentage,
       matches: duplicateResult.matches.map(match => ({
         text: match.text ? match.text.substring(0, 500) : '', // Limit stored text

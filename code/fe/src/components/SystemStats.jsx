@@ -341,7 +341,16 @@ const SystemStats = () => {
         {stats && (
           <div className="mt-8 text-center">
             <p className="text-sm text-neutral-500">
-              Cập nhật lần cuối: {new Date(stats.timestamp).toLocaleString('vi-VN')}
+              Cập nhật lần cuối: {(() => {
+                const date = new Date(stats.timestamp);
+                const day = date.getDate().toString().padStart(2, '0');
+                const month = (date.getMonth() + 1).toString().padStart(2, '0');
+                const year = date.getFullYear();
+                const hours = date.getHours().toString().padStart(2, '0');
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                const seconds = date.getSeconds().toString().padStart(2, '0');
+                return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+              })()}
             </p>
           </div>
         )}

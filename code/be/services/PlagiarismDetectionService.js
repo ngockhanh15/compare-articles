@@ -34,10 +34,17 @@ class PlagiarismDetectionService {
       }
 
       // Sử dụng hàm checkDuplicateContent từ DocumentAVLService
-      const duplicateResult = await this.documentAVLService.checkDuplicateContent(inputText, {
-        minSimilarity: options.minSimilarity || 50,
+      // Không truyền minSimilarity nếu không được chỉ định để sử dụng sentenceThreshold từ database
+      const duplicateOptions = {
         maxResults: options.maxResults || null
-      });
+      };
+      
+      // Chỉ truyền minSimilarity nếu được chỉ định rõ ràng
+      if (options.minSimilarity !== undefined) {
+        duplicateOptions.minSimilarity = options.minSimilarity;
+      }
+      
+      const duplicateResult = await this.documentAVLService.checkDuplicateContent(inputText, duplicateOptions);
 
       // Chuyển đổi kết quả để phù hợp với format cũ
       const result = {

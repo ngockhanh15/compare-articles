@@ -6,6 +6,7 @@ import {
   getDocumentText,
   getTreeStats,
   getDetailedComparison,
+  getThresholds,
 } from "../services/api";
 import { Link } from "react-router-dom";
 
@@ -22,7 +23,12 @@ const TextChecker = () => {
     sensitivity: "medium",
     language: "vi",
   });
-  const [treeStats, setTreeStats] = useState(null);
+  const [thresholds, setThresholds] = useState({
+    sentenceThreshold: 50,
+    highDuplicationThreshold: 30,
+    documentComparisonThreshold: 20
+  });
+  // const [treeStats, setTreeStats] = useState(null);
   // Helper to render percentage regardless of whether backend returns 0-1 or 0-100
   const formatPercent = (value) => {
     if (value === undefined || value === null || isNaN(Number(value)))
@@ -47,19 +53,31 @@ const TextChecker = () => {
 
   useEffect(() => {
     loadUserDocuments();
-    loadTreeStats();
+    loadThresholds();
+    // loadTreeStats();
   }, []);
 
-  const loadTreeStats = async () => {
+  const loadThresholds = async () => {
     try {
-      const response = await getTreeStats();
-      if (response.success) {
-        setTreeStats(response.stats);
+      const response = await getThresholds();
+      if (response.thresholds) {
+        setThresholds(response.thresholds);
       }
     } catch (error) {
-      console.error("Error loading tree stats:", error);
+      console.error("Error loading thresholds:", error);
     }
   };
+
+  // const loadTreeStats = async () => {
+  //   try {
+  //     const response = await getTreeStats();
+  //     if (response.success) {
+  //       setTreeStats(response.stats);
+  //     }
+  //   } catch (error) {
+  //     console.error("Error loading tree stats:", error);
+  //   }
+  // };
 
   const loadUserDocuments = async () => {
     try {
@@ -129,14 +147,14 @@ const TextChecker = () => {
       );
 
       // Extract data from document similarity API response
-      let realData = null;
-      try {
-        realData = await getDetailedComparison(similarityResult.checkId);
-      } catch (detailError) {
-        console.warn("Could not get detailed comparison:", detailError);
-        // Continue without detailed data
-        realData = { overallSimilarity: 0 };
-      }
+      // let realData = null;
+      // try {
+      //   realData = await getDetailedComparison(similarityResult.checkId);
+      // } catch (detailError) {
+      //   console.warn("Could not get detailed comparison:", detailError);
+      //   // Continue without detailed data
+      //   realData = { overallSimilarity: 0 };
+      // }
 
       const result = similarityResult.result;
       const wordCount = result.wordCount || 0;
@@ -227,13 +245,21 @@ const TextChecker = () => {
 
       setResults({
         checkId: similarityResult.checkId,
-        duplicateRate: realData.overallSimilarity || 0,
+        // duplicateRate: realData.overallSimilarity || 0,
         matches: result.matches || [],
         sources: result.sources || [],
         wordCount,
         charCount,
         status: result.confidence || "low",
-        checkedAt: new Date().toLocaleString("vi-VN"),
+        checkedAt: (() => {
+          const now = new Date();
+          const day = now.getDate().toString().padStart(2, '0');
+          const month = (now.getMonth() + 1).toString().padStart(2, '0');
+          const year = now.getFullYear();
+          const hours = now.getHours().toString().padStart(2, '0');
+          const minutes = now.getMinutes().toString().padStart(2, '0');
+          return `${day}/${month}/${year} ${hours}:${minutes}`;
+        })(),
         source: "text",
         fileName: null,
         confidence: result.confidence || "low",
@@ -249,7 +275,7 @@ const TextChecker = () => {
         dab: result.dab || 0, // Tổng câu trùng không lặp lại so với Document B nào đó
         mostSimilarDocument: result.mostSimilarDocument || null, // Thông tin document giống nhất
         // Tree stats info
-        treeStats: treeStats,
+        // treeStats: treeStats,
         totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
         maxDuplicateSentences: result.maxDuplicateSentences || 0,
         totalInputSentences: result.totalInputSentences || 0, // Thêm totalInputSentences từ backend
@@ -493,6 +519,28 @@ const TextChecker = () => {
                   </div>
                 </div>
 
+                {/* High Duplication Warning */}
+                {(() => {
+                  const dtotalPercentage = Math.round((results.dtotalRaw / results.totalInputSentences) * 100) || 0;
+                  if (dtotalPercentage >= thresholds.highDuplicationThreshold) {
+                    return (
+                      <div className="p-4 border border-red-200 rounded-xl bg-red-50">
+                        <div className="flex items-center">
+                          <span className="mr-2 text-red-500">⚠️</span>
+                          <div>
+                            <h4 className="font-semibold text-red-800">Phát hiện trùng lặp cao</h4>
+                            <p className="text-sm text-red-700">
+                              Tỷ lệ trùng lặp ({dtotalPercentage}%) vượt ngưỡng cảnh báo ({thresholds.highDuplicationThreshold}%). 
+                              Vui lòng xem xét kỹ nội dung và nguồn tham khảo.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Comparison Buttons */}
                 <div className="flex gap-3">
                   {results?.checkId && (
@@ -582,13 +630,14 @@ const DocumentSelectorModal = ({ documents, onClose, onSelect, loading }) => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
   const getFileIcon = (fileType) => {

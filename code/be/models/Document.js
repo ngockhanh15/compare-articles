@@ -82,9 +82,10 @@ const documentSchema = new mongoose.Schema({
 
 // Indexes for better performance
 documentSchema.index({ uploadedBy: 1, createdAt: -1 });
+documentSchema.index({ createdAt: -1 }); // For date range queries
 documentSchema.index({ fileType: 1 });
 documentSchema.index({ status: 1 });
-documentSchema.index({ title: 'text', description: 'text' });
+documentSchema.index({ title: 'text', description: 'text', author: 'text' });
 
 // Virtual for file extension
 documentSchema.virtual('fileExtension').get(function() {
@@ -100,7 +101,9 @@ documentSchema.statics.getUserDocuments = function(userId, options = {}) {
     fileType = 'all',
     status = 'all',
     sortBy = 'createdAt',
-    sortOrder = 'desc'
+    sortOrder = 'desc',
+    startDate = '',
+    endDate = ''
   } = options;
 
   const query = { uploadedBy: userId };
@@ -110,7 +113,8 @@ documentSchema.statics.getUserDocuments = function(userId, options = {}) {
     query.$or = [
       { title: { $regex: search, $options: 'i' } },
       { originalFileName: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } }
+      { description: { $regex: search, $options: 'i' } },
+      { author: { $regex: search, $options: 'i' } }
     ];
   }
 
@@ -123,6 +127,25 @@ documentSchema.statics.getUserDocuments = function(userId, options = {}) {
   if (status !== 'all') {
     query.status = status;
   }
+
+  // Add date filter
+  if (startDate || endDate) {
+    query.createdAt = {};
+    if (startDate) {
+      // Parse startDate and set to beginning of day in UTC
+      const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+      query.createdAt.$gte = startDateTime;
+      console.log("Start date filter:", startDate, "->", startDateTime);
+    }
+    if (endDate) {
+      // Parse endDate and set to end of day in UTC
+      const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+      query.createdAt.$lte = endDateTime;
+      console.log("End date filter:", endDate, "->", endDateTime);
+    }
+  }
+
+  console.log("getUserDocuments final query:", JSON.stringify(query, null, 2));
 
   const skip = (page - 1) * limit;
   const sort = { [sortBy]: sortOrder === 'desc' ? -1 : 1 };

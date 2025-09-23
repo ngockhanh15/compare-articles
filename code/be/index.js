@@ -195,7 +195,24 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
+  origin: function (origin, callback) {
+    // Cho phép requests không có origin (mobile apps, etc.)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "https://localhost:5173",
+      "https://compare-articles.vercel.app" // Production frontend domain
+    ].filter(Boolean);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -215,7 +232,7 @@ app.use(
     cookie: {
       maxAge: 24 * 60 * 60 * 1000, // 1 ngày
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       httpOnly: true, // Prevent XSS
     },
   })
@@ -479,9 +496,11 @@ app.use("*", (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, "127.0.0.1", () => {
-  console.log("Server running on http://127.0.0.1:" + PORT);
-});
+// Start server - chỉ khi không phải production (Vercel)
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, "127.0.0.1", () => {
+    console.log("Server running on http://127.0.0.1:" + PORT);
+  });
+}
 
 module.exports = app;

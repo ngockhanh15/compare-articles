@@ -239,8 +239,12 @@ exports.getUserDocuments = async (req, res) => {
       fileType = 'all',
       status = 'all',
       sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      startDate = '',
+      endDate = ''
     } = req.query;
+
+    console.log("getUserDocuments query params:", { page, limit, search, fileType, status, sortBy, sortOrder, startDate, endDate });
 
     const options = {
       page: parseInt(page),
@@ -249,22 +253,52 @@ exports.getUserDocuments = async (req, res) => {
       fileType,
       status,
       sortBy,
-      sortOrder
+      sortOrder,
+      startDate,
+      endDate
     };
 
     const documents = await Document.getUserDocuments(req.user.id, options);
-    const total = await Document.countDocuments({ 
-      uploadedBy: req.user.id,
-      ...(search && {
-        $or: [
-          { title: { $regex: search, $options: 'i' } },
-          { originalFileName: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } }
-        ]
-      }),
-      ...(fileType !== 'all' && { fileType }),
-      ...(status !== 'all' && { status })
-    });
+    
+    // Use the same query building logic for counting
+    const countQuery = { uploadedBy: req.user.id };
+    
+    // Add search filter
+    if (search) {
+      countQuery.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { originalFileName: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } },
+        { author: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Add file type filter
+    if (fileType !== 'all') {
+      countQuery.fileType = fileType;
+    }
+    
+    // Add status filter
+    if (status !== 'all') {
+      countQuery.status = status;
+    }
+    
+    // Add date filter
+    if (startDate || endDate) {
+      countQuery.createdAt = {};
+      if (startDate) {
+        // Parse startDate and set to beginning of day in UTC
+        const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+        countQuery.createdAt.$gte = startDateTime;
+      }
+      if (endDate) {
+        // Parse endDate and set to end of day in UTC
+        const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+        countQuery.createdAt.$lte = endDateTime;
+      }
+    }
+
+    const total = await Document.countDocuments(countQuery);
 
     const documentsWithDetails = documents.map(doc => ({
       _id: doc._id,
@@ -615,7 +649,9 @@ exports.getAllDocuments = async (req, res) => {
       fileType = 'all',
       status = 'all',
       sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
+      startDate = '',
+      endDate = ''
     } = req.query;
 
     // Build query
@@ -625,7 +661,8 @@ exports.getAllDocuments = async (req, res) => {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
         { originalFileName: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { description: { $regex: search, $options: 'i' } },
+        { author: { $regex: search, $options: 'i' } }
       ];
     }
     
@@ -635,6 +672,21 @@ exports.getAllDocuments = async (req, res) => {
     
     if (status !== 'all') {
       query.status = status;
+    }
+
+    // Add date filter
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        // Parse startDate and set to beginning of day in UTC
+        const startDateTime = new Date(startDate + 'T00:00:00.000Z');
+        query.createdAt.$gte = startDateTime;
+      }
+      if (endDate) {
+        // Parse endDate and set to end of day in UTC
+        const endDateTime = new Date(endDate + 'T23:59:59.999Z');
+        query.createdAt.$lte = endDateTime;
+      }
     }
 
     // Build sort object
@@ -747,6 +799,75 @@ exports.getAllDocumentStats = async (req, res) => {
   }
 };
 
+// Get document upload statistics by month (admin only)
+exports.getDocumentUploadStats = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    // Build match condition
+    const matchCondition = {};
+    if (startDate || endDate) {
+      matchCondition.createdAt = {};
+      if (startDate) {
+        matchCondition.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        matchCondition.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Aggregate documents by month
+    const stats = await Document.aggregate([
+      { $match: matchCondition },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          month: {
+            $dateFromParts: {
+              year: '$_id.year',
+              month: '$_id.month',
+              day: 1
+            }
+          },
+          count: 1
+        }
+      },
+      { $sort: { month: 1 } }
+    ]);
+
+    // Calculate summary statistics
+    const total = stats.reduce((sum, stat) => sum + stat.count, 0);
+    const average = stats.length > 0 ? total / stats.length : 0;
+    const peak = stats.length > 0 ? Math.max(...stats.map(s => s.count)) : 0;
+
+    res.json({
+      success: true,
+      data: stats,
+      summary: {
+        total,
+        average,
+        peak
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get document upload stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê tải lên tài liệu'
+    });
+  }
+};
+
 // Get document statistics
 exports.getDocumentStats = async (req, res) => {
   try {
@@ -827,5 +948,267 @@ exports.getDocumentText = async (req, res) => {
     });
   }
 };
+
+// Configure multer for ZIP file upload
+const zipUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB limit for ZIP files
+  },
+  fileFilter: function (req, file, cb) {
+    if (file.mimetype === 'application/zip' || file.originalname.endsWith('.zip')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file ZIP'), false);
+    }
+  }
+});
+
+// Bulk upload documents from ZIP file
+exports.bulkUploadDocuments = [
+  zipUpload.single('zipFile'),
+  async (req, res) => {
+    const AdmZip = require('adm-zip');
+    
+    try {
+      // Check if ZIP file is provided
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vui lòng chọn file ZIP'
+        });
+      }
+
+      const zipBuffer = req.file.buffer;
+      const zip = new AdmZip(zipBuffer);
+      const zipEntries = zip.getEntries();
+
+      // Find metadata file (CSV or Excel)
+      let metadataEntry = zipEntries.find(entry => 
+        entry.entryName.toLowerCase() === 'metadata.csv' ||
+        entry.entryName.toLowerCase() === 'metadata.xlsx'
+      );
+
+      if (!metadataEntry) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không tìm thấy file metadata.csv hoặc metadata.xlsx trong ZIP'
+        });
+      }
+
+      // Parse metadata
+      let metadata = [];
+      if (metadataEntry.entryName.toLowerCase().endsWith('.csv')) {
+        // Parse CSV
+        const csvData = metadataEntry.getData().toString('utf8');
+        const lines = csvData.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          return res.status(400).json({
+            success: false,
+            message: 'File metadata.csv không có dữ liệu'
+          });
+        }
+
+        const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+        
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.replace(/"/g, '').trim());
+          if (values.length >= 3) {
+            metadata.push({
+              filename: values[0],
+              title: values[1],
+              author: values[2],
+              description: values[3] || ''
+            });
+          }
+        }
+      } else {
+        // Parse Excel
+        const XLSX = require('xlsx');
+        const workbook = XLSX.read(metadataEntry.getData(), { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        metadata = jsonData.map(row => ({
+          filename: row['Tên file'] || row['filename'] || '',
+          title: row['Tiêu đề'] || row['title'] || '',
+          author: row['Tác giả'] || row['author'] || '',
+          description: row['Mô tả'] || row['description'] || ''
+        }));
+      }
+
+      if (metadata.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có dữ liệu trong file metadata'
+        });
+      }
+
+      // Process each document
+      const results = {
+        success: true,
+        totalFiles: metadata.length,
+        successCount: 0,
+        failedCount: 0,
+        successFiles: [],
+        failedFiles: []
+      };
+
+      for (const meta of metadata) {
+        try {
+          // Find corresponding file in ZIP
+          const fileEntry = zipEntries.find(entry => 
+            entry.entryName === meta.filename || 
+            entry.entryName.endsWith('/' + meta.filename)
+          );
+
+          if (!fileEntry) {
+            results.failedCount++;
+            results.failedFiles.push({
+              filename: meta.filename,
+              error: 'Không tìm thấy file trong ZIP'
+            });
+            continue;
+          }
+
+          // Extract file data
+          const fileData = fileEntry.getData();
+          const fileExtension = path.extname(meta.filename).toLowerCase();
+          
+          // Validate file type
+          const allowedExtensions = ['.txt', '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt'];
+          if (!allowedExtensions.includes(fileExtension)) {
+            results.failedCount++;
+            results.failedFiles.push({
+              filename: meta.filename,
+              error: 'Định dạng file không được hỗ trợ'
+            });
+            continue;
+          }
+
+          // Save file to uploads directory
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const sanitizedName = path.basename(meta.filename, fileExtension).replace(/[^a-zA-Z0-9]/g, '_');
+          const savedFileName = `${sanitizedName}-${uniqueSuffix}${fileExtension}`;
+          const filePath = path.join(__dirname, '../uploads', savedFileName);
+
+          await fs.writeFile(filePath, fileData);
+
+          // Get MIME type from extension
+          const mimeTypeMap = {
+            '.txt': 'text/plain',
+            '.pdf': 'application/pdf',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.doc': 'application/msword',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            '.xls': 'application/vnd.ms-excel',
+            '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            '.ppt': 'application/vnd.ms-powerpoint'
+          };
+          const mimeType = mimeTypeMap[fileExtension] || 'application/octet-stream';
+
+          // Extract text content
+          let extractedText = '';
+          try {
+            extractedText = await extractTextFromFile(filePath, mimeType);
+          } catch (extractError) {
+            console.error('Text extraction error:', extractError);
+            // Continue with empty text if extraction fails
+          }
+
+          // Create document record
+          const document = new Document({
+            originalFileName: meta.filename,
+            fileName: savedFileName,
+            filePath: filePath,
+            fileSize: fileData.length,
+            fileType: getFileTypeFromMime(mimeType),
+            mimeType: mimeType,
+            title: meta.title || meta.filename,
+            author: meta.author || 'Unknown',
+            description: meta.description || '',
+            extractedText: extractedText,
+            uploadedBy: req.user.id,
+            isPublic: false,
+            status: extractedText ? 'processed' : 'failed'
+          });
+
+          await document.save();
+
+          // Add to AVL tree if text extraction was successful
+          if (extractedText && extractedText.trim()) {
+            try {
+              const avlTreeData = await documentAVLService.addDocumentToTree(document);
+              if (avlTreeData && avlTreeData.success) {
+                console.log(`Document "${document.title}" added to AVL tree: ${avlTreeData.sentenceCount} sentences, ${avlTreeData.uniqueTokenCount} tokens`);
+                
+                // Force save the updated AVL tree to database
+                try {
+                  await documentAVLService.forceSave();
+                  console.log(`✅ Global AVL Tree saved to database after adding document "${document.title}"`);
+                } catch (saveError) {
+                  console.error('Error saving AVL tree to database:', saveError);
+                }
+              }
+            } catch (avlError) {
+              console.error('AVL tree addition error:', avlError);
+              // Continue even if AVL addition fails
+            }
+          }
+
+          // Log successful upload
+          await logAction(req.user.id, 'BULK_UPLOAD_DOCUMENT', {
+            documentId: document._id,
+            fileName: meta.filename,
+            fileSize: fileData.length
+          });
+
+          results.successCount++;
+          results.successFiles.push({
+            filename: meta.filename,
+            title: meta.title,
+            documentId: document._id
+          });
+
+        } catch (error) {
+          console.error(`Error processing file ${meta.filename}:`, error);
+          results.failedCount++;
+          results.failedFiles.push({
+            filename: meta.filename,
+            error: error.message
+          });
+        }
+      }
+
+      // Log bulk upload action
+      await logAction(req.user.id, 'BULK_UPLOAD_COMPLETED', {
+        totalFiles: results.totalFiles,
+        successCount: results.successCount,
+        failedCount: results.failedCount
+      });
+
+      res.json({
+        success: true,
+        message: `Bulk upload hoàn thành: ${results.successCount}/${results.totalFiles} file thành công`,
+        results: results
+      });
+
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      
+      // Log failed bulk upload
+      await logAction(req.user.id, 'BULK_UPLOAD_FAILED', {
+        error: error.message
+      });
+
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi khi upload hàng loạt: ' + error.message
+      });
+    }
+  }
+];
 
 module.exports = exports;

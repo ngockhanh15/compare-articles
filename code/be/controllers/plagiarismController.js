@@ -74,13 +74,8 @@ const performDocumentCheck = async (text, options = {}) => {
 
   try {
     // Sử dụng DocumentAVLService để kiểm tra với các document đã upload
+    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
     const result = await documentAVLService.checkDuplicateContent(text, {
-      minSimilarity:
-        options.sensitivity === "high"
-          ? 30
-          : options.sensitivity === "low"
-            ? 70
-            : 50, // medium = 50
       chunkSize: 50,
     });
 
@@ -182,13 +177,8 @@ const performPlagiarismCheck = async (text, options = {}) => {
 
     // 2. Sử dụng DocumentAVLService (cây AVL lớn duy nhất) thay vì plagiarismDetectionService
     console.log("Performing plagiarism check using unified DocumentAVL tree...");
+    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
     const result = await documentAVLService.checkDuplicateContent(text, {
-      minSimilarity:
-        options.sensitivity === "high"
-          ? 30
-          : options.sensitivity === "low"
-            ? 70
-            : 50, // medium = 50
       maxResults: options.maxResults || null,
     });
 
@@ -375,6 +365,8 @@ exports.checkDocumentSimilarity = async (req, res) => {
       originalText: text,
       textLength: text.length,
       wordCount: text.split(/\s+/).filter((word) => word.length > 0).length,
+      sentenceCount: result.totalInputSentences || text.split(/[.!?]+/).filter(s => s.trim().length > 10).length,
+      duplicateSentenceCount: result.totalDuplicatedSentences || result.totalDuplicateSentences || 0,
       duplicatePercentage: result.duplicatePercentage,
       matches: result.matches || [],
       sources: result.sources || [],
@@ -475,6 +467,8 @@ exports.checkPlagiarism = async (req, res) => {
       originalText: text,
       textLength: text.length,
       wordCount: text.split(/\s+/).filter((word) => word.length > 0).length,
+      sentenceCount: text.split(/[.!?]+/).filter(s => s.trim().length > 10).length,
+      duplicateSentenceCount: 0, // For internet-based check, we don't have sentence-level analysis yet
       duplicatePercentage: result.duplicatePercentage,
       matches: result.matches || [],
       sources: result.sources || [],
@@ -527,18 +521,38 @@ exports.checkPlagiarism = async (req, res) => {
 // Get plagiarism history
 exports.getPlagiarismHistory = async (req, res) => {
   try {
-    const { limit = 10, offset = 0 } = req.query;
+    const { limit = 10, offset = 0, status, startDate, endDate } = req.query;
     const userId = req.user.id;
 
-    const checks = await PlagiarismCheck.find({ user: userId })
+    // Build filter object - always filter by current user
+    const filter = { user: userId };
+    
+    // Add status filter if provided
+    if (status) filter.status = status;
+    
+    // Add date range filter if provided
+    if (startDate || endDate) {
+      filter.createdAt = {};
+      if (startDate) {
+        filter.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Add one day to endDate to include the entire end date
+        const endDateTime = new Date(endDate);
+        endDateTime.setDate(endDateTime.getDate() + 1);
+        filter.createdAt.$lt = endDateTime;
+      }
+    }
+
+    const checks = await PlagiarismCheck.find(filter)
       .select(
-        "originalText duplicatePercentage status source fileName createdAt"
+        "originalText duplicatePercentage status source fileName createdAt sentenceCount duplicateSentenceCount"
       )
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset));
 
-    const total = await PlagiarismCheck.countDocuments({ user: userId });
+    const total = await PlagiarismCheck.countDocuments(filter);
 
     res.json({
       success: true,
@@ -552,12 +566,141 @@ exports.getPlagiarismHistory = async (req, res) => {
         source: check.source,
         fileName: check.fileName,
         checkedAt: check.createdAt,
+        sentenceCount: check.sentenceCount || 0,
+        duplicateSentenceCount: check.duplicateSentenceCount || 0,
       })),
       total,
       hasMore: offset + limit < total,
     });
   } catch (error) {
     console.error("Get history error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Lỗi khi lấy lịch sử kiểm tra",
+    });
+  }
+};
+
+// Get all plagiarism history for admin
+exports.getAllPlagiarismHistory = async (req, res) => {
+  try {
+    const { limit = 10, offset = 0, userName, status, startDate, endDate } = req.query;
+    
+    // Build filter object
+    const filter = {};
+    if (status) filter.status = status;
+
+    // Build aggregation pipeline
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'user',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      {
+        $unwind: '$user'
+      }
+    ];
+
+    // Add name filter if provided
+    if (userName) {
+      pipeline.push({
+        $match: {
+          'user.name': { $regex: userName, $options: 'i' }
+        }
+      });
+    }
+
+    // Add status filter if provided
+    if (status) {
+      pipeline.push({
+        $match: { status: status }
+      });
+    }
+
+    // Add date range filter if provided
+    if (startDate || endDate) {
+      const dateFilter = {};
+      if (startDate) {
+        dateFilter.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        // Add one day to endDate to include the entire end date
+        const endDateTime = new Date(endDate);
+        endDateTime.setDate(endDateTime.getDate() + 1);
+        dateFilter.$lt = endDateTime;
+      }
+      
+      if (Object.keys(dateFilter).length > 0) {
+        pipeline.push({
+          $match: { createdAt: dateFilter }
+        });
+      }
+    }
+
+    // Add sorting
+    pipeline.push({
+      $sort: { createdAt: -1 }
+    });
+
+    // Get total count
+    const totalPipeline = [...pipeline, { $count: "total" }];
+    const totalResult = await PlagiarismCheck.aggregate(totalPipeline);
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+
+    // Add pagination
+    pipeline.push(
+      { $skip: parseInt(offset) },
+      { $limit: parseInt(limit) }
+    );
+
+    // Add projection
+    pipeline.push({
+      $project: {
+        originalText: 1,
+        duplicatePercentage: 1,
+        status: 1,
+        source: 1,
+        fileName: 1,
+        createdAt: 1,
+        sentenceCount: 1,
+        duplicateSentenceCount: 1,
+        'user._id': 1,
+        'user.name': 1,
+        'user.email': 1
+      }
+    });
+
+    const checks = await PlagiarismCheck.aggregate(pipeline);
+
+    res.json({
+      success: true,
+      history: checks.map((check) => ({
+        id: check._id,
+        text:
+          check.originalText.substring(0, 100) +
+          (check.originalText.length > 100 ? "..." : ""),
+        duplicatePercentage: check.duplicatePercentage,
+        status: check.status,
+        source: check.source,
+        fileName: check.fileName,
+        checkedAt: check.createdAt,
+        sentenceCount: check.sentenceCount || 0,
+        duplicateSentenceCount: check.duplicateSentenceCount || 0,
+        user: {
+          id: check.user._id,
+          name: check.user.name,
+          email: check.user.email,
+        },
+      })),
+      total,
+      hasMore: offset + limit < total,
+    });
+  } catch (error) {
+    console.error("Get all history error:", error);
     res.status(500).json({
       success: false,
       message: "Lỗi khi lấy lịch sử kiểm tra",
@@ -824,10 +967,10 @@ exports.getDetailedComparison = async (req, res) => {
     }
 
     // Sử dụng DocumentAVLService để kiểm tra giống như checkDocumentSimilarity
+    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
     const result = await documentAVLService.checkDuplicateContent(
       plagiarismCheck.originalText,
       {
-        minSimilarity: 30, // Sử dụng threshold thấp để có nhiều kết quả hơn
         chunkSize: 50,
         maxResults: 20,
       }
@@ -1141,10 +1284,10 @@ exports.getAllDocumentsComparison = async (req, res) => {
     let allDocuments = [];
 
     try {
+      // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
       const avlResult = await documentAVLService.checkDuplicateContent(
         plagiarismCheck.originalText,
         {
-          minSimilarity: 5, // Threshold thấp để lấy nhiều kết quả
           maxResults: 50
         }
       );
@@ -1232,10 +1375,10 @@ exports.getDetailedAllDocumentsComparison = async (req, res) => {
     );
 
     // Lấy kết quả từ DocumentAVLService
+    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
     const avlResult = await documentAVLService.checkDuplicateContent(
       originalText,
       {
-        minSimilarity: 10,
         chunkSize: 50,
         maxResults: 20,
       }
@@ -1520,3 +1663,72 @@ function calculateSentenceDuplicateRatio(
     return 0;
   }
 }
+
+// Get plagiarism check statistics by month (admin only)
+exports.getPlagiarismCheckStats = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    // Build match condition
+    const matchCondition = {};
+    if (startDate || endDate) {
+      matchCondition.createdAt = {};
+      if (startDate) {
+        matchCondition.createdAt.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        matchCondition.createdAt.$lte = new Date(endDate);
+      }
+    }
+
+    // Aggregate plagiarism checks by month
+    const stats = await PlagiarismCheck.aggregate([
+      { $match: matchCondition },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          month: {
+            $dateFromParts: {
+              year: '$_id.year',
+              month: '$_id.month',
+              day: 1
+            }
+          },
+          count: 1
+        }
+      },
+      { $sort: { month: 1 } }
+    ]);
+
+    // Calculate summary statistics
+    const total = stats.reduce((sum, stat) => sum + stat.count, 0);
+    const average = stats.length > 0 ? total / stats.length : 0;
+    const peak = stats.length > 0 ? Math.max(...stats.map(s => s.count)) : 0;
+
+    res.json({
+      success: true,
+      data: stats,
+      summary: {
+        total,
+        average,
+        peak
+      }
+    });
+    
+  } catch (error) {
+    console.error('Get plagiarism check stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Lỗi khi lấy thống kê kiểm tra plagiarism'
+    });
+  }
+};

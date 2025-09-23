@@ -18,6 +18,16 @@ const plagiarismCheckSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
+  sentenceCount: {
+    type: Number,
+    required: true,
+    default: 0
+  },
+  duplicateSentenceCount: {
+    type: Number,
+    required: true,
+    default: 0
+  },
   duplicatePercentage: {
     type: Number,
     required: true,

@@ -1,5 +1,18 @@
-// API base URL
-const API_BASE_URL = "http://localhost:3000/api";
+// API base URL - tự động detect production vs development
+const getApiBaseUrl = () => {
+  // Trong production, sử dụng backend domain
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_BASE_URL || "https://compare-articles-a7oh.vercel.app";
+  }
+  // Trong development, sử dụng localhost
+  return import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+};
+
+const API_BASE_URL = `${getApiBaseUrl()}/api`;
+
+// Debug logging
+console.log('Environment:', import.meta.env.MODE);
+console.log('API Base URL:', API_BASE_URL);
 
 // Helper function to get auth headers
 const getAuthHeaders = () => {
@@ -10,22 +23,78 @@ const getAuthHeaders = () => {
   };
 };
 
+// Helper function to create fetch with timeout
+const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout - Vui lòng thử lại');
+    }
+    throw error;
+  }
+};
+
 // Helper function to handle API responses
 const handleResponse = async (response) => {
-  const data = await response.json();
-
-  if (!response.ok) {
-    // If token is expired or invalid, clear local storage
-    if (response.status === 401) {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+  try {
+    // Check if response has content
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      console.error("Non-JSON response received:", {
+        status: response.status,
+        statusText: response.statusText,
+        contentType: contentType,
+        url: response.url
+      });
+      
+      // Try to get text content for debugging
+      const text = await response.text();
+      console.error("Response text:", text);
+      
+      throw new Error(`Server trả về response không hợp lệ (${response.status})`);
     }
-  const err = new Error(data.error || "Something went wrong");
-  if (data && data.details) err.details = data.details;
-  throw err;
-  }
 
-  return data;
+    const data = await response.json();
+    console.log("Response data structure:", {
+      hasSuccess: 'success' in data,
+      hasError: 'error' in data,
+      hasMessage: 'message' in data,
+      keys: Object.keys(data)
+    });
+
+    if (!response.ok) {
+      // If token is expired or invalid, clear local storage
+      if (response.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
+      
+      const errorMessage = data.error || data.message || `HTTP ${response.status}: ${response.statusText}`;
+      const err = new Error(errorMessage);
+      if (data && data.details) err.details = data.details;
+      throw err;
+    }
+
+    return data;
+  } catch (error) {
+    // Handle JSON parsing errors
+    if (error instanceof SyntaxError) {
+      console.error("JSON parsing error:", error);
+      throw new Error("Server response không thể parse JSON");
+    }
+    // Re-throw other errors (including our custom errors from above)
+    throw error;
+  }
 };
 
 // ==================== AUTH API ====================
@@ -194,6 +263,49 @@ export const resetPassword = async (resetToken, password) => {
     return data;
   } catch (error) {
     console.error("Reset password error:", error);
+    throw error;
+  }
+};
+
+// Cập nhật thông tin profile
+export const updateProfile = async (profileData) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/updatedetails`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(profileData),
+    });
+
+    const data = await handleResponse(response);
+
+    // Update user data in localStorage if successful
+    if (data.success && data.data.user) {
+      localStorage.setItem("user", JSON.stringify(data.data.user));
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Update profile error:", error);
+    throw error;
+  }
+};
+
+// Thay đổi mật khẩu
+export const changePassword = async (currentPassword, newPassword) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/updatepassword`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        currentPassword,
+        newPassword,
+        confirmNewPassword: newPassword,
+      }),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Change password error:", error);
     throw error;
   }
 };
@@ -542,6 +654,30 @@ export const uploadDocument = async (file, metadata = {}) => {
   }
 };
 
+// Bulk upload documents from zip file
+export const bulkUploadDocuments = async (zipFile, onProgress = null) => {
+  try {
+    const formData = new FormData();
+    formData.append("zipFile", zipFile);
+
+    const response = await fetch(`${API_BASE_URL}/documents/bulk-upload`, {
+      method: "POST",
+      headers: {
+        // Don't set Content-Type for FormData, let browser set it
+        ...(localStorage.getItem("token") && {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        }),
+      },
+      body: formData,
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Bulk upload documents error:", error);
+    throw error;
+  }
+};
+
 // Get user documents with pagination and filters
 export const getUserDocuments = async (params = {}) => {
   try {
@@ -554,6 +690,8 @@ export const getUserDocuments = async (params = {}) => {
     if (params.status) queryParams.append("status", params.status);
     if (params.sortBy) queryParams.append("sortBy", params.sortBy);
     if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+    if (params.startDate) queryParams.append("startDate", params.startDate);
+    if (params.endDate) queryParams.append("endDate", params.endDate);
 
     const response = await fetch(
       `${API_BASE_URL}/documents?${queryParams.toString()}`,
@@ -691,6 +829,8 @@ export const getAllDocuments = async (params = {}) => {
     if (params.status) queryParams.append("status", params.status);
     if (params.sortBy) queryParams.append("sortBy", params.sortBy);
     if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+    if (params.startDate) queryParams.append("startDate", params.startDate);
+    if (params.endDate) queryParams.append("endDate", params.endDate);
 
     const response = await fetch(
       `${API_BASE_URL}/documents/admin/all?${queryParams.toString()}`,
@@ -788,6 +928,8 @@ export const getAllUsers = async (params = {}) => {
     if (params.limit) queryParams.append("limit", params.limit);
     if (params.search) queryParams.append("search", params.search);
     if (params.role) queryParams.append("role", params.role);
+    if (params.dateFrom) queryParams.append("dateFrom", params.dateFrom);
+    if (params.dateTo) queryParams.append("dateTo", params.dateTo);
     if (params.sortBy) queryParams.append("sortBy", params.sortBy);
     if (params.sortOrder) queryParams.append("sortOrder", params.sortOrder);
 
@@ -905,10 +1047,36 @@ export const resetUserPassword = async (userId, newPassword) => {
 };
 
 // ==================== AUDIT LOGS ====================
-export const getAuditLogs = async (page = 1, limit = 5) => {
+export const createAuditLog = async (logData) => {
   try {
+    const response = await fetch(`${API_BASE_URL}/audit-logs`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(logData),
+    });
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Create audit log error:", error);
+    throw error;
+  }
+};
+
+export const getAuditLogs = async (page = 1, limit = 5, filters = {}) => {
+  try {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+
+    // Thêm các tham số tìm kiếm nếu có
+    if (filters.user) params.append('user', filters.user);
+    if (filters.action) params.append('action', filters.action);
+    if (filters.fromDate) params.append('fromDate', filters.fromDate);
+    if (filters.toDate) params.append('toDate', filters.toDate);
+
     const response = await fetch(
-      `${API_BASE_URL}/audit-logs?page=${page}&limit=${limit}`,
+      `${API_BASE_URL}/audit-logs?${params.toString()}`,
       {
         method: "GET",
         headers: getAuthHeaders(),
@@ -917,6 +1085,201 @@ export const getAuditLogs = async (page = 1, limit = 5) => {
     return await handleResponse(response);
   } catch (error) {
     console.error("Get audit logs error:", error);
+    throw error;
+  }
+};
+
+// ==================== PLAGIARISM HISTORY API ====================
+export const getPlagiarismHistory = async (limit = 10, offset = 0, filters = {}) => {
+  try {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+
+    // Add filters if provided (no userName filter since it's automatically filtered by current user)
+    if (filters.status) params.append('status', filters.status);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await fetch(
+      `${API_BASE_URL}/plagiarism-history?${params.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get plagiarism history error:", error);
+    throw error;
+  }
+};
+
+// Get all plagiarism history for admin
+export const getAllPlagiarismHistory = async (limit = 10, offset = 0, filters = {}) => {
+  try {
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString(),
+    });
+
+    // Add filters if provided
+    if (filters.userName) params.append('userName', filters.userName);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+
+    const response = await fetch(
+      `${API_BASE_URL}/admin/plagiarism-history?${params.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get all plagiarism history error:", error);
+    throw error;
+  }
+};
+
+// ==================== STATISTICS REPORT API ====================
+
+// Get document upload statistics by month
+export const getDocumentUploadStats = async (startDate, endDate) => {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await fetch(
+      `${API_BASE_URL}/documents/admin/stats/document-uploads?${params.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get document upload stats error:", error);
+    throw error;
+  }
+};
+
+// Get plagiarism check statistics by month
+export const getPlagiarismCheckStats = async (startDate, endDate) => {
+  try {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const response = await fetch(
+      `${API_BASE_URL}/admin/stats/plagiarism-checks?${params.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get plagiarism check stats error:", error);
+    throw error;
+  }
+};
+
+// ==================== THRESHOLD MANAGEMENT API ====================
+
+// Get system thresholds
+export const getThresholds = async () => {
+  try {
+    console.log("API: Sending GET request to fetch thresholds");
+    
+    const response = await fetchWithTimeout(`${API_BASE_URL}/admin/thresholds`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    }, 15000); // 15 second timeout
+
+    console.log("API: Response status:", response.status, response.statusText);
+    
+    const data = await handleResponse(response);
+    console.log("API: Parsed response data:", data);
+    
+    return data;
+  } catch (error) {
+    console.error("Get thresholds error:", error);
+    throw error;
+  }
+};
+
+// Update system thresholds
+export const updateThresholds = async (thresholds) => {
+  try {
+    console.log("API: Sending PUT request to update thresholds:", thresholds);
+    
+    const response = await fetchWithTimeout(`${API_BASE_URL}/admin/thresholds`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(thresholds),
+    }, 15000); // 15 second timeout
+
+    console.log("API: Response status:", response.status, response.statusText);
+    
+    const data = await handleResponse(response);
+    console.log("API: Parsed response data:", data);
+    
+    return data;
+  } catch (error) {
+    console.error("Update thresholds error:", error);
+    throw error;
+  }
+};
+
+// Reset thresholds to default
+export const resetThresholds = async (notes = "") => {
+  try {
+    console.log("API: Sending POST request to reset thresholds:", { notes });
+    
+    const response = await fetchWithTimeout(`${API_BASE_URL}/admin/thresholds/reset`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ notes }),
+    }, 15000); // 15 second timeout
+
+    console.log("API: Response status:", response.status, response.statusText);
+    
+    const data = await handleResponse(response);
+    console.log("API: Parsed response data:", data);
+    
+    return data;
+  } catch (error) {
+    console.error("Reset thresholds error:", error);
+    throw error;
+  }
+};
+
+// Get threshold history
+export const getThresholdHistory = async (params = {}) => {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.page) queryParams.append("page", params.page);
+    if (params.limit) queryParams.append("limit", params.limit);
+
+    const response = await fetch(
+      `${API_BASE_URL}/admin/thresholds/history?${queryParams.toString()}`,
+      {
+        method: "GET",
+        headers: getAuthHeaders(),
+      }
+    );
+
+    return await handleResponse(response);
+  } catch (error) {
+    console.error("Get threshold history error:", error);
     throw error;
   }
 };

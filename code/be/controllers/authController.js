@@ -258,9 +258,13 @@ exports.getMe = async (req, res, next) => {
 // @access  Private
 exports.updateDetails = async (req, res, next) => {
   try {
+    console.log("Update details request body:", req.body);
+    console.log("Current user:", req.user.email);
+    
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.log("Validation errors:", errors.array());
       return res.status(400).json({
         success: false,
         error: "Dữ liệu không hợp lệ",
@@ -268,23 +272,34 @@ exports.updateDetails = async (req, res, next) => {
       });
     }
 
-    const fieldsToUpdate = {
-      name: req.body.name,
-    };
+    const fieldsToUpdate = {};
 
-    // Check if email is being updated
-    if (req.body.email && req.body.email !== req.user.email) {
-      // Check if new email already exists
-      const existingUser = await User.findOne({ email: req.body.email });
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          error: "Email này đã được sử dụng",
-        });
+    // Update name if provided
+    if (req.body.name) {
+      fieldsToUpdate.name = req.body.name;
+    }
+
+    // Update email if provided
+    if (req.body.email) {
+      // Only check for existing email if it's different from current email
+      if (req.body.email !== req.user.email) {
+        const existingUser = await User.findOne({ email: req.body.email });
+        if (existingUser) {
+          return res.status(400).json({
+            success: false,
+            error: "Email này đã được sử dụng",
+          });
+        }
       }
-
       fieldsToUpdate.email = req.body.email;
-      // Không cần reset emailVerified nữa vì không có xác thực email
+    }
+
+    // Check if at least one field is being updated
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Không có thông tin nào để cập nhật",
+      });
     }
 
     const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {

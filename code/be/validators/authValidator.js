@@ -84,7 +84,7 @@ exports.validateUpdateDetails = [
     .trim()
     .isLength({ min: 2, max: 50 })
     .withMessage('Họ tên phải từ 2-50 ký tự')
-    .matches(/^[a-zA-ZÀ-ỹ\s]+$/)
+    .matches(/^[a-zA-ZÀ-ỹĂăÂâÊêÔôƠơƯưĐđ\s]+$/)
     .withMessage('Họ tên chỉ được chứa chữ cái và khoảng trắng'),
 
   body('email')

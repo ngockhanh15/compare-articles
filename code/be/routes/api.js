@@ -7,6 +7,7 @@ const userRoutes = require("./users");
 const avltreeRoutes = require("./avltree");
 const router = express.Router();
 const auditController = require("../controllers/auditController");
+const thresholdController = require("../controllers/thresholdController");
 
 // ===== PLAGIARISM CHECKING ROUTES =====
 
@@ -37,6 +38,22 @@ router.get(
   "/plagiarism-history",
   protect,
   plagiarismController.getPlagiarismHistory
+);
+
+// Get all plagiarism history for admin
+router.get(
+  "/admin/plagiarism-history",
+  protect,
+  authorize("admin"),
+  plagiarismController.getAllPlagiarismHistory
+);
+
+// Get plagiarism check statistics by month for admin
+router.get(
+  "/admin/stats/plagiarism-checks",
+  protect,
+  authorize("admin"),
+  plagiarismController.getPlagiarismCheckStats
 );
 
 // Get user plagiarism statistics
@@ -123,6 +140,13 @@ router.use("/users", userRoutes);
 router.get("/home", plagiarismController.home);
 
 // ===== AUDIT LOG ROUTES =====
+router.post("/audit-logs", protect, auditController.createLog);
 router.get("/audit-logs", protect, authorize("admin"), auditController.listLogs);
+
+// ===== THRESHOLD MANAGEMENT ROUTES =====
+router.get("/admin/thresholds", protect, authorize("admin"), thresholdController.getThresholds);
+router.put("/admin/thresholds", protect, authorize("admin"), thresholdController.updateThresholds);
+router.get("/admin/thresholds/history", protect, authorize("admin"), thresholdController.getThresholdHistory);
+router.post("/admin/thresholds/reset", protect, authorize("admin"), thresholdController.resetThresholds);
 
 module.exports = router;

@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }) => {
       
       // Chỉ kiểm tra Google OAuth session nếu không phải trang public
       try {
-        const googleSessionResponse = await fetch('http://localhost:3000/auth/google/status', {
+        const googleSessionResponse = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"}/auth/google/status`, {
           method: 'GET',
           credentials: 'include' // Quan trọng: gửi cookies session
         });
@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       // Clear localStorage
       // Also logout from Google OAuth session
       try {
-        await fetch('http://localhost:3000/auth/google/logout', {
+        await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:3000"}/auth/google/logout`, {
           method: 'GET',
           credentials: 'include'
         });
@@ -178,6 +178,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUserProfile = async (profileData) => {
+    try {
+      const response = await api.updateProfile(profileData);
+      if (response.success && response.data.user) {
+        setUser(response.data.user);
+      }
+      return response;
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const value = {
     user,
     setUser,
@@ -186,6 +198,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     forgotPassword,
     resetPassword,
+    updateUserProfile,
     isLoading,
     isAuthenticated: !!user
   };
