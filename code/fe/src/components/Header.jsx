@@ -23,7 +23,7 @@ const Header = () => {
               <span className="text-2xl">🎯</span>
             </div>
             <div>
-              <h1 className="text-2xl font-bold">So sánh văn bản</h1>
+              <h1 className="text-2xl font-bold">Hệ thống phát hiện sao chép tài liệu</h1>
             </div>
           </Link>
 

@@ -100,10 +100,10 @@ const Home = () => {
         <div className="mb-12 text-center">
           <div className="p-8 mb-6 text-white shadow-xl bg-gradient-primary rounded-2xl">
             <h1 className="mb-4 text-4xl font-bold md:text-5xl">
-              🎯 So sánh văn bản
+              🎯 Phát hiện sao chép tài liệu
             </h1>
             <p className="mb-6 text-lg text-primary-100">
-              Kiểm tra văn bản của bạn để phát hiện nội dung không phù hợp và tỷ
+              Kiểm tra văn bản của bạn để phát hiện nội dung sao chép và tỷ
               lệ trùng lặp
             </p>
 
@@ -178,7 +178,7 @@ const Home = () => {
               <ul className="space-y-2 text-neutral-600">
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-primary-500 rounded-full"></span>
-                  Sử dụng chức năng "So sánh văn bản" để kiểm tra độ tương đồng
+                  Sử dụng chức năng "Tải văn bản" hoặc "Nhập văn bản" để kiểm tra độ tương đồng
                   giữa các tài liệu
                 </li>
                 <li className="flex items-center gap-2">

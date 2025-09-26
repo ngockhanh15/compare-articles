@@ -25,7 +25,7 @@ const PlagiarismHistory = () => {
     endDate: "",
   });
   const [isExporting, setIsExporting] = useState(false);
-  
+
   const itemsPerPage = 5;
 
   // Function to log audit actions
@@ -47,16 +47,16 @@ const PlagiarismHistory = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const offset = (page - 1) * itemsPerPage;
       const cleanFilters = {};
       if (filters.userName) cleanFilters.userName = filters.userName;
       if (filters.status) cleanFilters.status = filters.status;
       if (filters.startDate) cleanFilters.startDate = filters.startDate;
       if (filters.endDate) cleanFilters.endDate = filters.endDate;
-      
+
       const response = await getAllPlagiarismHistory(itemsPerPage, offset, cleanFilters);
-      
+
       if (response.success) {
         setHistory(response.history);
         setTotal(response.total);
@@ -101,12 +101,12 @@ const PlagiarismHistory = () => {
   const handleFilterChange = (key, value) => {
     if (key === 'userName') {
       setSearchInput(value);
-      
+
       // Clear existing timeout
       if (searchTimeout) {
         clearTimeout(searchTimeout);
       }
-      
+
       // Set new timeout for debounced search
       const timeout = setTimeout(async () => {
         setFilters(prev => ({
@@ -114,7 +114,7 @@ const PlagiarismHistory = () => {
           userName: value
         }));
         setCurrentPage(1);
-        
+
         // Log audit action for user name filter
         if (value.trim()) {
           await logAuditAction("FILTER_PLAGIARISM_HISTORY", {
@@ -124,7 +124,7 @@ const PlagiarismHistory = () => {
           });
         }
       }, 500); // 500ms delay
-      
+
       setSearchTimeout(timeout);
     } else if (key === 'startDate' || key === 'endDate') {
       // For date filters, only update temp state, don't apply immediately
@@ -138,7 +138,7 @@ const PlagiarismHistory = () => {
         [key]: value
       }));
       setCurrentPage(1);
-      
+
       // Log audit action for other filters
       if (value) {
         logAuditAction("FILTER_PLAGIARISM_HISTORY", {
@@ -157,7 +157,7 @@ const PlagiarismHistory = () => {
       endDate: tempDateFilters.endDate,
     }));
     setCurrentPage(1);
-    
+
     // Log audit action for date filter
     if (tempDateFilters.startDate || tempDateFilters.endDate) {
       await logAuditAction("FILTER_PLAGIARISM_HISTORY", {
@@ -184,13 +184,13 @@ const PlagiarismHistory = () => {
     });
     setSearchInput("");
     setCurrentPage(1);
-    
+
     // Clear any pending search timeout
     if (searchTimeout) {
       clearTimeout(searchTimeout);
       setSearchTimeout(null);
     }
-    
+
     // Log audit action for clearing filters
     await logAuditAction("CLEAR_PLAGIARISM_HISTORY_FILTERS", {
       description: "Xóa tất cả bộ lọc lịch sử kiểm tra"
@@ -204,7 +204,7 @@ const PlagiarismHistory = () => {
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    
+
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
@@ -218,7 +218,7 @@ const PlagiarismHistory = () => {
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
-    
+
     return `${day}/${month}/${year}`;
   };
 
@@ -226,22 +226,22 @@ const PlagiarismHistory = () => {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - days);
-    
+
     const startDateStr = formatDateForInput(startDate);
     const endDateStr = formatDateForInput(endDate);
-    
+
     setTempDateFilters({
       startDate: startDateStr,
       endDate: endDateStr
     });
-    
+
     setFilters(prev => ({
       ...prev,
       startDate: startDateStr,
       endDate: endDateStr
     }));
     setCurrentPage(1);
-    
+
     // Log audit action for quick date filter
     await logAuditAction("FILTER_PLAGIARISM_HISTORY", {
       filterType: "quickDateFilter",
@@ -253,19 +253,19 @@ const PlagiarismHistory = () => {
   const setTodayFilter = async () => {
     const today = new Date();
     const todayStr = formatDateForInput(today);
-    
+
     setTempDateFilters({
       startDate: todayStr,
       endDate: todayStr
     });
-    
+
     setFilters(prev => ({
       ...prev,
       startDate: todayStr,
       endDate: todayStr
     }));
     setCurrentPage(1);
-    
+
     // Log audit action for today filter
     await logAuditAction("FILTER_PLAGIARISM_HISTORY", {
       filterType: "todayFilter",
@@ -286,7 +286,7 @@ const PlagiarismHistory = () => {
       sourceType: item.source,
       description: `Xem chi tiết lịch sử kiểm tra: ${item.fileName || 'Kiểm tra văn bản'} (${item.source === 'file' ? 'File' : 'Văn bản'})`
     });
-    
+
     // Điều hướng đến trang so sánh chi tiết dựa trên loại source
     if (item.source === "file") {
       navigate(`/detail-checker/${item.id}`);
@@ -298,16 +298,16 @@ const PlagiarismHistory = () => {
   const exportToExcel = async () => {
     try {
       setIsExporting(true);
-      
+
       // Lấy tất cả dữ liệu (không phân trang)
       const cleanFilters = {};
       if (filters.userName) cleanFilters.userName = filters.userName;
       if (filters.status) cleanFilters.status = filters.status;
       if (filters.startDate) cleanFilters.startDate = filters.startDate;
       if (filters.endDate) cleanFilters.endDate = filters.endDate;
-      
+
       const response = await getAllPlagiarismHistory(10000, 0, cleanFilters); // Lấy tối đa 10000 records
-      
+
       if (!response.success) {
         throw new Error("Không thể lấy dữ liệu để xuất Excel");
       }
@@ -355,7 +355,7 @@ const PlagiarismHistory = () => {
 
       // Xuất file
       XLSX.writeFile(wb, fileName);
-      
+
       // Log audit action for Excel export
       await logAuditAction("EXPORT_PLAGIARISM_HISTORY", {
         exportType: "excel",
@@ -364,7 +364,7 @@ const PlagiarismHistory = () => {
         filters: cleanFilters,
         description: `Xuất ${response.history.length} bản ghi lịch sử kiểm tra ra file Excel: ${fileName}`
       });
-      
+
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       alert('Có lỗi xảy ra khi xuất file Excel: ' + error.message);
@@ -426,7 +426,7 @@ const PlagiarismHistory = () => {
           <button
             onClick={exportToExcel}
             disabled={isExporting || history.length === 0}
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExporting ? (
               <>
@@ -489,14 +489,12 @@ const PlagiarismHistory = () => {
             </div>
 
             {/* Apply date filter button */}
-            {(tempDateFilters.startDate !== filters.startDate || tempDateFilters.endDate !== filters.endDate) && (tempDateFilters.startDate || tempDateFilters.endDate) && (
-              <button
-                onClick={applyDateFilters}
-                className="px-3 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
-              >
-                Áp dụng
-              </button>
-            )}
+            <button
+              onClick={applyDateFilters}
+              className="px-3 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            >
+              Áp dụng
+            </button>
 
             {/* Quick date filters */}
             <div className="flex items-center space-x-2">
@@ -593,7 +591,7 @@ const PlagiarismHistory = () => {
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="mb-3">
                     <p className="text-neutral-700" style={{
                       display: '-webkit-box',
@@ -604,7 +602,7 @@ const PlagiarismHistory = () => {
                       {item.text}
                     </p>
                   </div>
-                  
+
                   {/* Thông tin số câu */}
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-center space-x-4">
@@ -621,11 +619,11 @@ const PlagiarismHistory = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Nút xem chi tiết */}
                     <button
                       onClick={() => handleViewDetails(item)}
-                      className="px-4 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+                      className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
                     >
                       <span className="flex items-center space-x-2">
                         <span>🔍</span>
@@ -634,7 +632,7 @@ const PlagiarismHistory = () => {
                     </button>
                   </div>
                 </div>
-                
+
                 <div className="ml-4">
                   <div className="flex flex-col items-center space-y-2">
                     <div className="flex items-center justify-center w-16 h-16 rounded-full bg-neutral-100">
@@ -667,7 +665,7 @@ const PlagiarismHistory = () => {
           <div className="text-sm text-neutral-600">
             Hiển thị {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, total)} trong tổng số {total} kết quả
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <button
               onClick={() => handlePageChange(currentPage - 1)}
@@ -676,7 +674,7 @@ const PlagiarismHistory = () => {
             >
               Trước
             </button>
-            
+
             <div className="flex items-center space-x-1">
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNum;
@@ -689,23 +687,22 @@ const PlagiarismHistory = () => {
                 } else {
                   pageNum = currentPage - 2 + i;
                 }
-                
+
                 return (
                   <button
                     key={pageNum}
                     onClick={() => handlePageChange(pageNum)}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      currentPage === pageNum
-                        ? "bg-primary-600 text-white"
-                        : "text-neutral-700 hover:bg-neutral-100"
-                    }`}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
+                      ? "bg-primary-600 text-white"
+                      : "text-neutral-700 hover:bg-neutral-100"
+                      }`}
                   >
                     {pageNum}
                   </button>
                 );
               })}
             </div>
-            
+
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}

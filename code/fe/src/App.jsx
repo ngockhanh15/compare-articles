@@ -55,7 +55,7 @@ const Layout = ({ children }) => {
             <div>
               <div className="flex items-center mb-4">
                 <span className="mr-2 text-2xl">🎯</span>
-                <h3 className="text-lg font-bold">So sánh văn bản</h3>
+                <h3 className="text-lg font-bold">Hệ thống phát hiện sao chép</h3>
               </div>
               <p className="text-sm leading-relaxed text-neutral-300">
                 Giúp kiểm tra các văn bản có trùng lặp với thông tin dữ liệu

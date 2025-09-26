@@ -4,8 +4,6 @@ import {
   checkDocumentSimilarity,
   getUserDocuments,
   getDocumentText,
-  getTreeStats,
-  getDetailedComparison,
   getThresholds,
 } from "../services/api";
 import { Link } from "react-router-dom";
@@ -28,18 +26,6 @@ const TextChecker = () => {
     highDuplicationThreshold: 30,
     documentComparisonThreshold: 20
   });
-  // const [treeStats, setTreeStats] = useState(null);
-  // Helper to render percentage regardless of whether backend returns 0-1 or 0-100
-  const formatPercent = (value) => {
-    if (value === undefined || value === null || isNaN(Number(value)))
-      return "0%";
-    let v = Number(value);
-    // If value looks like ratio (<=1), convert to %
-    if (v <= 1) v = v * 100;
-    if (v < 0) v = 0;
-    if (v > 100) v = 100;
-    return `${v % 1 === 0 ? v.toFixed(0) : v.toFixed(1)}%`;
-  };
 
   // Thêm vào phần khai báo state
   const [, setDetailedStats] = useState({

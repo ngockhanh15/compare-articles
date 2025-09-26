@@ -144,6 +144,10 @@ router.post("/audit-logs", protect, auditController.createLog);
 router.get("/audit-logs", protect, authorize("admin"), auditController.listLogs);
 
 // ===== THRESHOLD MANAGEMENT ROUTES =====
+// Public threshold access for all authenticated users (read-only)
+router.get("/thresholds", protect, thresholdController.getThresholds);
+
+// Admin-only threshold management
 router.get("/admin/thresholds", protect, authorize("admin"), thresholdController.getThresholds);
 router.put("/admin/thresholds", protect, authorize("admin"), thresholdController.updateThresholds);
 router.get("/admin/thresholds/history", protect, authorize("admin"), thresholdController.getThresholdHistory);

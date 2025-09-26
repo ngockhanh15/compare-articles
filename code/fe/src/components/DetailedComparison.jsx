@@ -380,7 +380,7 @@ export default function DetailedComparison() {
           <div className="lg:col-span-1 p-6 bg-white shadow-xl rounded-2xl">
             <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
               <span className="mr-2">📋</span>
-              Tất cả Documents trùng lặp ({matches.length} documents)
+              Tất cả tài liệu trùng lặp ({matches.length} documents)
             </h2>
             {matches.length === 0 ? (
               <div className="py-8 text-center text-neutral-600">Không tìm thấy documents trùng lặp</div>

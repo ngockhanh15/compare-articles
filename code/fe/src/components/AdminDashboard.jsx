@@ -69,7 +69,7 @@ const AdminDashboard = () => {
         { id: "plagiarism-stats", name: "Thống kê Kiểm tra", icon: "🔍" },
       ]
     },
-    { id: "thresholds", name: "Quản lý ngưỡng", icon: "⚙️" },
+    { id: "thresholds", name: "Cấu hình ngưỡng", icon: "⚙️" },
     { id: "audit", name: "Nhật ký quản trị", icon: "📝" },
   ];
 

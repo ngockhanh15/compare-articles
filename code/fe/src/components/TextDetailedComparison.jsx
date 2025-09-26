@@ -370,7 +370,7 @@ export default function TextDetailedComparison() {
           <div className="p-6 mb-8 bg-white shadow-xl rounded-2xl">
             <h2 className="flex items-center mb-6 text-xl font-semibold text-neutral-800">
               <span className="mr-2">📋</span>
-              Tất cả Documents có trùng lặp ({matches.length} documents)
+              Tất cả tài liệu có trùng lặp ({matches.length} documents)
             </h2>
 
             <div className="space-y-4">

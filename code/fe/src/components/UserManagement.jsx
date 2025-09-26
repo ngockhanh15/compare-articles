@@ -65,7 +65,7 @@ const UserManagement = () => {
     try {
       setLoading(true);
       setError("");
-      
+
       const params = {
         page: currentPage,
         limit: usersPerPage,
@@ -78,14 +78,14 @@ const UserManagement = () => {
       };
 
       const response = await api.getAllUsers(params);
-      
+
       if (response.success) {
         setUsers(response.data.users);
-        
+
         // Cập nhật pagination
         if (response.data.pagination) {
           setPagination(response.data.pagination);
-          
+
           // Nếu current page lớn hơn total pages, reset về page 1
           if (currentPage > response.data.pagination.totalPages && response.data.pagination.totalPages > 0) {
             setCurrentPage(1);
@@ -111,15 +111,15 @@ const UserManagement = () => {
   const handleToggleUserStatus = async (userId, currentStatus) => {
     try {
       const response = await api.toggleUserStatus(userId);
-      
+
       if (response.success) {
         // Cập nhật state local
-        setUsers(users.map(user => 
-          user._id === userId 
+        setUsers(users.map(user =>
+          user._id === userId
             ? { ...user, isActive: !currentStatus }
             : user
         ));
-        
+
         // Hiển thị thông báo thành công (có thể thêm toast notification)
         console.log(response.message);
       } else {
@@ -138,11 +138,11 @@ const UserManagement = () => {
 
     try {
       const response = await api.deleteUser(userId);
-      
+
       if (response.success) {
         // Hiển thị thông báo thành công
         console.log(response.message);
-        
+
         // Reload trang sau khi xóa thành công
         window.location.reload();
       } else {
@@ -209,7 +209,7 @@ const UserManagement = () => {
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    
+
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
@@ -251,7 +251,7 @@ const UserManagement = () => {
       };
 
       const response = await api.getAllUsers(params);
-      
+
       if (!response.success) {
         throw new Error(response.error || "Không thể lấy dữ liệu người dùng");
       }
@@ -391,7 +391,7 @@ const UserManagement = () => {
             <option value="admin">Quản trị viên</option>
           </select>
         </div>
-        
+
         {/* Date Range Filter */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -420,14 +420,12 @@ const UserManagement = () => {
                 />
               </div>
               <div className="flex gap-2">
-                {(dateFrom || dateTo) && (
-                  <button
-                    onClick={applyDateFilters}
-                    className="px-3 py-2 text-sm font-medium text-white transition-colors bg-primary-600 border border-primary-600 rounded-lg hover:bg-primary-700"
-                  >
-                    Áp dụng lọc
-                  </button>
-                )}
+                <button
+                  onClick={applyDateFilters}
+                  className="px-3 py-2 text-sm font-medium text-white transition-colors bg-primary-600 border border-primary-600 rounded-lg hover:bg-primary-700"
+                >
+                  Áp dụng lọc
+                </button>
                 {(appliedDateFrom || appliedDateTo) && (
                   <button
                     onClick={clearDateFilters}
@@ -440,7 +438,7 @@ const UserManagement = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Applied Filters Indicator */}
         {(appliedDateFrom || appliedDateTo) && (
           <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -462,9 +460,8 @@ const UserManagement = () => {
       </div>
 
       {/* Users Table */}
-      <div className={`overflow-hidden bg-white border border-neutral-200 rounded-xl transition-opacity duration-200 ${
-        isSearching ? 'opacity-75' : 'opacity-100'
-      }`}>
+      <div className={`overflow-hidden bg-white border border-neutral-200 rounded-xl transition-opacity duration-200 ${isSearching ? 'opacity-75' : 'opacity-100'
+        }`}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-neutral-200">
             <thead className="bg-neutral-50">
@@ -527,11 +524,10 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        user.isActive 
+                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isActive
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
-                      }`}>
+                        }`}>
                         {user.isActive ? 'Hoạt động' : 'Bị khóa'}
                       </span>
                       {user.emailVerified && (
@@ -549,11 +545,10 @@ const UserManagement = () => {
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => handleToggleUserStatus(user._id, user.isActive)}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                          user.isActive
+                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${user.isActive
                             ? 'bg-red-100 text-red-700 hover:bg-red-200'
                             : 'bg-green-100 text-green-700 hover:bg-green-200'
-                        }`}
+                          }`}
                       >
                         {user.isActive ? 'Khóa' : 'Mở khóa'}
                       </button>
@@ -617,125 +612,125 @@ const UserManagement = () => {
                 </div>
               )}
               <div className="space-y-3">
-              <div>
-                <label className="block mb-1 text-sm text-neutral-700">Họ tên</label>
-                <input
-                  type="text"
-                  value={newUser.name}
-                  onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Nguyễn Văn A"
-                />
+                <div>
+                  <label className="block mb-1 text-sm text-neutral-700">Họ tên</label>
+                  <input
+                    type="text"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Nguyễn Văn A"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-sm text-neutral-700">Email</label>
+                  <input
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="user@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-sm text-neutral-700">Mật khẩu</label>
+                  <input
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Tối thiểu 6 ký tự"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-sm text-neutral-700">Xác nhận mật khẩu</label>
+                  <input
+                    type="password"
+                    value={newUser.confirmPassword}
+                    onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Nhập lại mật khẩu"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1 text-sm text-neutral-700">Vai trò</label>
+                  <select
+                    value={newUser.role}
+                    onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="user">Người dùng</option>
+                    <option value="admin">Quản trị viên</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="block mb-1 text-sm text-neutral-700">Email</label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="user@example.com"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 text-sm text-neutral-700">Mật khẩu</label>
-                <input
-                  type="password"
-                  value={newUser.password}
-                  onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Tối thiểu 6 ký tự"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 text-sm text-neutral-700">Xác nhận mật khẩu</label>
-                <input
-                  type="password"
-                  value={newUser.confirmPassword}
-                  onChange={(e) => setNewUser({ ...newUser, confirmPassword: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  placeholder="Nhập lại mật khẩu"
-                />
-              </div>
-              <div>
-                <label className="block mb-1 text-sm text-neutral-700">Vai trò</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg border-neutral-300 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                  disabled={creating}
                 >
-                  <option value="user">Người dùng</option>
-                  <option value="admin">Quản trị viên</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-                disabled={creating}
-              >
-                Hủy
-              </button>
-              <button
-                onClick={async () => {
-                  try {
-                    setCreating(true);
-                    setError("");
-                    if (!newUser.name || !newUser.email || !newUser.password || !newUser.confirmPassword) {
-                      setError("Vui lòng nhập đủ họ tên, email, mật khẩu và xác nhận mật khẩu");
+                  Hủy
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      setCreating(true);
+                      setError("");
+                      if (!newUser.name || !newUser.email || !newUser.password || !newUser.confirmPassword) {
+                        setError("Vui lòng nhập đủ họ tên, email, mật khẩu và xác nhận mật khẩu");
+                        setCreating(false);
+                        return;
+                      }
+                      // Front validations to match backend rules
+                      if (newUser.name.length < 2 || newUser.name.length > 50 || !/^[a-zA-ZÀ-ỹ\s]+$/.test(newUser.name)) {
+                        setError("Họ tên phải 2-50 ký tự và chỉ chứa chữ cái/khoảng trắng");
+                        setCreating(false);
+                        return;
+                      }
+                      if (newUser.password.length < 6 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newUser.password)) {
+                        setError("Mật khẩu phải ≥6 ký tự, gồm chữ thường, chữ hoa và số");
+                        setCreating(false);
+                        return;
+                      }
+                      if (newUser.password !== newUser.confirmPassword) {
+                        setError("Xác nhận mật khẩu không khớp");
+                        setCreating(false);
+                        return;
+                      }
+                      // 1) Call register to create account
+                      const res = await api.adminCreateUser({
+                        name: newUser.name,
+                        email: newUser.email,
+                        password: newUser.password,
+                        confirmPassword: newUser.confirmPassword,
+                      });
+                      if (!res?.success) {
+                        throw new Error(res?.error || "Không thể tạo tài khoản");
+                      }
+                      // 2) If role is admin, set role via admin endpoint
+                      const createdId = res?.data?.user?.id || res?.data?.user?._id;
+                      if (newUser.role === "admin" && createdId) {
+                        await api.updateUserRole(createdId, "admin");
+                      }
+                      // Clean and refresh list
+                      setShowAddModal(false);
+                      setNewUser({ name: "", email: "", password: "", confirmPassword: "", role: "user" });
+
+                      // Reload trang sau khi thêm thành công
+                      window.location.reload();
+                    } catch (e) {
+                      console.error(e);
+                      setError(e.message || "Không thể tạo tài khoản");
+                    } finally {
                       setCreating(false);
-                      return;
                     }
-                    // Front validations to match backend rules
-                    if (newUser.name.length < 2 || newUser.name.length > 50 || !/^[a-zA-ZÀ-ỹ\s]+$/.test(newUser.name)) {
-                      setError("Họ tên phải 2-50 ký tự và chỉ chứa chữ cái/khoảng trắng");
-                      setCreating(false);
-                      return;
-                    }
-                    if (newUser.password.length < 6 || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(newUser.password)) {
-                      setError("Mật khẩu phải ≥6 ký tự, gồm chữ thường, chữ hoa và số");
-                      setCreating(false);
-                      return;
-                    }
-                    if (newUser.password !== newUser.confirmPassword) {
-                      setError("Xác nhận mật khẩu không khớp");
-                      setCreating(false);
-                      return;
-                    }
-                    // 1) Call register to create account
-                    const res = await api.adminCreateUser({
-                      name: newUser.name,
-                      email: newUser.email,
-                      password: newUser.password,
-                      confirmPassword: newUser.confirmPassword,
-                    });
-                    if (!res?.success) {
-                      throw new Error(res?.error || "Không thể tạo tài khoản");
-                    }
-                    // 2) If role is admin, set role via admin endpoint
-                    const createdId = res?.data?.user?.id || res?.data?.user?._id;
-                    if (newUser.role === "admin" && createdId) {
-                      await api.updateUserRole(createdId, "admin");
-                    }
-                    // Clean and refresh list
-                    setShowAddModal(false);
-                    setNewUser({ name: "", email: "", password: "", confirmPassword: "", role: "user" });
-                    
-                    // Reload trang sau khi thêm thành công
-                    window.location.reload();
-                  } catch (e) {
-                    console.error(e);
-                    setError(e.message || "Không thể tạo tài khoản");
-                  } finally {
-                    setCreating(false);
-                  }
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
-                disabled={creating}
-              >
-                {creating ? "Đang tạo..." : "Thêm"}
-              </button>
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-60"
+                  disabled={creating}
+                >
+                  {creating ? "Đang tạo..." : "Thêm"}
+                </button>
               </div>
             </div>
           </div>

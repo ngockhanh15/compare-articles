@@ -139,7 +139,7 @@ const PlagiarismStatistics = () => {
           </h1>
         </div>
         <p className="text-neutral-600">
-          Thống kê lượt kiểm tra plagiarism theo tháng
+          Thống kê lượt kiểm tra sao chép theo tháng
         </p>
       </div>
 
@@ -193,7 +193,7 @@ const PlagiarismStatistics = () => {
           <button
             onClick={fetchPlagiarismStats}
             disabled={loading}
-            className="px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-white transition-all duration-200 bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
             Áp dụng
           </button>

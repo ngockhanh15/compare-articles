@@ -35,7 +35,7 @@ const ThresholdManagement = () => {
       setError("");
       
       console.log("Loading thresholds...");
-      const data = await api.getThresholds();
+      const data = await api.getAdminThresholds();
       console.log("Load response:", data);
       
       if (data.thresholds) {
@@ -187,9 +187,9 @@ const ThresholdManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-neutral-800">
-            Quản lý ngưỡng kiểm tra
+            Cấu hình ngưỡng trùng lặp
           </h2>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1user text-sm text-neutral-600">
             Cấu hình các ngưỡng để xác định mức độ trùng lặp trong hệ thống
           </p>
         </div>

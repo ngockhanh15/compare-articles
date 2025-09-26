@@ -12,7 +12,7 @@ const UserGuide = () => {
       content: (
         <div className="space-y-6">
           <div className="p-6 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="text-lg font-semibold text-blue-800 mb-3">Chào mừng đến với hệ thống So sánh văn bản!</h3>
+            <h3 className="text-lg font-semibold text-blue-800 mb-3">Chào mừng đến với hệ thống Phát hiện sao chép tài liệu!</h3>
             <p className="text-blue-700">
               Hệ thống giúp bạn kiểm tra và so sánh các văn bản để phát hiện sự trùng lặp nội dung một cách nhanh chóng và chính xác.
             </p>
@@ -105,7 +105,7 @@ const UserGuide = () => {
               <div>
                 <h4 className="font-semibold text-gray-800">Thực hiện kiểm tra</h4>
                 <p className="text-sm text-gray-600 mt-1">
-                  Nhấp nút "Kiểm tra" để hệ thống phân tích và so sánh văn bản.
+                  Nhấp nút "Kiểm tra" để hệ thống phân tích.
                 </p>
               </div>
             </div>
@@ -549,7 +549,7 @@ const UserGuide = () => {
             📚 Hướng dẫn sử dụng hệ thống
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Hướng dẫn chi tiết cách sử dụng các tính năng của hệ thống So sánh văn bản
+            Hướng dẫn chi tiết cách sử dụng các tính năng của hệ thống Phát hiện sao chép tài liệu
           </p>
         </div>
 

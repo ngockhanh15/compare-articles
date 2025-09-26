@@ -561,7 +561,7 @@ const DocumentManagement = () => {
           <button
             onClick={handleExportToExcel}
             disabled={loading || documents.length === 0 || isExporting}
-            className="px-4 py-2 text-white transition-colors bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center px-4 py-2 text-sm font-medium text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Xuất tài liệu đang hiển thị trong bảng ra file Excel"
           >
             {isExporting ? (
@@ -575,7 +575,7 @@ const DocumentManagement = () => {
           </button>
           <button
             onClick={() => setShowUploadModal(true)}
-            className="px-4 py-2 text-white transition-colors bg-blue-600 rounded-lg hover:bg-blue-700"
+            className="px-4 py-2 text-white transition-colors bg-green-600 rounded-lg hover:bg-green-700"
           >
             📤 Upload tài liệu
           </button>
@@ -661,17 +661,17 @@ const DocumentManagement = () => {
             <button
               onClick={handleApplyDateFilter}
               disabled={!startDate && !endDate}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-2 text-sm font-medium text-white transition-colors bg-primary-600 border border-primary-600 rounded-lg hover:bg-primary-700"
               title={!startDate && !endDate ? "Vui lòng chọn ít nhất một ngày" : "Áp dụng bộ lọc ngày"}
             >
-              📅 Duyệt
+              Áp dụng lọc
             </button>
             {(appliedStartDate || appliedEndDate) && (
               <button
                 onClick={handleClearDateFilter}
-                className="px-4 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 rounded-lg hover:bg-neutral-200 transition-colors"
+                className="px-3 py-2 text-sm font-medium text-red-600 transition-colors bg-red-50 border border-red-200 rounded-lg hover:bg-red-100"
               >
-                ✕ Xóa bộ lọc
+                Xóa bộ lọc
               </button>
             )}
           </div>

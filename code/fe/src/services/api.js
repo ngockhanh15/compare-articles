@@ -1194,10 +1194,32 @@ export const getPlagiarismCheckStats = async (startDate, endDate) => {
 
 // ==================== THRESHOLD MANAGEMENT API ====================
 
-// Get system thresholds
+// Get system thresholds (accessible by all authenticated users)
 export const getThresholds = async () => {
   try {
     console.log("API: Sending GET request to fetch thresholds");
+    
+    const response = await fetchWithTimeout(`${API_BASE_URL}/thresholds`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    }, 15000); // 15 second timeout
+
+    console.log("API: Response status:", response.status, response.statusText);
+    
+    const data = await handleResponse(response);
+    console.log("API: Parsed response data:", data);
+    
+    return data;
+  } catch (error) {
+    console.error("Get thresholds error:", error);
+    throw error;
+  }
+};
+
+// Get system thresholds (admin only - for management interface)
+export const getAdminThresholds = async () => {
+  try {
+    console.log("API: Sending GET request to fetch admin thresholds");
     
     const response = await fetchWithTimeout(`${API_BASE_URL}/admin/thresholds`, {
       method: "GET",
@@ -1211,7 +1233,7 @@ export const getThresholds = async () => {
     
     return data;
   } catch (error) {
-    console.error("Get thresholds error:", error);
+    console.error("Get admin thresholds error:", error);
     throw error;
   }
 };

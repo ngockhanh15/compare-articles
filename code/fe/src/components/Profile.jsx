@@ -573,7 +573,7 @@ const Profile = () => {
                       </h4>
                       <ul className="text-sm text-amber-700 space-y-1">
                         <li>• Mật khẩu mới phải có ít nhất 6 ký tự</li>
-                        <li>• Phải chứa ít nhất 1 chữ thường, 1 chữ hoa và 1 số</li>
+                        <li>• Phải chứa ít nhất 1 chữ hoa, 1 chữ thường và 1 số</li>
                         <li>• Không sử dụng thông tin cá nhân dễ đoán</li>
                       </ul>
                     </div>
