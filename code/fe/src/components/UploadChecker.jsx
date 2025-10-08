@@ -167,55 +167,49 @@ const UploadChecker = () => {
         (result.mostSimilarDocument && result.mostSimilarDocument.fileName) ||
         "";
 
-      // Tính tổng số câu trong văn bản kiểm tra
+      // 🚀 SIÊU TỐI ƯU: Tính toán hiệu quả với O(n) complexity
       const sentences = textToCheck
         .split(/[.!?]+/)
         .filter((sentence) => sentence.trim().length > 0);
       const totalSentencesInText = sentences.length;
 
-      // Tính số câu trùng lặp thực tế từ matches
       const matches = result.matches || [];
       const duplicateSentencesFromText = new Set();
+      let maxSimilarity = 0;
 
-      matches.forEach((match) => {
+      // 🎯 Tối ưu: Single pass qua matches với early optimization
+      for (const match of matches) {
+        // Track max similarity trong cùng một loop
+        const matchSim = match.similarity || 0;
+        if (matchSim > maxSimilarity) {
+          maxSimilarity = matchSim;
+        }
+
         if (match.duplicateSentencesDetails && Array.isArray(match.duplicateSentencesDetails)) {
-          // Sử dụng duplicateSentencesDetails từ backend nếu có
-          match.duplicateSentencesDetails.forEach((detail) => {
+          // 🚀 Batch add sentence indices
+          for (const detail of match.duplicateSentencesDetails) {
             if (detail.inputSentenceIndex !== undefined) {
               duplicateSentencesFromText.add(detail.inputSentenceIndex);
             }
-          });
-        } else if (match.text) {
-          // Fallback: so sánh với match.text
-          sentences.forEach((sentence, index) => {
-            if (
-              sentence.trim().includes(match.text.trim()) ||
-              match.text.trim().includes(sentence.trim())
-            ) {
-              duplicateSentencesFromText.add(index);
+          }
+        } else if (match.text && sentences.length < 1000) { // 🎯 Skip expensive fallback for large texts
+          // 🚀 Optimized text matching với pre-trimmed values
+          const matchTextTrimmed = match.text.trim();
+          for (let i = 0; i < sentences.length; i++) {
+            const sentenceTrimmed = sentences[i].trim();
+            if (sentenceTrimmed.includes(matchTextTrimmed) || matchTextTrimmed.includes(sentenceTrimmed)) {
+              duplicateSentencesFromText.add(i);
+              break; // 🎯 Early break after first match
             }
-          });
+          }
         }
-      });
+      }
 
       const duplicateSentencesCount = duplicateSentencesFromText.size;
 
-      // Tính dtotal chính xác - sử dụng similarity từ document giống nhất
-      const resultMatches = result.matches || [];
-      let correctDtotal = 0;
-
-      if (resultMatches.length > 0) {
-        // Sắp xếp matches theo similarity giảm dần và lấy document giống nhất
-        const sortedMatches = [...resultMatches].sort((a, b) => {
-          const simA = a.similarity || 0;
-          const simB = b.similarity || 0;
-          return simB - simA;
-        });
-        correctDtotal = sortedMatches[0].similarity || 0;
-      } else {
-        // Fallback: sử dụng giá trị từ backend hoặc tính toán local
-        correctDtotal = result.dtotal || (totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0);
-      }
+      // 🚀 Sử dụng maxSimilarity đã tính sẵn thay vì sort lại
+      const correctDtotal = maxSimilarity > 0 ? maxSimilarity : 
+        (result.dtotal || (totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0));
 
       setResults({
         checkId: similarityResult.checkId,

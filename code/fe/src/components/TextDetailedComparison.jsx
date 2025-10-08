@@ -166,17 +166,22 @@ export default function TextDetailedComparison() {
       });
 
       // Highlight các câu trùng lặp trong toàn bộ nội dung
+      const highlightedSentences = new Set(); // Track highlighted sentences to avoid duplicates
+
       filteredDetails.forEach((d) => {
         const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
-        if (docSentence && highlightedText.includes(docSentence)) {
+        if (docSentence && highlightedText.includes(docSentence) && !highlightedSentences.has(docSentence)) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
           const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
           const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
 
-          // Highlight câu trùng lặp trong toàn bộ nội dung
-          // Sử dụng regex để tránh highlight nhiều lần cùng một câu
-          const regex = new RegExp(docSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          // Highlight only the first occurrence of each sentence
+          const escapedSentence = docSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const regex = new RegExp(escapedSentence);
           highlightedText = highlightedText.replace(regex, `<span style="${highlightStyle}" title="${sim}%">${docSentence}</span>`);
+
+          // Mark this sentence as highlighted
+          highlightedSentences.add(docSentence);
         }
       });
 
@@ -286,11 +291,13 @@ export default function TextDetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{(() => {
-                  const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
-                  const totalInputSentences = data.totalInputSentences || 1;
-                  return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
-                })()}%</span>
+                Nguồn: <span className="font-medium text-neutral-800"> {(matches[selectedIndex].source || matches[selectedIndex].title || "Document")
+                  .split('-')[0]
+                  .trim()}</span> · D A/B: <span className="font-bold">{(() => {
+                    const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
+                    const totalInputSentences = data.totalInputSentences || 1;
+                    return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
+                  })()}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -392,7 +399,9 @@ export default function TextDetailedComparison() {
                         <div className="flex items-center mb-2">
                           <span className="mr-2 text-lg">📄</span>
                           <h3 className="font-medium text-neutral-800">
-                            {match.source || match.title || `Document ${idx + 1}`}
+                            {(match.source || match.title || `Document ${idx + 1}`)
+                              ? (match.source || match.title || `Document ${idx + 1}`).split('-')[0].trim()
+                              : ''}
                           </h3>
                           {isSelected && (
                             <span className="ml-2 px-2 py-1 text-xs font-medium text-white bg-blue-500 rounded-full">

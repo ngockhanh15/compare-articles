@@ -138,7 +138,7 @@ const Header = () => {
                           className="flex items-center gap-3 px-4 py-3 transition-colors text-neutral-700 hover:bg-neutral-50"
                         >
                           <span className="text-lg">🛠️</span>
-                          <span>Bảng điều khiển Admin</span>
+                          <span>Bảng điều khiển QTV</span>
                         </Link>
                       </>
                     )}
@@ -255,7 +255,7 @@ const Header = () => {
                         className="flex items-center gap-3 px-3 py-2 transition-colors rounded-lg hover:bg-white/10"
                       >
                         <span>🛠️</span>
-                        <span>Bảng điều khiển Admin</span>
+                        <span>Bảng điều khiển QTV</span>
                       </Link>
                     )}
                     

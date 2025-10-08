@@ -91,7 +91,43 @@ const plagiarismCheckSchema = new mongoose.Schema({
     }
   },
   ipAddress: String,
-  userAgent: String
+  userAgent: String,
+  
+  // 🚀 CACHING OPTIMIZATION FIELDS - Lưu kết quả chi tiết để tránh gọi lại checkDuplicateContent
+  detailedResult: {
+    type: mongoose.Schema.Types.Mixed, // Lưu toàn bộ kết quả từ DocumentAVLService
+    default: null
+  },
+  
+  // Metadata bổ sung từ DocumentAVLService
+  totalInputSentences: {
+    type: Number,
+    default: 0
+  },
+  dtotal: {
+    type: Number,
+    default: 0
+  },
+  dab: {
+    type: Number,
+    default: 0
+  },
+  totalSentencesWithInputWords: {
+    type: Number,
+    default: 0
+  },
+  maxDuplicateSentences: {
+    type: Number,
+    default: 0
+  },
+  documentWithMostDuplicates: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  totalDuplicateSentences: {
+    type: Number,
+    default: 0
+  }
 }, {
   timestamps: true
 });

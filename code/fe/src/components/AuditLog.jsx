@@ -299,22 +299,63 @@ export default function AuditLog() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between mt-4">
-        <div className="text-sm text-neutral-600">Tổng: {pagination.total || 0}</div>
-        <div className="space-x-2">
-          <button
-            className="px-3 py-1 text-sm bg-neutral-100 rounded-lg disabled:opacity-50"
-            onClick={() => { const p = Math.max(1, (pagination.page || 1) - 1); setPage(p); load(p, filters); }}
-            disabled={!pagination.hasPrev}
-          >Trước</button>
-          <span className="text-sm">{pagination.page || 1} / {pagination.totalPages || 1}</span>
-          <button
-            className="px-3 py-1 text-sm bg-neutral-100 rounded-lg disabled:opacity-50"
-            onClick={() => { const p = Math.min((pagination.totalPages || 1), (pagination.page || 1) + 1); setPage(p); load(p, filters); }}
-            disabled={!pagination.hasNext}
-          >Sau</button>
+      {/* Pagination */}
+      {(pagination.totalPages || 1) > 1 && (
+        <div className="flex items-center justify-between pt-6 mt-4 border-t border-neutral-200">
+          <div className="text-sm text-neutral-600">
+            Hiển thị {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} trong tổng số {pagination.total} bản ghi
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => { const p = Math.max(1, (pagination.page || 1) - 1); setPage(p); load(p, filters); }}
+              disabled={!pagination.hasPrev}
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Trước
+            </button>
+
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: Math.min(5, pagination.totalPages || 1) }, (_, i) => {
+                let pageNum;
+                const totalPages = pagination.totalPages || 1;
+                const currentPage = pagination.page || 1;
+
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => { setPage(pageNum); load(pageNum, filters); }}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
+                      ? "bg-primary-600 text-white"
+                      : "text-neutral-700 hover:bg-neutral-100"
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => { const p = Math.min((pagination.totalPages || 1), (pagination.page || 1) + 1); setPage(p); load(p, filters); }}
+              disabled={!pagination.hasNext}
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Sau
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

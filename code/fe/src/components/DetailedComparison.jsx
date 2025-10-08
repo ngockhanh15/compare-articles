@@ -101,34 +101,38 @@ export default function DetailedComparison() {
 
     const details = selected.duplicateSentencesDetails || [];
     if (Array.isArray(details) && details.length > 0) {
-      // Tạo highlighted text từ input text
-      let highlightedText = inputText;
-
-      // Chỉ highlight các câu đạt sentenceThreshold
+      // 🚀 SIÊU TỐI ƯU: Pre-filter và batch processing
       const filteredDetails = details.filter(d => {
         const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
-        return sim >= thresholds.sentenceThreshold;
+        return sim >= thresholds.sentenceThreshold && d.inputSentence;
       });
 
-      filteredDetails.forEach((d) => {
-        if (d.inputSentence) {
-          const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
-          const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
-          const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
+      if (filteredDetails.length === 0) {
+        return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
+      }
 
-          // Highlight câu trùng lặp trong input text
-          highlightedText = highlightedText.replace(
-            d.inputSentence,
-            `<span style="${highlightStyle}" title="${sim}%">${d.inputSentence}</span>`
-          );
-        }
-      });
+      // 🎯 Tối ưu: Tạo replacement map một lần thay vì multiple replace
+      const replacements = new Map();
+
+      for (const d of filteredDetails) {
+        const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
+        const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
+        const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
+
+        replacements.set(d.inputSentence, `<span style="${highlightStyle}" title="${sim}%">${d.inputSentence}</span>`);
+      }
+
+      // 🚀 Single pass replacement thay vì multiple replace calls
+      let highlightedText = inputText;
+      for (const [original, replacement] of replacements) {
+        highlightedText = highlightedText.replace(original, replacement);
+      }
 
       return `<div style="white-space:pre-wrap; line-height:1.6">${highlightedText.replace(/\n/g, "<br/>")}</div>`;
     }
 
     return `<div style="white-space:pre-wrap; line-height:1.6">${inputText.replace(/\n/g, "<br/>")}</div>`;
-  }, [data, matches, selectedIndex]);
+  }, [data, matches, selectedIndex, thresholds.sentenceThreshold]);
 
   const rightHtml = useMemo(() => {
     const selected = matches[selectedIndex];
@@ -157,26 +161,37 @@ export default function DetailedComparison() {
       // Tạo highlighted text từ toàn bộ nội dung document
       let highlightedText = fullDocumentContent;
 
-      // Chỉ highlight các câu đạt sentenceThreshold
+      // 🚀 SIÊU TỐI ƯU: Pre-filter và batch processing cho rightHtml
       const filteredDetails = details.filter(d => {
         const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
-        return sim >= thresholds.sentenceThreshold;
+        const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
+        return sim >= thresholds.sentenceThreshold && docSentence && highlightedText.includes(docSentence);
       });
 
-      // Highlight các câu trùng lặp trong toàn bộ nội dung
-      filteredDetails.forEach((d) => {
+      if (filteredDetails.length === 0) {
+        return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
+      }
+
+      // 🎯 Tối ưu: Tạo unique sentences map để tránh duplicate highlighting
+      const uniqueSentences = new Map();
+
+      for (const d of filteredDetails) {
         const docSentence = d.docSentence || d.matched || d.text || d.sourceSentence || d.matchedSentence || "";
-        if (docSentence && highlightedText.includes(docSentence)) {
+        if (!uniqueSentences.has(docSentence)) {
           const sim = typeof d.similarity === "number" ? d.similarity : selected.similarity || 0;
           const color = sim >= 80 ? "#ef4444" : sim >= 60 ? "#f59e0b" : "#22c55e";
           const highlightStyle = `background-color:${color}20; border-left:3px solid ${color}; padding:2px 6px; border-radius:4px`;
 
-          // Highlight câu trùng lặp trong toàn bộ nội dung
-          // Sử dụng regex để tránh highlight nhiều lần cùng một câu
-          const regex = new RegExp(docSentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-          highlightedText = highlightedText.replace(regex, `<span style="${highlightStyle}" title="${sim}%">${docSentence}</span>`);
+          uniqueSentences.set(docSentence, `<span style="${highlightStyle}" title="${sim}%">${docSentence}</span>`);
         }
-      });
+      }
+
+      // 🚀 Single pass replacement với escaped regex
+      for (const [original, replacement] of uniqueSentences) {
+        const escapedSentence = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedSentence);
+        highlightedText = highlightedText.replace(regex, replacement);
+      }
 
       return `<div style="white-space:pre-wrap; line-height:1.6">${highlightedText.replace(/\n/g, "<br/>")}</div>`;
     }
@@ -191,7 +206,7 @@ export default function DetailedComparison() {
     });
 
     return `<div style="white-space:pre-wrap; line-height:1.6">${fullDocumentContent.replace(/\n/g, "<br/>")}</div>`;
-  }, [matches, selectedIndex, data]);
+  }, [matches, selectedIndex, data, thresholds.sentenceThreshold]);
 
   if (loading) {
     return (
@@ -282,11 +297,13 @@ export default function DetailedComparison() {
                 Văn bản trong cơ sở dữ liệu (đã tô đậm chỗ trùng)
               </h3>
               <div className="mb-3 text-sm text-neutral-600">
-                Nguồn: <span className="font-medium text-neutral-800">{matches[selectedIndex].source || matches[selectedIndex].title || "Document"}</span> · D A/B: <span className="font-bold">{(() => {
-                  const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
-                  const totalInputSentences = data.totalInputSentences || 1;
-                  return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
-                })()}%</span>
+                Nguồn: <span className="font-medium text-neutral-800" >{(matches[selectedIndex].source || matches[selectedIndex].title || "Document")
+                  .split('-')[0]
+                  .trim()}</span> · D A/B: <span className="font-bold">{(() => {
+                    const docDuplicate = matches[selectedIndex].duplicateSentences || matches[selectedIndex].duplicateSentencesDetails?.length || 0;
+                    const totalInputSentences = data.totalInputSentences || 1;
+                    return ((docDuplicate / totalInputSentences) * 100).toFixed(1);
+                  })()}%</span>
               </div>
               <div className="p-4 border rounded-lg border-neutral-200 bg-neutral-50 max-h-[80vh] overflow-auto">
                 <div
@@ -405,7 +422,7 @@ export default function DetailedComparison() {
                           <div className="flex items-center mb-2">
                             <span className="mr-2 text-lg">📄</span>
                             <h3 className="font-medium truncate text-neutral-800" title={m.source || m.title || "Document"}>
-                              {m.source || m.title || "Document"}
+                              {m.source.split("-")[0] || m.title.split("-")[0] || "Document"}
                             </h3>
                             {/* Hiển thị ID ngắn để phân biệt documents cùng tên */}
                             <span className="ml-2 px-2 py-0.5 text-xs font-mono text-neutral-500 bg-neutral-100 rounded">

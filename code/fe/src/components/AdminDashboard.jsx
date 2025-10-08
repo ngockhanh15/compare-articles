@@ -59,7 +59,7 @@ const AdminDashboard = () => {
   const tabs = [
     { id: "users", name: "Quản lý người dùng", icon: "👥" },
     { id: "documents", name: "Quản lý tài liệu", icon: "📄" },
-    { id: "plagiarism", name: "Quản lý lịch sử kiểm tra", icon: "🔍" },
+    { id: "plagiarism", name: "Quản lý lịch sử", icon: "🔍" },
     { 
       id: "statistics", 
       name: "Báo cáo thống kê", 
@@ -106,7 +106,7 @@ const AdminDashboard = () => {
             <div className="p-2 mr-3 rounded-lg bg-gradient-primary">
               <span className="text-xl">🎯</span>
             </div>
-            <h1 className="text-lg font-bold text-white">Admin Panel</h1>
+            <h1 className="text-lg font-bold text-white">Quản trị hệ thống</h1>
           </div>
           <button
             onClick={toggleSidebar}
@@ -190,10 +190,10 @@ const AdminDashboard = () => {
                 </button>
                 <div>
                   <h1 className="text-xl font-bold text-neutral-800">
-                    Bảng điều khiển Admin
+                    Bảng điều khiển quản trị viên
                   </h1>
                   <p className="text-sm text-neutral-600">
-                    Quản lý hệ thống Filter Word
+                    Quản lý hệ thống phát hiện sao chép tài liệu
                   </p>
                 </div>
               </div>

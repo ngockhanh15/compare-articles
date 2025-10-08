@@ -13,7 +13,7 @@ const ThresholdManagement = () => {
   const [thresholds, setThresholds] = useState({
     sentenceThreshold: 50, // Ngưỡng câu (%)
     highDuplicationThreshold: 30, // Ngưỡng trùng lặp cao (%)
-    documentComparisonThreshold: 20 // Ngưỡng trùng lặp với từng tài liệu (%)
+    documentComparisonThreshold: 20 // Ngưỡng trùng lặp với từng tài liệu (%)`
   });
 
 

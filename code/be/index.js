@@ -271,6 +271,7 @@ app.get("/health", (req, res) => {
 // API routes
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/documents", require("./routes/documents"));
+app.use("/api/avltree", require("./routes/avltree"));
 app.use("/api", require("./routes/api"));
 
 // Error handling middleware

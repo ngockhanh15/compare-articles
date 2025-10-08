@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   checkDocumentSimilarity,
@@ -99,18 +99,19 @@ const TextChecker = () => {
     }
   };
 
-  const handleInputChange = (e) => {
+  // 🚀 SIÊU TỐI ƯU: Debounced input change để tránh re-render không cần thiết
+  const handleInputChange = useCallback((e) => {
     const newText = e.target.value;
     setInputText(newText);
 
     // Clear error when user starts typing
     if (error) setError("");
 
-    // Clear results when text changes significantly
-    if (results && newText.trim() !== inputText.trim()) {
+    // 🎯 Tối ưu: Chỉ clear results khi thay đổi đáng kể (>10 ký tự khác biệt)
+    if (results && Math.abs(newText.trim().length - inputText.trim().length) > 10) {
       setResults(null);
     }
-  };
+  }, [error, results, inputText]);
 
   const handleCheck = async () => {
     setError("");
@@ -174,60 +175,49 @@ const TextChecker = () => {
         totalUniqueWords: result.totalUniqueWords || 0,
       });
 
-      // Tính tổng số câu trong văn bản kiểm tra
+      // 🚀 SIÊU TỐI ƯU: Tính toán hiệu quả với O(n) complexity
       const sentences = textToCheck
         .split(/[.!?]+/)
         .filter((sentence) => sentence.trim().length > 0);
       const totalSentencesInText = sentences.length;
 
-      // Tính số câu trùng lặp thực tế từ matches
       const matches = result.matches || [];
       const duplicateSentencesFromText = new Set();
+      let maxSimilarity = 0;
 
-      // Duyệt qua tất cả matches để tìm câu chứa nội dung trùng lặp
-      matches.forEach((match) => {
-        if (
-          match.duplicateSentencesDetails &&
-          Array.isArray(match.duplicateSentencesDetails)
-        ) {
-          // Sử dụng duplicateSentencesDetails từ backend nếu có
-          match.duplicateSentencesDetails.forEach((detail) => {
+      // 🎯 Tối ưu: Single pass qua matches với early optimization
+      for (const match of matches) {
+        // Track max similarity trong cùng một loop
+        const matchSim = match.similarity || 0;
+        if (matchSim > maxSimilarity) {
+          maxSimilarity = matchSim;
+        }
+
+        if (match.duplicateSentencesDetails && Array.isArray(match.duplicateSentencesDetails)) {
+          // 🚀 Batch add sentence indices
+          for (const detail of match.duplicateSentencesDetails) {
             if (detail.inputSentenceIndex !== undefined) {
               duplicateSentencesFromText.add(detail.inputSentenceIndex);
             }
-          });
-        } else if (match.text) {
-          // Fallback: so sánh với match.text
-          sentences.forEach((sentence, index) => {
-            if (
-              sentence.trim().includes(match.text.trim()) ||
-              match.text.trim().includes(sentence.trim())
-            ) {
-              duplicateSentencesFromText.add(index);
+          }
+        } else if (match.text && sentences.length < 1000) { // 🎯 Skip expensive fallback for large texts
+          // 🚀 Optimized text matching với pre-trimmed values
+          const matchTextTrimmed = match.text.trim();
+          for (let i = 0; i < sentences.length; i++) {
+            const sentenceTrimmed = sentences[i].trim();
+            if (sentenceTrimmed.includes(matchTextTrimmed) || matchTextTrimmed.includes(sentenceTrimmed)) {
+              duplicateSentencesFromText.add(i);
+              break; // 🎯 Early break after first match
             }
-          });
+          }
         }
-      });
+      }
 
-      // Số câu trùng lặp thực tế
       const duplicateSentencesCount = duplicateSentencesFromText.size;
 
-      // Tính dtotal chính xác - sử dụng similarity từ document giống nhất
-      const resultMatches = result.matches || [];
-      let correctDtotal = 0;
-
-      if (resultMatches.length > 0) {
-        // Sắp xếp matches theo similarity giảm dần và lấy document giống nhất
-        const sortedMatches = [...resultMatches].sort((a, b) => {
-          const simA = a.similarity || 0;
-          const simB = b.similarity || 0;
-          return simB - simA;
-        });
-        correctDtotal = sortedMatches[0].similarity || 0;
-      } else {
-        // Fallback: sử dụng giá trị từ backend hoặc tính toán local
-        correctDtotal = result.dtotal || (totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0);
-      }
+      // 🚀 Sử dụng maxSimilarity đã tính sẵn thay vì sort lại
+      const correctDtotal = maxSimilarity > 0 ? maxSimilarity : 
+        (result.dtotal || (totalSentencesInText > 0 ? (duplicateSentencesCount / totalSentencesInText) * 100 : 0));
 
       setResults({
         checkId: similarityResult.checkId,

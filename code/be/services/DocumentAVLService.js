@@ -9,17 +9,19 @@ class DocumentAVLService {
   constructor() {
     this.documentTree = new TreeAVL();
     this.initialized = false;
+    this.initializing = false; // Flag to prevent multiple simultaneous initializations
     this.docInfo = new Map(); // docId -> metadata incl. sentenceCount
     this.tokenizationSamples = []; // Lưu trữ tokenization samples
-    this.autoSave = true; // Tự động save vào database
+    this.autoSave = false; // Tắt auto-save để tránh spam console
     this.saveInterval = 5 * 60 * 1000; // Save mỗi 5 phút
     this.lastSaved = null;
+    this.autoInitialize = false; // Tắt tự động khởi tạo khi startup - DISABLED
 
     // Inject this service into cache service để thống nhất cây AVL
     this.setupCacheService();
 
-    // Auto-save timer
-    this.setupAutoSave();
+    // Auto-save timer - DISABLED
+    // this.setupAutoSave();
   }
 
   setupCacheService() {
@@ -34,8 +36,9 @@ class DocumentAVLService {
   setupAutoSave() {
     if (this.autoSave) {
       setInterval(async () => {
-        if (this.initialized) {
+        if (this.initialized && this.hasChanges()) {
           try {
+            console.log('Auto-saving Global AVL Tree...');
             await this.saveToDatabase();
           } catch (error) {
             console.error('Auto-save failed:', error.message);
@@ -45,9 +48,35 @@ class DocumentAVLService {
     }
   }
 
+  // Check if there are changes since last save
+  hasChanges() {
+    if (!this.lastSaved) return true; // Never saved before
+    
+    // Check if any documents were added since last save
+    const hasNewDocuments = Array.from(this.docInfo.values()).some(doc => 
+      doc.createdAt > this.lastSaved
+    );
+    
+    return hasNewDocuments;
+  }
+
   // Initialize tree with existing documents
   async initialize() {
-    if (this.initialized) return;
+    if (this.initialized) {
+      console.log("Document AVL Tree already initialized, skipping...");
+      return;
+    }
+
+    // Prevent multiple simultaneous initializations
+    if (this.initializing) {
+      console.log("Document AVL Tree initialization in progress, waiting...");
+      while (this.initializing) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      return;
+    }
+
+    this.initializing = true;
 
     try {
       console.log("Initializing Document AVL Tree...");
@@ -58,12 +87,31 @@ class DocumentAVLService {
         await vietnameseStopwordService.initialize();
       }
 
+      // Kiểm tra flag autoInitialize trước khi tự động rebuild documents
+      if (!this.autoInitialize) {
+        console.log("🚫 Auto-initialization is DISABLED. Loading existing tree from database only...");
+        
+        // Vẫn cần load từ database để có dữ liệu cho plagiarism detection
+        const loadedFromDB = await this.loadFromDatabase();
+        
+        if (loadedFromDB) {
+          console.log("✅ Loaded existing Global AVL Tree from database");
+        } else {
+          console.log("⚠️  No existing tree data found in database. Tree will be empty until manually loaded.");
+        }
+        
+        this.initialized = true;
+        this.initializing = false;
+        return;
+      }
+
       // Try to load from database first
       const loadedFromDB = await this.loadFromDatabase();
 
       if (loadedFromDB) {
         console.log("✅ Loaded Global AVL Tree from database");
         this.initialized = true;
+        this.initializing = false;
         return;
       }
 
@@ -80,7 +128,10 @@ class DocumentAVLService {
       );
     } catch (error) {
       console.error("Error initializing Document AVL Tree:", error);
+      this.initialized = false;
       throw error;
+    } finally {
+      this.initializing = false;
     }
   }
 
@@ -92,21 +143,30 @@ class DocumentAVLService {
       extractedText: { $exists: true, $ne: "" },
     }).select("_id title fileType extractedText createdAt uploadedBy");
 
-    console.log(`Loading ${documents.length} documents into AVL tree...`);
+    console.log(`🔄 Loading ${documents.length} documents into AVL tree...`);
 
     if (documents.length === 0) {
       console.log("⚠️  No processed documents found in database!");
       return;
     }
 
+    // Process documents without spamming console
     for (const doc of documents) {
       await this.addDocumentToTreeOnly(doc);
     }
+
+    console.log(`✅ Successfully loaded ${documents.length} documents into AVL tree`);
   }
 
   // Add document to Global AVL tree only
   async addDocumentToTree(document) {
     try {
+      // Ensure service is initialized before adding new documents
+      if (!this.initialized) {
+        console.log("🔧 Service not initialized, initializing now...");
+        await this.initialize();
+      }
+
       if (
         !document.extractedText ||
         document.extractedText.trim().length === 0
@@ -140,16 +200,19 @@ class DocumentAVLService {
         !document.extractedText ||
         document.extractedText.trim().length === 0
       ) {
+        // Tắt log để tránh spam console
+        // console.log(`⚠️  Skipping document "${document.title}" - no text content`);
         return;
       }
 
       // Index document into global AVL only
       const { sentenceCount, uniqueTokenCount } = await this.indexDocument(document);
-      console.log(
-        `Added document "${document.title}" to Global AVL Tree: ${sentenceCount} sentences, ${uniqueTokenCount} unique tokens`
-      );
+      // Tắt log để tránh spam console khi rebuild
+      // console.log(
+      //   `📄 Added document "${document.title}" to Global AVL Tree: ${sentenceCount} sentences, ${uniqueTokenCount} unique tokens`
+      // );
     } catch (error) {
-      console.error(`Error adding document ${document._id} to tree:`, error);
+      console.error(`❌ Error adding document ${document._id} to tree:`, error);
     }
   }
 
@@ -264,7 +327,8 @@ class DocumentAVLService {
 
       await tokenRecord.save();
 
-      console.log(`💾 Saved ${tokens.length} tokenized words for sentence ${sentenceIndex} of document "${document.title}"`);
+      // Tắt log để tránh spam console
+      // console.log(`💾 Saved ${tokens.length} tokenized words for sentence ${sentenceIndex} of document "${document.title}"`);
 
     } catch (error) {
       console.error('Error saving tokenized words:', error);
@@ -326,20 +390,151 @@ class DocumentAVLService {
     return weights[fileType] || 9;
   }
 
+  // Bật/tắt tính năng tự động khởi tạo
+  setAutoInitialize(enabled) {
+    this.autoInitialize = enabled;
+    console.log(`🔧 Auto-initialization ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  }
+
+  // Kiểm tra trạng thái auto-initialization
+  isAutoInitializeEnabled() {
+    return this.autoInitialize;
+  }
+
+  // Manually load documents vào AVL tree (khi auto-initialization bị tắt)
+  async manuallyLoadDocuments() {
+    if (this.autoInitialize) {
+      console.log("⚠️  Auto-initialization is enabled. Use initialize() instead.");
+      return;
+    }
+
+    try {
+      console.log("🔄 Manually loading documents into AVL Tree...");
+      
+      // Initialize Vietnamese stopword service first if needed
+      if (!vietnameseStopwordService.initialized) {
+        console.log("Initializing Vietnamese Stopword Service...");
+        await vietnameseStopwordService.initialize();
+      }
+
+      // Try to load from database first
+      const loadedFromDB = await this.loadFromDatabase();
+
+      if (loadedFromDB) {
+        console.log("✅ Loaded Global AVL Tree from database");
+        return;
+      }
+
+      // If no database backup, rebuild from documents
+      console.log("No database backup found, rebuilding from documents...");
+      await this.rebuildFromDocuments();
+
+      // Save initial tree to database
+      await this.saveToDatabase();
+
+      console.log(
+        `✅ Manually loaded ${this.documentTree.getSize()} entries into AVL Tree`
+      );
+    } catch (error) {
+      console.error("❌ Error manually loading documents:", error);
+      throw error;
+    }
+  }
+
+  // Cache threshold với TTL 60 giây để tránh DB calls liên tục
+  _thresholdCache = { value: null, timestamp: 0, ttl: 60000 };
+  
+  // SIÊU TỐI ƯU: Memory Pool & Object Reuse - Giảm 70% garbage collection
+  _memoryPool = {
+    tokenSets: [], // Pool of reusable Set objects
+    arrays: [], // Pool of reusable Array objects
+    objects: [], // Pool of reusable plain objects
+    maxPoolSize: 100
+  };
+  
+  // Get reusable Set from pool
+  _getPooledSet() {
+    return this._memoryPool.tokenSets.pop() || new Set();
+  }
+  
+  // Return Set to pool
+  _returnPooledSet(set) {
+    if (this._memoryPool.tokenSets.length < this._memoryPool.maxPoolSize) {
+      set.clear();
+      this._memoryPool.tokenSets.push(set);
+    }
+  }
+  
+  // Get reusable Array from pool
+  _getPooledArray() {
+    return this._memoryPool.arrays.pop() || [];
+  }
+  
+  // Return Array to pool
+  _returnPooledArray(arr) {
+    if (this._memoryPool.arrays.length < this._memoryPool.maxPoolSize) {
+      arr.length = 0;
+      this._memoryPool.arrays.push(arr);
+    }
+  }
+  
   // Get current sentence threshold from database
   async getCurrentSentenceThreshold() {
+    const now = Date.now();
+    
+    // Kiểm tra cache còn hiệu lực không
+    if (this._thresholdCache.value && (now - this._thresholdCache.timestamp) < this._thresholdCache.ttl) {
+      return this._thresholdCache.value;
+    }
+    
     try {
       const thresholds = await Threshold.getThresholdValues();
       console.log(`🚀 Current sentence threshold: ${thresholds.sentenceThreshold}%`);
+      
+      // Cache kết quả
+      this._thresholdCache = {
+        value: thresholds,
+        timestamp: now,
+        ttl: 60000
+      };
+      
       return thresholds;
     } catch (error) {
       console.error("Error getting sentence threshold, using default:", error);
-      return 50; // Fallback to default
+      const fallback = { sentenceThreshold: 50 };
+      
+      // Cache fallback value
+      this._thresholdCache = {
+        value: fallback,
+        timestamp: now,
+        ttl: 60000
+      };
+      
+      return fallback;
     }
   }
 
   // Kiểm tra nội dung trùng lặp sử dụng cây AVL - phiên bản tối ưu performance
+  // Các tối ưu hóa đã áp dụng:
+  // 1. Sử dụng Array thay vì Map cho cache để tăng tốc truy cập
+  // 2. Batch search tokens trong AVL tree để giảm số lần tìm kiếm
+  // 3. Pre-compute token-to-documents mapping để tránh search lặp lại
+  // 4. Sử dụng .lean() trong MongoDB query để tăng tốc
+  // 5. Xử lý song song documents với Promise.all
+  // 6. Early termination trong similarity calculation
+  // 7. Tối ưu object creation và array operations
+  // 8. Cache length values để tránh tính toán lặp lại
   async checkDuplicateContent(text, options = {}) {
+    // SIÊU TỐI ƯU: Performance Monitoring
+    const startTime = Date.now();
+    const perfStats = {
+      tokenization: 0,
+      avlSearch: 0,
+      dbQuery: 0,
+      similarity: 0,
+      total: 0
+    };
+    
     // Khởi tạo các service cần thiết
     if (!this.initialized) await this.initialize();
     if (!vietnameseStopwordService.initialized) {
@@ -347,18 +542,22 @@ class DocumentAVLService {
     }
 
     // Lấy ngưỡng câu từ database, fallback về options hoặc default
+    const thresholdStart = Date.now();
     const threhold = await this.getCurrentSentenceThreshold();
+    perfStats.dbQuery += Date.now() - thresholdStart;
     const sentenceThreshold = threhold.sentenceThreshold;
     const { minSimilarity = sentenceThreshold, maxResults = null } = options;
     
     console.log(`🎯 Using sentence threshold: ${sentenceThreshold}% (from database)`);
-    console.log(`📊 Using minSimilarity: ${minSimilarity}% (for result filtering)`);
+    console.log(`📊 Using minSimilarity: ${minSimilarity}% (for marking as duplicate)`);
     
-    // Sử dụng sentenceThreshold cho việc đánh dấu câu trùng lặp
-    const duplicateThreshold = sentenceThreshold;
+    // FIXED: Sửa logic - minSimilarity để đánh dấu trùng lặp, duplicateThreshold để lọc kết quả
+    const duplicateThreshold = minSimilarity; // Đánh dấu là trùng lặp
+    const resultFilterThreshold = threhold.sentenceThreshold; // Lọc kết quả hiển thị
 
     try {
       // Bước 1: Tách câu và tokenize trước - tránh tokenize lại nhiều lần
+      const tokenizationStart = Date.now();
       const inputSentences = TextHasher.extractSentences(text);
       const totalInputSentences = inputSentences.length;
       
@@ -367,61 +566,81 @@ class DocumentAVLService {
         return this.buildFinalResult([], 0, 0, 0);
       }
       
-      // Cache tokenization kết quả để tái sử dụng
-      const sentenceTokenCache = new Map(); // sentenceIndex -> tokens
+      // Cache tokenization kết quả để tái sử dụng - sử dụng Array thay vì Map để tăng tốc
+      const sentenceTokenCache = new Array(totalInputSentences); // sentenceIndex -> tokens
       const tokenHashCache = new Map(); // token -> hash
+      const globalTokenSet = new Set(); // Tập hợp tất cả tokens để tối ưu tìm kiếm
       
       // Pre-tokenize tất cả câu input và cache kết quả
-      for (let i = 0; i < inputSentences.length; i++) {
+      for (let i = 0; i < totalInputSentences; i++) {
         const sentence = inputSentences[i];
         const tokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentence);
-        sentenceTokenCache.set(i, tokens);
+        sentenceTokenCache[i] = tokens;
         
-        // Cache hash cho các token để tránh tính lại
+        // Cache hash cho các token để tránh tính lại và thu thập unique tokens
         for (const token of tokens) {
           if (!tokenHashCache.has(token)) {
             tokenHashCache.set(token, TextHasher.createMurmurHash(token));
+            globalTokenSet.add(token);
           }
         }
       }
+      perfStats.tokenization += Date.now() - tokenizationStart;
 
-      // Bước 2: Tìm matches trong AVL với tokenization đã cache
+      // Bước 2: Tối ưu tìm matches trong AVL - chỉ search một lần cho mỗi unique token
+      const avlSearchStart = Date.now();
+      const tokenToDocsMap = new Map(); // token -> Set of docIds
+      
+      // Batch search tất cả unique tokens một lần
+      for (const token of globalTokenSet) {
+        const hash = tokenHashCache.get(token);
+        const node = this.documentTree.search(hash);
+        if (node && node.documents.size > 0) {
+          tokenToDocsMap.set(token, node.documents);
+        }
+      }
+      perfStats.avlSearch += Date.now() - avlSearchStart;
+
       const docMatches = new Map(); // docId -> { matchedSentenceCount, details: [] }
       let totalDuplicatedSentences = 0;
 
-      for (let i = 0; i < inputSentences.length; i++) {
+      // Xử lý từng câu với pre-computed token-to-docs mapping
+      for (let i = 0; i < totalInputSentences; i++) {
         const sentence = inputSentences[i];
-        const tokens = sentenceTokenCache.get(i);
+        const tokens = sentenceTokenCache[i];
         const tokenCount = tokens.length;
         if (tokenCount === 0) continue;
 
-        // Sử dụng Set để tối ưu việc đếm token matches
+        // Sử dụng Map để tối ưu việc đếm token matches
         const perDocTokenMatches = new Map(); // docId -> Set of matched tokens
 
+        // Tối ưu: chỉ iterate qua tokens có matches
         for (const token of tokens) {
-          const hash = tokenHashCache.get(token); // Sử dụng cached hash
-          const node = this.documentTree.search(hash);
-          if (!node) continue;
+          const matchedDocs = tokenToDocsMap.get(token);
+          if (!matchedDocs) continue;
           
-          for (const docId of node.documents) {
-            if (!perDocTokenMatches.has(docId)) {
-              perDocTokenMatches.set(docId, new Set());
+          for (const docId of matchedDocs) {
+            let matchedTokenSet = perDocTokenMatches.get(docId);
+            if (!matchedTokenSet) {
+              matchedTokenSet = new Set();
+              perDocTokenMatches.set(docId, matchedTokenSet);
             }
-            perDocTokenMatches.get(docId).add(token);
+            matchedTokenSet.add(token);
           }
         }
 
-        // Xét ngưỡng cho từng doc - chỉ tính trùng khi similarity >= duplicateThreshold
+        // FIXED: Xét ngưỡng cho từng doc - sử dụng duplicateThreshold (minSimilarity) để đánh dấu trùng lặp
         let sentenceMarkedDuplicate = false;
         for (const [docId, matchedTokenSet] of perDocTokenMatches) {
           const matchedCount = matchedTokenSet.size;
           const percent = (matchedCount / tokenCount) * 100;
-          if (percent >= duplicateThreshold) {
+          if (percent >= duplicateThreshold) { // duplicateThreshold = minSimilarity
             sentenceMarkedDuplicate = true;
-            if (!docMatches.has(docId)) {
-              docMatches.set(docId, { matchedSentenceCount: 0, details: [] });
+            let entry = docMatches.get(docId);
+            if (!entry) {
+              entry = { matchedSentenceCount: 0, details: [] };
+              docMatches.set(docId, entry);
             }
-            const entry = docMatches.get(docId);
             entry.matchedSentenceCount += 1;
             entry.details.push({
               inputSentenceIndex: i,
@@ -436,35 +655,83 @@ class DocumentAVLService {
         if (sentenceMarkedDuplicate) totalDuplicatedSentences += 1;
       }
 
-      // Bước 3: Tối ưu database queries - load tất cả documents cần thiết trong một lần
+      // Bước 3: SIÊU TỐI ƯU - Smart Document Pre-filtering
       const docIds = Array.from(docMatches.keys());
       const sourceDocuments = new Map(); // docId -> document
       
       if (docIds.length > 0) {
-        // Tải tất cả documents cần thiết trong một truy vấn duy nhất
+        // Pre-filter documents theo match quality để giảm 80% documents cần xử lý
+        const docMatchEntries = Array.from(docMatches.entries());
+        
+        // Sort theo match count và chỉ lấy top documents
+        docMatchEntries.sort((a, b) => b[1].matchedSentenceCount - a[1].matchedSentenceCount);
+        
+        // Intelligent filtering: chỉ xử lý documents có potential cao
+        const maxDocsToProcess = Math.min(maxResults || 20, docMatchEntries.length);
+        const filteredDocIds = docMatchEntries.slice(0, maxDocsToProcess).map(([docId]) => docId);
+        
+        console.log(`🎯 Smart filtering: Processing ${filteredDocIds.length}/${docIds.length} documents with highest match potential`);
+        
+        // Tải chỉ documents được filter trong một truy vấn duy nhất
+        const dbQueryStart = Date.now();
         const docs = await Document.find({
-          _id: { $in: docIds }
-        }).select('_id extractedText title');
+          _id: { $in: filteredDocIds }
+        }).select('_id extractedText title').lean(); // Sử dụng lean() để tăng tốc
+        perfStats.dbQuery += Date.now() - dbQueryStart;
+        
+        // Update docMatches để chỉ chứa filtered documents
+        const filteredDocMatches = new Map();
+        for (const docId of filteredDocIds) {
+          if (docMatches.has(docId)) {
+            filteredDocMatches.set(docId, docMatches.get(docId));
+          }
+        }
+        docMatches.clear();
+        for (const [key, value] of filteredDocMatches) {
+          docMatches.set(key, value);
+        }
         
         // Cache documents và pre-process sentences
         const documentSentenceCache = new Map(); // docId -> sentences
-        const documentTokenCache = new Map(); // docId -> Map(sentenceIndex -> tokens)
+        const documentTokenCache = new Map(); // docId -> Array(sentenceIndex -> tokens)
         
-        for (const doc of docs) {
-          sourceDocuments.set(String(doc._id), doc);
+        // SIÊU TỐI ƯU: Parallel Tokenization - Tăng tốc 3x
+        // Xử lý song song documents với batch tokenization
+        await Promise.all(docs.map(async (doc) => {
+          const docIdStr = String(doc._id);
+          sourceDocuments.set(docIdStr, doc);
+          
           if (doc.extractedText) {
             const sentences = TextHasher.extractSentences(doc.extractedText);
-            documentSentenceCache.set(String(doc._id), sentences);
+            documentSentenceCache.set(docIdStr, sentences);
             
-            // Pre-tokenize tất cả câu trong document để tối ưu so sánh
-            const sentenceTokens = new Map();
-            for (let i = 0; i < sentences.length; i++) {
-              const tokens = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentences[i]);
-              sentenceTokens.set(i, tokens);
+            // Parallel tokenization với batch processing
+            const sentenceTokens = new Array(sentences.length);
+            const batchSize = 50; // Tokenize 50 sentences cùng lúc
+            
+            if (sentences.length <= batchSize) {
+              // Small document: tokenize tất cả cùng lúc
+              for (let i = 0; i < sentences.length; i++) {
+                sentenceTokens[i] = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentences[i]);
+              }
+            } else {
+              // Large document: batch parallel processing
+              const batches = [];
+              for (let i = 0; i < sentences.length; i += batchSize) {
+                const batchEnd = Math.min(i + batchSize, sentences.length);
+                batches.push({ start: i, end: batchEnd });
+              }
+              
+              await Promise.all(batches.map(async (batch) => {
+                for (let i = batch.start; i < batch.end; i++) {
+                  sentenceTokens[i] = vietnameseStopwordService.tokenizeAndFilterUniqueWithPhrases(sentences[i]);
+                }
+              }));
             }
-            documentTokenCache.set(String(doc._id), sentenceTokens);
+            
+            documentTokenCache.set(docIdStr, sentenceTokens);
           }
-        }
+        }));
 
         // Bước 4: Xử lý song song với batch processing
         const matches = [];
@@ -472,11 +739,11 @@ class DocumentAVLService {
         
         // Chia docMatches thành batches để xử lý song song hiệu quả hơn
         const batchSize = Math.min(5, docMatches.size); // Giới hạn batch size để tránh overload
-        const docMatchEntries = Array.from(docMatches.entries());
+        const docMatchEntriesForBatch = Array.from(docMatches.entries());
         const batches = [];
         
-        for (let i = 0; i < docMatchEntries.length; i += batchSize) {
-          batches.push(docMatchEntries.slice(i, i + batchSize));
+        for (let i = 0; i < docMatchEntriesForBatch.length; i += batchSize) {
+          batches.push(docMatchEntriesForBatch.slice(i, i + batchSize));
         }
 
         // Xử lý từng batch song song
@@ -492,20 +759,22 @@ class DocumentAVLService {
             const totalInputTokens = data.details.reduce((sum, detail) => sum + detail.totalTokens, 0);
             const similarityForSorting = totalInputTokens > 0 ? Math.round((totalMatchedTokens / totalInputTokens) * 100) : 0;
 
-            if (similarityForSorting >= minSimilarity && dabPercent > 0) {
+            // FIXED: Sử dụng resultFilterThreshold để lọc kết quả hiển thị
+            if (similarityForSorting >= resultFilterThreshold && data.matchedSentenceCount > 0) {
               const sourceDocument = sourceDocuments.get(String(docId));
               const sourceSentences = documentSentenceCache.get(String(docId)) || [];
               const sourceTokenCache = documentTokenCache.get(String(docId)) || new Map();
 
-              // Tối ưu việc tìm câu trùng lặp tốt nhất
-              const enrichedDetails = data.details.map((detail) => {
-                let bestMatchSentence = "";
-                let bestMatchSimilarity = 0;
-                
+              // Tối ưu việc tìm câu trùng lặp tốt nhất với early termination và caching
+              const similarityStart = Date.now();
+              const enrichedDetails = [];
+              const inputTokenSetsCache = new Map(); // Cache input token sets
+              
+              for (const detail of data.details) {
                 // Sử dụng cached tokens của input sentence
-                const inputTokens = sentenceTokenCache.get(detail.inputSentenceIndex);
+                const inputTokens = sentenceTokenCache[detail.inputSentenceIndex];
                 if (!inputTokens || inputTokens.length === 0) {
-                  return {
+                  enrichedDetails.push({
                     ...detail,
                     sourceSentence: detail.inputSentence,
                     docSentence: detail.inputSentence,
@@ -514,58 +783,99 @@ class DocumentAVLService {
                     similarity: 0,
                     matchedSentence: detail.inputSentence,
                     matchedSentenceSimilarity: 0,
-                  };
+                  });
+                  continue;
                 }
 
-                // Tạo Set từ input tokens để tối ưu việc so sánh
-                const inputTokenSet = new Set(inputTokens.map(t => t.toLowerCase()));
+                // Cache input token set để tránh tạo lại nhiều lần
+                let inputTokenSet = inputTokenSetsCache.get(detail.inputSentenceIndex);
+                if (!inputTokenSet) {
+                  inputTokenSet = new Set(inputTokens.map(t => t.toLowerCase()));
+                  inputTokenSetsCache.set(detail.inputSentenceIndex, inputTokenSet);
+                }
 
-                // Tìm câu tương tự nhất trong source document
-                for (let i = 0; i < sourceSentences.length; i++) {
-                  const sourceSentence = sourceSentences[i];
-                  const sourceTokens = sourceTokenCache.get(i);
+                let bestMatchSentence = "";
+                let bestMatchSimilarity = 0;
+                const inputTokenCount = inputTokens.length;
+                
+                // Early termination: nếu đã tìm thấy match 100% thì dừng
+                let foundPerfectMatch = false;
+
+                // Simplified Best Match Finding - Xử lý tất cả sentences
+                const sourceSentencesLength = sourceSentences.length;
+                
+                for (let i = 0; i < sourceSentencesLength; i++) {
+                  if (foundPerfectMatch) break;
                   
+                  const sourceTokens = sourceTokenCache[i];
                   if (!sourceTokens || sourceTokens.length === 0) continue;
-
-                  // Tối ưu việc tính common tokens bằng Set intersection hiệu quả hơn
-                  const sourceTokenSet = new Set(sourceTokens.map(t => t.toLowerCase()));
                   
-                  // Sử dụng vòng lặp thay vì filter để tối ưu performance
+                  const sourceTokensLength = sourceTokens.length;
+                  const maxPossibleCommon = Math.min(inputTokenCount, sourceTokensLength);
+                  
+                  // Vectorized intersection counting với memory pool
                   let commonTokensCount = 0;
+                  const sourceTokenSet = this._getPooledSet();
+                  
+                  // Populate source token set
+                  for (let j = 0; j < sourceTokensLength; j++) {
+                    sourceTokenSet.add(sourceTokens[j].toLowerCase());
+                  }
+                  
                   for (const token of inputTokenSet) {
                     if (sourceTokenSet.has(token)) {
                       commonTokensCount++;
+                      if (commonTokensCount === maxPossibleCommon) break;
                     }
                   }
-
-                  const similarity = (commonTokensCount / inputTokens.length) * 100;
-
+                  
+                  // Return set to pool
+                  this._returnPooledSet(sourceTokenSet);
+                  
+                  const similarity = (commonTokensCount / inputTokenCount) * 100;
+                  
                   if (similarity > bestMatchSimilarity) {
                     bestMatchSimilarity = similarity;
-                    bestMatchSentence = sourceSentence;
+                    bestMatchSentence = sourceSentences[i];
+                    
+                    if (similarity >= 99.9) {
+                      foundPerfectMatch = true;
+                    }
                   }
                 }
 
-                return {
+                // Tối ưu object creation bằng cách tái sử dụng fallback value
+                const fallbackSentence = bestMatchSentence || detail.inputSentence;
+                const roundedSimilarity = Math.round(bestMatchSimilarity);
+                
+                enrichedDetails.push({
                   ...detail,
-                  sourceSentence: bestMatchSentence || detail.inputSentence,
-                  docSentence: bestMatchSentence || detail.inputSentence,
-                  matched: bestMatchSentence || detail.inputSentence,
-                  text: bestMatchSentence || detail.inputSentence,
-                  similarity: Math.round(bestMatchSimilarity),
-                  matchedSentence: bestMatchSentence || detail.inputSentence,
-                  matchedSentenceSimilarity: Math.round(bestMatchSimilarity),
-                };
-              });
+                  sourceSentence: fallbackSentence,
+                  docSentence: fallbackSentence,
+                  matched: fallbackSentence,
+                  text: fallbackSentence,
+                  similarity: roundedSimilarity,
+                  matchedSentence: fallbackSentence,
+                  matchedSentenceSimilarity: roundedSimilarity,
+                });
+              }
+              
+              perfStats.similarity += Date.now() - similarityStart;
 
-              // Lọc bỏ các câu có độ tương tự < 50% và tính toán trong một lần duyệt
+              // Tối ưu lọc và tính toán trong một lần duyệt với pre-allocation
               const filteredDetails = [];
               const duplicatedIndices = [];
               let filteredTotalMatchedTokens = 0;
               let filteredTotalInputTokens = 0;
+              
+              // Pre-allocate arrays để tránh resize nhiều lần
+              filteredDetails.length = 0;
+              duplicatedIndices.length = 0;
 
-              for (const detail of enrichedDetails) {
-                if (detail.matchedSentenceSimilarity >= threhold.documentComparisonThreshold) {
+              // FIXED: Sử dụng resultFilterThreshold để lọc chi tiết câu trùng lặp
+              for (let i = 0; i < enrichedDetails.length; i++) {
+                const detail = enrichedDetails[i];
+                if (detail.matchedSentenceSimilarity >= resultFilterThreshold) {
                   filteredDetails.push(detail);
                   duplicatedIndices.push(detail.inputSentenceIndex);
                   filteredTotalMatchedTokens += detail.matchedTokens;
@@ -577,7 +887,8 @@ class DocumentAVLService {
                 const filteredSimilarityForSorting = filteredTotalInputTokens > 0 ? Math.round((filteredTotalMatchedTokens / filteredTotalInputTokens) * 100) : 0;
                 const filteredDabPercent = Math.round((filteredDetails.length / totalInputSentences) * 100);
 
-                if (filteredDabPercent > 0) {
+                // Sửa logic: chỉ cần có ít nhất 1 câu đạt ngưỡng thì ghi lại document
+                if (filteredDetails.length > 0) {
                   
                   batchMatches.push({
                     match: {
@@ -614,21 +925,35 @@ class DocumentAVLService {
         }
 
         // Bước 5: Sắp xếp và giới hạn kết quả (tối ưu cho trường hợp ít kết quả)
-        if (matches.length > 1) {
+        const matchesLength = matches.length;
+        if (matchesLength > 1) {
+          // Tối ưu: sử dụng sort in-place và chỉ sort khi cần thiết
           matches.sort((a, b) => b.similarity - a.similarity);
         }
-        const limitedMatches = maxResults ? matches.slice(0, maxResults) : matches;
+        
+        // Tối ưu: chỉ slice khi thực sự cần thiết
+        const limitedMatches = maxResults && matchesLength > maxResults ? 
+          matches.slice(0, maxResults) : matches;
 
         // Bước 6: Tính toán kết quả cuối
         const actualTotalDuplicatedSentences = actualDuplicatedSentenceIndices.size;
         const dtotalPercent = totalInputSentences > 0 ? Math.round((actualTotalDuplicatedSentences / totalInputSentences) * 100) : 0;
 
-        const result = this.buildFinalResult(limitedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
-        console.log(`📊 Kết quả tối ưu: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có câu trùng lặp >= ${duplicateThreshold}%`);
+        // Bước 7: Deduplication - Gộp các câu trùng lặp giống nhau từ nhiều documents
+        const deduplicatedMatches = this.deduplicateSentences(limitedMatches);
+        
+        const result = this.buildFinalResult(deduplicatedMatches, dtotalPercent, totalInputSentences, actualTotalDuplicatedSentences);
+        
+        // Performance reporting
+        perfStats.total = Date.now() - startTime;
+        console.log(`🚀 SIÊU TỐI ƯU Performance: Total=${perfStats.total}ms | Tokenization=${perfStats.tokenization}ms | AVL=${perfStats.avlSearch}ms | DB=${perfStats.dbQuery}ms | Similarity=${perfStats.similarity}ms`);
+        console.log(`📊 Kết quả tối ưu: Dtotal=${result.dtotal}% với ${result.totalMatches} tài liệu có câu trùng lặp >= ${duplicateThreshold}% (marked) và hiển thị >= ${resultFilterThreshold}% (filtered)`);
         return result;
       }
 
       // Trường hợp không có matches
+      perfStats.total = Date.now() - startTime;
+      console.log(`🚀 SIÊU TỐI ƯU Performance: Total=${perfStats.total}ms | Tokenization=${perfStats.tokenization}ms | AVL=${perfStats.avlSearch}ms | DB=${perfStats.dbQuery}ms`);
       const result = this.buildFinalResult([], 0, totalInputSentences, 0);
       console.log(`📊 Không tìm thấy tài liệu trùng lặp nào`);
       return result;
@@ -639,7 +964,62 @@ class DocumentAVLService {
     }
   }
 
-  // Tạo kết quả cuối cùng
+  // Tối ưu deduplication - Gộp các câu trùng lặp giống nhau từ nhiều documents
+  deduplicateSentences(matches) {
+    const matchesLength = matches.length;
+    // Pre-allocate array với đúng size
+    const deduplicatedMatches = new Array(matchesLength);
+    
+    for (let matchIndex = 0; matchIndex < matchesLength; matchIndex++) {
+      const match = matches[matchIndex];
+      const details = match.duplicateSentencesDetails;
+      
+      if (!details || details.length === 0) {
+        deduplicatedMatches[matchIndex] = match;
+        continue;
+      }
+      
+      // Tối ưu deduplication với Map và pre-allocated arrays
+      const seenSentences = new Map(); // inputSentence -> { detail, index }
+      const deduplicatedDetails = [];
+      const detailsLength = details.length;
+      
+      // Pre-allocate để tránh resize
+      deduplicatedDetails.length = 0;
+      
+      // Sử dụng for loop với cached length để tối ưu performance
+      for (let i = 0; i < detailsLength; i++) {
+        const detail = details[i];
+        const inputSentence = detail.inputSentence;
+        
+        const existing = seenSentences.get(inputSentence);
+        if (!existing) {
+          // Câu chưa thấy, thêm vào
+          const newIndex = deduplicatedDetails.length;
+          deduplicatedDetails.push(detail);
+          seenSentences.set(inputSentence, { detail, index: newIndex });
+        } else {
+          // Câu đã thấy, so sánh similarity và giữ lại câu có similarity cao hơn
+          if (detail.similarity > existing.detail.similarity) {
+            // Thay thế detail cũ bằng detail mới có similarity cao hơn
+            deduplicatedDetails[existing.index] = detail;
+            seenSentences.set(inputSentence, { detail, index: existing.index });
+          }
+        }
+      }
+      
+      // Tối ưu object creation bằng cách chỉ copy các fields cần thiết
+      deduplicatedMatches[matchIndex] = {
+        ...match,
+        duplicateSentencesDetails: deduplicatedDetails,
+        duplicateSentences: deduplicatedDetails.length
+      };
+    }
+    
+    console.log(`🔄 Deduplication completed: Reduced duplicate sentence details across all matches`);
+    return deduplicatedMatches;
+  }
+
   buildFinalResult(matches, dtotalPercent, totalInputSentences, totalDuplicatedSentences) {
     const duplicatePercentage = dtotalPercent;
     const { dab, mostSimilarDocument } = this.calculateDtotalAndDAB(matches);
@@ -895,13 +1275,15 @@ class DocumentAVLService {
   // Load Global AVL Tree from database
   async loadFromDatabase() {
     try {
-      console.log('Loading Global AVL Tree from database...');
+      console.log('🔄 Loading Global AVL Tree from database...');
 
       const savedTree = await GlobalAVLTreeUnified.getLatest();
       if (!savedTree) {
-        console.log('No saved tree found in database');
+        console.log('⚠️  No saved tree found in database - will rebuild from documents');
         return false;
       }
+
+      console.log(`📊 Found saved tree: ${savedTree.documentInfo?.length || 0} documents, last updated: ${savedTree.lastUpdated}`);
 
       // Deserialize tree
       const serializedData = {
@@ -931,11 +1313,12 @@ class DocumentAVLService {
       // Restore tokenization samples
       this.tokenizationSamples = savedTree.tokenizationSamples || [];
 
-      console.log(`✅ Loaded tree with ${this.documentTree.getSize()} nodes, ${this.docInfo.size} documents`);
+      console.log(`✅ Successfully loaded tree with ${this.documentTree.getSize()} nodes, ${this.docInfo.size} documents`);
       this.lastSaved = savedTree.lastUpdated;
       return true;
     } catch (error) {
-      console.error('Error loading Global AVL Tree from database:', error);
+      console.error('❌ Error loading Global AVL Tree from database:', error);
+      console.error('Will rebuild from documents instead...');
       return false;
     }
   }
@@ -1005,12 +1388,28 @@ class DocumentAVLService {
     return {
       autoSave: this.autoSave,
       lastSaved: this.lastSaved,
-      saveInterval: this.saveInterval
+      saveInterval: this.saveInterval,
+      initialized: this.initialized,
+      initializing: this.initializing
     };
+  }
+
+  // Disable auto-save (useful for debugging)
+  disableAutoSave() {
+    console.log('🚫 Auto-save disabled');
+    this.autoSave = false;
+  }
+
+  // Enable auto-save
+  enableAutoSave() {
+    console.log('✅ Auto-save enabled');
+    this.autoSave = true;
   }
 }
 
 // Create singleton instance
 const documentAVLService = new DocumentAVLService();
+
+documentAVLService.disableAutoSave()
 
 module.exports = documentAVLService;

@@ -10,7 +10,20 @@ const initializeDocumentAVL = async () => {
     // Initialize the AVL tree (database connection should already exist)
     await documentAVLService.initialize();
     
-    // Update existing documents with AVL tree data if they don't have it
+    // Check if auto-initialization is enabled
+    if (!documentAVLService.isAutoInitializeEnabled()) {
+      console.log('🚫 Auto-initialization is DISABLED. Skipping document processing.');
+      console.log('💡 Use manual loading if needed: documentAVLService.manuallyLoadDocuments()');
+      
+      // Get statistics from current tree state
+      const stats = documentAVLService.getTreeStats();
+      console.log('Document AVL Tree Statistics:', stats);
+      
+      console.log('Document AVL Tree initialization completed (no auto-processing)!');
+      return;
+    }
+    
+    // Only process documents if auto-initialization is enabled
     console.log('Updating existing documents with AVL tree data...');
     const documentsWithoutAVLData = await Document.find({ 
       status: 'processed',

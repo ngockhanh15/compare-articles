@@ -219,6 +219,95 @@ router.delete('/document/:documentId', async (req, res) => {
   }
 });
 
+// Get auto-initialization status
+router.get('/auto-init/status', async (req, res) => {
+  try {
+    const isEnabled = documentAVLService.isAutoInitializeEnabled();
+    const stats = documentAVLService.getTreeStats();
+    
+    res.json({
+      success: true,
+      autoInitialize: isEnabled,
+      initialized: stats.initialized,
+      totalDocuments: stats.totalDocuments,
+      totalNodes: stats.totalNodes
+    });
+  } catch (error) {
+    console.error('Error getting auto-init status:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Enable/disable auto-initialization
+router.post('/auto-init/toggle', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        error: 'enabled parameter must be a boolean'
+      });
+    }
+    
+    documentAVLService.setAutoInitialize(enabled);
+    
+    res.json({
+      success: true,
+      message: `Auto-initialization ${enabled ? 'enabled' : 'disabled'}`,
+      autoInitialize: enabled
+    });
+  } catch (error) {
+    console.error('Error toggling auto-init:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Manually load documents (when auto-init is disabled)
+router.post('/manual-load', async (req, res) => {
+  try {
+    if (documentAVLService.isAutoInitializeEnabled()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Auto-initialization is enabled. Disable it first to use manual loading.'
+      });
+    }
+    
+    const beforeStats = documentAVLService.getTreeStats();
+    
+    await documentAVLService.manuallyLoadDocuments();
+    
+    const afterStats = documentAVLService.getTreeStats();
+    
+    res.json({
+      success: true,
+      message: 'Documents loaded manually into AVL tree',
+      before: {
+        totalDocuments: beforeStats.totalDocuments,
+        totalNodes: beforeStats.totalNodes,
+        initialized: beforeStats.initialized
+      },
+      after: {
+        totalDocuments: afterStats.totalDocuments,
+        totalNodes: afterStats.totalNodes,
+        initialized: afterStats.initialized
+      }
+    });
+  } catch (error) {
+    console.error('Error manually loading documents:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get detailed tree data (for debugging)
 router.get('/debug', async (req, res) => {
   try {

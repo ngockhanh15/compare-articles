@@ -383,11 +383,17 @@ exports.checkDocumentSimilarity = async (req, res) => {
         language: options.language || "vi",
         checkType: "document-based", // Đánh dấu là document-based check
       },
+      // 🚀 CACHING OPTIMIZATION - Lưu kết quả chi tiết để tránh gọi lại checkDuplicateContent
+      detailedResult: result, // Lưu toàn bộ kết quả từ DocumentAVLService
+      
       // Thêm thông số mới
-      totalSentencesWithInputWords: result.totalSentencesWithInputWords,
-      maxDuplicateSentences: result.maxDuplicateSentences,
-      documentWithMostDuplicates: result.documentWithMostDuplicates,
-      totalDuplicateSentences: result.totalDuplicateSentences,
+      totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+      dtotal: result.dtotal || 0,
+      dab: result.dab || 0,
+      totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
+      maxDuplicateSentences: result.maxDuplicateSentences || 0,
+      documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+      totalDuplicateSentences: result.totalDuplicateSentences || 0,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent"),
     });
@@ -484,6 +490,17 @@ exports.checkPlagiarism = async (req, res) => {
         sensitivity: options.sensitivity || "medium",
         language: options.language || "vi",
       },
+      // 🚀 CACHING OPTIMIZATION - Lưu kết quả chi tiết cho plagiarism check
+      detailedResult: result, // Lưu toàn bộ kết quả từ DocumentAVLService
+      
+      // Metadata bổ sung
+      totalInputSentences: result.totalInputSentences || result.totalInputHashes || 0,
+      dtotal: result.dtotal || 0,
+      dab: result.dab || 0,
+      totalSentencesWithInputWords: result.totalSentencesWithInputWords || 0,
+      maxDuplicateSentences: result.maxDuplicateSentences || 0,
+      documentWithMostDuplicates: result.documentWithMostDuplicates || null,
+      totalDuplicateSentences: result.totalDuplicateSentences || 0,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent"),
     });
@@ -950,9 +967,13 @@ exports.clearCache = async (req, res) => {
 
 // Get detailed comparison with most similar document
 exports.getDetailedComparison = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const { checkId } = req.params;
     const userId = req.user.id;
+
+    console.log(`🔍 getDetailedComparison started for checkId: ${checkId}`);
 
     const plagiarismCheck = await PlagiarismCheck.findOne({
       _id: checkId,
@@ -966,55 +987,79 @@ exports.getDetailedComparison = async (req, res) => {
       });
     }
 
-    // Sử dụng DocumentAVLService để kiểm tra giống như checkDocumentSimilarity
-    // Không truyền minSimilarity để sử dụng sentenceThreshold từ database
-    const result = await documentAVLService.checkDuplicateContent(
-      plagiarismCheck.originalText,
-      {
-        chunkSize: 50,
-        maxResults: 20,
-      }
-    );
+    // 🚀 TỐI ƯU: Sử dụng cached result thay vì gọi lại checkDuplicateContent
+    let result;
+    let cacheHit = false;
+    
+    if (plagiarismCheck.detailedResult) {
+      console.log("✅ Using cached detailed result from database");
+      result = plagiarismCheck.detailedResult;
+      cacheHit = true;
+    } else {
+      console.log("⚠️  No cached result found, performing fresh check...");
+      // Fallback: Sử dụng DocumentAVLService để kiểm tra giống như checkDocumentSimilarity
+      result = await documentAVLService.checkDuplicateContent(
+        plagiarismCheck.originalText,
+        {
+          chunkSize: 50,
+          maxResults: 20,
+        }
+      );
+      cacheHit = false;
+    }
 
-    // Khởi tạo biến
+    // 🚀 BATCH DATABASE OPTIMIZATION - Lấy tất cả documents cần thiết trong 1 query
+    const Document = require("../models/Document");
+    let documentsMap = new Map();
     let mostSimilarDocument = null;
     let mostSimilarContent = "";
     let overallSimilarity = result.duplicatePercentage || 0;
     let detailedMatches = [];
 
-    // Tìm document có similarity cao nhất và lấy toàn bộ nội dung
     if (result.matches && result.matches.length > 0) {
+      // 🎯 Tối ưu: Collect tất cả documentIds cần fetch
+      const documentIds = [...new Set(result.matches.map(match => match.documentId).filter(Boolean))];
+      
+      if (documentIds.length > 0) {
+        console.log(`📊 Batch loading ${documentIds.length} documents...`);
+        
+        // 🚀 Single batch query thay vì N individual queries
+        const documents = await Document.find({ _id: { $in: documentIds } }).lean();
+        
+        // 🎯 Tạo Map để O(1) lookup
+        documents.forEach(doc => {
+          documentsMap.set(doc._id.toString(), doc);
+        });
+        
+        console.log(`✅ Loaded ${documents.length} documents into memory map`);
+      }
+
+      // Tìm document có similarity cao nhất
       const bestMatch = result.matches.reduce((prev, current) =>
         prev.similarity > current.similarity ? prev : current
       );
 
-      if (bestMatch) {
-        // Lấy toàn bộ nội dung document từ database
-        try {
-          const Document = require("../models/Document");
-          const fullDocument = await Document.findById(bestMatch.documentId);
-
+      if (bestMatch && bestMatch.documentId) {
+        const fullDocument = documentsMap.get(bestMatch.documentId.toString());
+        
+        if (fullDocument) {
           mostSimilarDocument = {
-            fileName:
-              bestMatch.title ||
+            fileName: bestMatch.title || fullDocument.fileName || fullDocument.title || 
               `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
-            fileSize: fullDocument?.fileSize || bestMatch.textLength || 0,
-            fileType: bestMatch.fileType || "text/plain",
-            author: bestMatch.uploadedBy?.name || "Unknown",
-            uploadedAt: bestMatch.createdAt || new Date(),
-            wordCount: fullDocument?.extractedText
+            fileSize: fullDocument.fileSize || bestMatch.textLength || 0,
+            fileType: fullDocument.fileType || bestMatch.fileType || "text/plain",
+            author: bestMatch.uploadedBy?.name || fullDocument.uploadedBy?.name || "Unknown",
+            uploadedAt: fullDocument.createdAt || bestMatch.createdAt || new Date(),
+            wordCount: fullDocument.extractedText
               ? fullDocument.extractedText.split(/\s+/).filter((w) => w.length > 0).length
               : 0,
           };
 
-          // Sử dụng toàn bộ nội dung document thay vì chỉ matchedText
-          mostSimilarContent = fullDocument?.extractedText || bestMatch.matchedText || "";
-        } catch (docError) {
-          console.warn("Could not fetch full document content:", docError);
+          mostSimilarContent = fullDocument.extractedText || bestMatch.matchedText || "";
+        } else {
+          // Fallback nếu không tìm thấy document
           mostSimilarDocument = {
-            fileName:
-              bestMatch.title ||
-              `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
+            fileName: bestMatch.title || `Document-${bestMatch.documentId.toString().substring(0, 8)}`,
             fileSize: bestMatch.textLength || 0,
             fileType: bestMatch.fileType || "text/plain",
             author: bestMatch.uploadedBy?.name || "Unknown",
@@ -1028,22 +1073,22 @@ exports.getDetailedComparison = async (req, res) => {
       }
     }
 
-    const Document = require("../models/Document"); // Import Document model
-
+    // 🚀 OPTIMIZED DETAILED MATCHES PROCESSING - Sử dụng documentsMap thay vì individual queries
+    const originalText = plagiarismCheck.originalText;
+    
     for (let index = 0; index < result.matches.length; index++) {
       const match = result.matches[index];
 
       console.log(`Processing match ${index}: documentId=${match.documentId}, title=${match.title}, similarity=${match.similarity}%`);
 
-      const originalText = plagiarismCheck.originalText;
-
-      // Lấy toàn bộ nội dung document từ database
+      // 🎯 Tối ưu: Sử dụng documentsMap thay vì database query
       let fullDocumentContent = "";
-      try {
-        const fullDocument = await Document.findById(match.documentId);
-        fullDocumentContent = fullDocument?.extractedText || match.matchedText || "";
-      } catch (docError) {
-        console.warn(`Could not fetch full content for document ${match.documentId}:`, docError);
+      const fullDocument = documentsMap.get(match.documentId?.toString());
+      
+      if (fullDocument) {
+        fullDocumentContent = fullDocument.extractedText || match.matchedText || "";
+      } else {
+        console.warn(`Document ${match.documentId} not found in documentsMap, using fallback`);
         fullDocumentContent = match.matchedText || "";
       }
 
@@ -1061,16 +1106,15 @@ exports.getDetailedComparison = async (req, res) => {
         originalText: matchText,
         matchedText: fullDocumentContent, // Trả về toàn bộ nội dung document
         similarity: match.similarity,
-        source:
-          match.title ||
+        source: match.title || fullDocument?.fileName || fullDocument?.title ||
           `Document-${match.documentId.toString().substring(0, 8)}`,
         url: `internal://document/${match.documentId}`,
         startPosition: startIndex >= 0 ? startIndex : 0,
         endPosition:
           startIndex >= 0 ? startIndex + matchText.length : matchText.length,
         documentId: match.documentId,
-        fileType: match.fileType,
-        createdAt: match.createdAt,
+        fileType: match.fileType || fullDocument?.fileType,
+        createdAt: match.createdAt || fullDocument?.createdAt,
         method: "document-based",
         duplicateSentences: match.duplicateSentences || 0,
         duplicateSentencesDetails: match.duplicateSentencesDetails || [],
@@ -1155,26 +1199,25 @@ exports.getDetailedComparison = async (req, res) => {
       similarHighlightedText = highlightedText;
     }
 
-    // Lấy thông tin mostSimilarDocument từ database để có đầy đủ nội dung
+    // 🚀 OPTIMIZED: Sử dụng documentsMap thay vì query riêng lẻ
     let enhancedMostSimilarDocument = null;
     if (result.mostSimilarDocument && result.mostSimilarDocument.id) {
-      try {
-        const fullDocument = await Document.findById(result.mostSimilarDocument.id);
-        if (fullDocument) {
-          enhancedMostSimilarDocument = {
-            ...result.mostSimilarDocument,
-            content: fullDocument.extractedText || "",
-            fullContent: fullDocument.extractedText || "",
-            title: fullDocument.title || fullDocument.fileName || "",
-            fileName: fullDocument.fileName || "",
-            fileType: fullDocument.fileType || "",
-            createdAt: fullDocument.createdAt,
-            highlightedText: similarHighlightedText,
-          };
-          console.log(`📋 Loaded full content for mostSimilarDocument: ${fullDocument.extractedText?.length || 0} characters`);
-        }
-      } catch (docError) {
-        console.warn(`Could not fetch full content for mostSimilarDocument ${result.mostSimilarDocument.id}:`, docError);
+      const fullDocument = documentsMap.get(result.mostSimilarDocument.id.toString());
+      
+      if (fullDocument) {
+        enhancedMostSimilarDocument = {
+          ...result.mostSimilarDocument,
+          content: fullDocument.extractedText || "",
+          fullContent: fullDocument.extractedText || "",
+          title: fullDocument.title || fullDocument.fileName || "",
+          fileName: fullDocument.fileName || "",
+          fileType: fullDocument.fileType || "",
+          createdAt: fullDocument.createdAt,
+          highlightedText: similarHighlightedText,
+        };
+        console.log(`📋 Loaded full content for mostSimilarDocument from cache: ${fullDocument.extractedText?.length || 0} characters`);
+      } else {
+        console.warn(`MostSimilarDocument ${result.mostSimilarDocument.id} not found in documentsMap`);
         enhancedMostSimilarDocument = {
           ...result.mostSimilarDocument,
           content: mostSimilarContent || "",
@@ -1249,9 +1292,22 @@ exports.getDetailedComparison = async (req, res) => {
       }
     };
 
+    // 📊 PERFORMANCE MONITORING
+    const totalTime = Date.now() - startTime;
+    console.log(`🚀 getDetailedComparison completed in ${totalTime}ms`);
+    console.log(`📈 Performance Stats:`, {
+      cacheHit,
+      totalTime: `${totalTime}ms`,
+      documentsLoaded: documentsMap.size,
+      matchesProcessed: result.matches?.length || 0,
+      detailedMatchesGenerated: detailedMatches.length,
+      overallSimilarity: `${overallSimilarity}%`
+    });
+
     res.json(response);
   } catch (error) {
-    console.error("Get detailed comparison error:", error);
+    const totalTime = Date.now() - startTime;
+    console.error(`❌ Get detailed comparison error (${totalTime}ms):`, error);
     res.status(500).json({
       success: false,
       message: "Lỗi khi lấy so sánh chi tiết",

@@ -525,8 +525,8 @@ const UserManagement = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center space-x-2">
                       <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
                         }`}>
                         {user.isActive ? 'Hoạt động' : 'Bị khóa'}
                       </span>
@@ -546,8 +546,8 @@ const UserManagement = () => {
                       <button
                         onClick={() => handleToggleUserStatus(user._id, user.isActive)}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${user.isActive
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                            : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200'
                           }`}
                       >
                         {user.isActive ? 'Khóa' : 'Mở khóa'}
@@ -571,25 +571,52 @@ const UserManagement = () => {
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-neutral-700">
-            Hiển thị {((currentPage - 1) * usersPerPage) + 1} đến {Math.min(currentPage * usersPerPage, pagination.totalUsers)} trong tổng số {pagination.totalUsers} người dùng
+        <div className="flex items-center justify-between pt-6 border-t border-neutral-200">
+          <div className="text-sm text-neutral-600">
+            Hiển thị {((currentPage - 1) * usersPerPage) + 1} - {Math.min(currentPage * usersPerPage, pagination.totalUsers)} trong tổng số {pagination.totalUsers} người dùng
           </div>
-          <div className="flex space-x-2">
+
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={!pagination.hasPrevPage}
-              className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Trước
             </button>
-            <span className="px-3 py-2 text-sm font-medium border rounded-lg text-neutral-700 bg-neutral-100 border-neutral-300">
-              {currentPage} / {pagination.totalPages}
-            </span>
+
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                let pageNum;
+                if (pagination.totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= pagination.totalPages - 2) {
+                  pageNum = pagination.totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
+                      ? "bg-primary-600 text-white"
+                      : "text-neutral-700 hover:bg-neutral-100"
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, pagination.totalPages))}
               disabled={!pagination.hasNextPage}
-              className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Sau
             </button>

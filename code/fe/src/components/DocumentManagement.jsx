@@ -205,7 +205,7 @@ const DocumentManagement = () => {
       if (response.success) {
         // Kiểm tra và xử lý nội dung text - API trả về extractedText
         const documentText = response.extractedText || response.text || response.data?.extractedText || response.data?.text || '';
-        
+
         if (!documentText.trim()) {
           setError("Tài liệu không có nội dung văn bản hoặc không thể trích xuất được nội dung.");
           return;
@@ -286,14 +286,14 @@ const DocumentManagement = () => {
               </div>
               <div class="footer">
                 <p>Được tạo bởi hệ thống quản lý tài liệu - ${(() => {
-                  const now = new Date();
-                  const day = now.getDate().toString().padStart(2, '0');
-                  const month = (now.getMonth() + 1).toString().padStart(2, '0');
-                  const year = now.getFullYear();
-                  const hours = now.getHours().toString().padStart(2, '0');
-                  const minutes = now.getMinutes().toString().padStart(2, '0');
-                  return `${day}/${month}/${year} ${hours}:${minutes}`;
-                })()}</p>
+              const now = new Date();
+              const day = now.getDate().toString().padStart(2, '0');
+              const month = (now.getMonth() + 1).toString().padStart(2, '0');
+              const year = now.getFullYear();
+              const hours = now.getHours().toString().padStart(2, '0');
+              const minutes = now.getMinutes().toString().padStart(2, '0');
+              return `${day}/${month}/${year} ${hours}:${minutes}`;
+            })()}</p>
               </div>
             </body>
             </html>
@@ -380,7 +380,7 @@ const DocumentManagement = () => {
       setError("Ngày bắt đầu không thể lớn hơn ngày kết thúc");
       return;
     }
-    
+
     console.log("Applying date filter:", { startDate, endDate });
     setAppliedStartDate(startDate);
     setAppliedEndDate(endDate);
@@ -412,7 +412,7 @@ const DocumentManagement = () => {
     const year = date.getFullYear();
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    
+
     return `${day}/${month}/${year} ${hours}:${minutes}`;
   };
 
@@ -431,7 +431,7 @@ const DocumentManagement = () => {
   const handleExportToExcel = async () => {
     try {
       setIsExporting(true);
-      
+
       // Use current documents in the table (no need to fetch again)
       if (documents.length === 0) {
         setError("Không có dữ liệu để xuất");
@@ -439,90 +439,90 @@ const DocumentManagement = () => {
       }
 
       const exportData = documents.map((doc, index) => {
-          const baseData = {
-            'STT': index + 1,
-            'Tên tài liệu': doc.title || '',
-            'Tên file': doc.fileName || '',
-            'Tác giả': doc.author || 'Không có thông tin tác giả',
-            'Loại file': doc.fileType?.toUpperCase() || '',
-            'Kích thước': formatFileSize(doc.fileSize || 0),
-            'Trạng thái': doc.status === 'processed' ? 'Đã xử lý' : 
-                         doc.status === 'processing' ? 'Đang xử lý' : 
-                         doc.status === 'failed' ? 'Lỗi' : doc.status,
-            'Ngày tải lên': formatDate(doc.uploadedAt),
-            'Mô tả': doc.description || '',
-            'Tags': doc.tags || ''
-          };
+        const baseData = {
+          'STT': index + 1,
+          'Tên tài liệu': doc.title || '',
+          'Tên file': doc.fileName || '',
+          'Tác giả': doc.author || 'Không có thông tin tác giả',
+          'Loại file': doc.fileType?.toUpperCase() || '',
+          'Kích thước': formatFileSize(doc.fileSize || 0),
+          'Trạng thái': doc.status === 'processed' ? 'Đã xử lý' :
+            doc.status === 'processing' ? 'Đang xử lý' :
+              doc.status === 'failed' ? 'Lỗi' : doc.status,
+          'Ngày tải lên': formatDate(doc.uploadedAt),
+          'Mô tả': doc.description || '',
+          'Tags': doc.tags || ''
+        };
 
-          // Add uploader info if admin
-          if (isAdmin) {
-            baseData['Người tải lên'] = doc.uploadedBy?.name || 'Không xác định';
-            baseData['Email người tải'] = doc.uploadedBy?.email || '';
-          }
-
-          return baseData;
-        });
-
-        // Create workbook and worksheet
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(exportData);
-
-        // Set column widths
-        const colWidths = [
-          { wch: 5 },   // STT
-          { wch: 30 },  // Tên tài liệu
-          { wch: 25 },  // Tên file
-          { wch: 20 },  // Tác giả
-          { wch: 10 },  // Loại file
-          { wch: 12 },  // Kích thước
-          { wch: 12 },  // Trạng thái
-          { wch: 18 },  // Ngày tải lên
-          { wch: 30 },  // Mô tả
-          { wch: 20 },  // Tags
-        ];
-
+        // Add uploader info if admin
         if (isAdmin) {
-          colWidths.push({ wch: 20 }); // Người tải lên
-          colWidths.push({ wch: 25 }); // Email người tải
+          baseData['Người tải lên'] = doc.uploadedBy?.name || 'Không xác định';
+          baseData['Email người tải'] = doc.uploadedBy?.email || '';
         }
 
-        ws['!cols'] = colWidths;
+        return baseData;
+      });
 
-        // Add worksheet to workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'Danh sách tài liệu');
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
 
-        // Generate filename with current date and page info
-        let filename = 'Danh_sach_tai_lieu';
-        if (searchTerm) {
-          filename += `_tim_kiem_${searchTerm.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      // Set column widths
+      const colWidths = [
+        { wch: 5 },   // STT
+        { wch: 30 },  // Tên tài liệu
+        { wch: 25 },  // Tên file
+        { wch: 20 },  // Tác giả
+        { wch: 10 },  // Loại file
+        { wch: 12 },  // Kích thước
+        { wch: 12 },  // Trạng thái
+        { wch: 18 },  // Ngày tải lên
+        { wch: 30 },  // Mô tả
+        { wch: 20 },  // Tags
+      ];
+
+      if (isAdmin) {
+        colWidths.push({ wch: 20 }); // Người tải lên
+        colWidths.push({ wch: 25 }); // Email người tải
+      }
+
+      ws['!cols'] = colWidths;
+
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Danh sách tài liệu');
+
+      // Generate filename with current date and page info
+      let filename = 'Danh_sach_tai_lieu';
+      if (searchTerm) {
+        filename += `_tim_kiem_${searchTerm.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      }
+      if (filterType !== 'all') {
+        filename += `_${filterType}`;
+      }
+      if (appliedStartDate || appliedEndDate) {
+        filename += '_loc_ngay';
+        if (appliedStartDate) {
+          filename += `_tu_${appliedStartDate.replace(/-/g, '')}`;
         }
-        if (filterType !== 'all') {
-          filename += `_${filterType}`;
+        if (appliedEndDate) {
+          filename += `_den_${appliedEndDate.replace(/-/g, '')}`;
         }
-        if (appliedStartDate || appliedEndDate) {
-          filename += '_loc_ngay';
-          if (appliedStartDate) {
-            filename += `_tu_${appliedStartDate.replace(/-/g, '')}`;
-          }
-          if (appliedEndDate) {
-            filename += `_den_${appliedEndDate.replace(/-/g, '')}`;
-          }
-        }
-        filename += `_trang_${currentPage}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
+      }
+      filename += `_trang_${currentPage}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx`;
 
-        // Save file
-        XLSX.writeFile(wb, filename);
+      // Save file
+      XLSX.writeFile(wb, filename);
 
-        // Show success message temporarily
-        const successMessage = `Đã xuất thành công ${exportData.length} tài liệu (trang ${currentPage}) ra file Excel: ${filename}`;
-        setError(""); // Clear any previous errors
-        
-        // Show success notification (you can replace this with a proper toast notification)
-        const originalTitle = document.title;
-        document.title = "✅ Xuất Excel thành công!";
-        setTimeout(() => {
-          document.title = originalTitle;
-        }, 3000);
+      // Show success message temporarily
+      const successMessage = `Đã xuất thành công ${exportData.length} tài liệu (trang ${currentPage}) ra file Excel: ${filename}`;
+      setError(""); // Clear any previous errors
+
+      // Show success notification (you can replace this with a proper toast notification)
+      const originalTitle = document.title;
+      document.title = "✅ Xuất Excel thành công!";
+      setTimeout(() => {
+        document.title = originalTitle;
+      }, 3000);
     } catch (error) {
       setError("Không thể xuất file Excel: " + error.message);
       console.error("Error exporting to Excel:", error);
@@ -682,7 +682,7 @@ const DocumentManagement = () => {
           <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <span className="text-blue-600">📅</span>
             <span className="text-sm text-blue-700">
-              Đang lọc theo ngày: 
+              Đang lọc theo ngày:
               {appliedStartDate && ` từ ${new Date(appliedStartDate).toLocaleDateString('vi-VN')}`}
               {appliedStartDate && appliedEndDate && ' '}
               {appliedEndDate && ` đến ${new Date(appliedEndDate).toLocaleDateString('vi-VN')}`}
@@ -792,25 +792,52 @@ const DocumentManagement = () => {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-neutral-700">
-            Hiển thị {((currentPage - 1) * documentsPerPage) + 1} đến {Math.min(currentPage * documentsPerPage, totalDocuments)} trong tổng số {totalDocuments} tài liệu
+        <div className="flex items-center justify-between pt-6 border-t border-neutral-200">
+          <div className="text-sm text-neutral-600">
+            Hiển thị {((currentPage - 1) * documentsPerPage) + 1} - {Math.min(currentPage * documentsPerPage, totalDocuments)} trong tổng số {totalDocuments} tài liệu
           </div>
-          <div className="flex space-x-2">
+
+          <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Trước
             </button>
-            <span className="px-3 py-2 text-sm font-medium border rounded-lg text-neutral-700 bg-neutral-100 border-neutral-300">
-              {currentPage} / {totalPages}
-            </span>
+
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${currentPage === pageNum
+                      ? "bg-primary-600 text-white"
+                      : "text-neutral-700 hover:bg-neutral-100"
+                      }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+
             <button
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
               disabled={currentPage === totalPages}
-              className="px-3 py-2 text-sm font-medium bg-white border rounded-lg text-neutral-500 border-neutral-300 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium transition-colors border rounded-lg border-neutral-300 text-neutral-700 hover:bg-neutral-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Sau
             </button>
@@ -925,8 +952,8 @@ const UploadModal = ({ onClose, onUpload, isUploading, uploadProgress }) => {
             {/* File Upload Area */}
             <div
               className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${dragActive
-                  ? 'border-blue-400 bg-blue-50'
-                  : 'border-neutral-300 hover:border-neutral-400'
+                ? 'border-blue-400 bg-blue-50'
+                : 'border-neutral-300 hover:border-neutral-400'
                 }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}

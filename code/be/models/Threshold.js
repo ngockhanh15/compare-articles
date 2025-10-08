@@ -55,7 +55,7 @@ thresholdSchema.statics.getCurrentThresholds = async function() {
   try {
     // Lấy threshold mới nhất
     const threshold = await this.findOne().sort({ updatedAt: -1 });
-    
+
     if (!threshold) {
       // Nếu chưa có threshold nào, tạo mặc định
       const defaultThreshold = new this({
